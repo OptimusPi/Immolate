@@ -13,8 +13,8 @@ __constant int maxAnte = 8;
 __constant long cardsPerAnte[] = {10, 30, 50, 50, 50, 50, 50, 50};
 
 // Change this to the deck and stake you want to use with this seed
-__constant item deck = Red_Deck;
-__constant item stake = Gold_Stake;
+__constant item deck = Anaglyph_Deck;
+__constant item stake = White_Stake;
 
 // Reroll queue is used for duplicates.
 // e.g.: You have The Order, and there's another The Order in shop.

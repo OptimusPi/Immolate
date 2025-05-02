@@ -5,6 +5,13 @@ typedef struct Card {
     item seal;
 } card;
 
+typedef struct Result {
+    ulong seed; // Unique identifier for the game layout
+    int wants[10]; // Array to store scores for up to 10 jokers
+    int totalJokers; // Sum of all joker scores
+    int genericScore; // Optional generic score for sorting
+} result;
+
 bool is_voucher_active(instance* inst, item voucher) {
     return inst->params.vouchers[voucher - (V_BEGIN + 1)];
 }
@@ -194,9 +201,6 @@ rarity next_joker_rarity(instance* inst, rsrc itemSource, int ante) {
     if (itemSource == S_Uncommon_Tag) {
         return Rarity_Uncommon;
     }
-    if (itemSource == S_Riff_Raff) {
-        return Rarity_Common;
-    } 
 
     double randomNumber = random(inst, (__private ntype[]){N_Type, N_Ante, N_Source}, (__private int[]){R_Joker_Rarity, ante, itemSource}, 3);
     if (randomNumber > 0.95) {
@@ -703,4 +707,47 @@ item next_orbital_tag(instance* inst) {
     item result = randchoice_simple_dynamic(inst, R_Orbital_Tag, unlockedHands);
 
     return result;
+}
+
+bool meets_needs(instance* inst) {
+    // Implement logic to check if "needs" are met
+    // Return true if all needs are satisfied, false otherwise
+    return true; // Placeholder
+}
+
+result calculate_result(instance* inst, ulong seed) {
+    result res;
+    res.seed = seed;
+
+    // Initialize scores
+    for (int i = 0; i < 10; i++) {
+        res.wants[i] = 0; // Replace with actual scoring logic for each joker
+    }
+
+    // Example scoring logic (replace with actual logic)
+    res.wants[0] = random_simple(inst, R_Joker_Common) > 0.5 ? 1 : 0;
+    res.wants[1] = random_simple(inst, R_Joker_Uncommon) > 0.7 ? 1 : 0;
+
+    // Calculate total jokers
+    res.totalJokers = 0;
+    for (int i = 0; i < 10; i++) {
+        res.totalJokers += res.wants[i];
+    }
+
+    // Calculate generic score (optional)
+    res.genericScore = res.totalJokers; // Example: use total jokers as the generic score
+
+    return res;
+}
+
+void process_seed(instance* inst, ulong seed, __global result* results, int* resultIndex) {
+    if (!meets_needs(inst)) {
+        return; // Skip seeds that don't meet "needs"
+    }
+
+    result res = calculate_result(inst, seed);
+
+    // Store the result in the global results array
+    int index = atomic_add(resultIndex, 1);
+    results[index] = res;
 }

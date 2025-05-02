@@ -1,0 +1,33 @@
+# Immolate Configuration File
+# Global Settings
+max_ante=12
+min_ante=1
+deck=Ghost_Deck
+stake=Black_Stake
+use_showman=true
+
+# Item search configuration
+[ITEMS]
+# Format: item_name,score,flags,source,pack_type
+# flags: 0=Normal, 1=Must be negative, 2=Negative bonus, 3=From pack, 4=Multiple ok
+# source: 0=Any, 1=Specific pack
+# item_name must match the actual enum value in items.cl
+
+# High priority items
+Showman,10000,0,0,0
+Blueprint,5000,1,0,0
+The_Soul,2000,0,1,Spectral_Pack
+
+# Medium priority items
+Space_Joker,1000,0,0,0
+Smeared_Joker,1000,0,0,0
+Oops_All_6s,3000,2,0,0
+Hanging_Chad,500,0,0,0
+Brainstorm,800,1,0,0
+
+# Legendary jokers
+Perkeo,6000,1,0,0
+Canio,6000,1,0,0
+
+# For getting multiple instances
+Bloodstone,500,4,0,0

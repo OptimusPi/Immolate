@@ -1,3 +1,6 @@
+#ifndef ITEMS_H
+#define ITEMS_H
+
 // Contains every kind of thing you could search for!
 
 typedef enum Item {
@@ -1545,3 +1548,5 @@ item rank_repr(item rank) {
 item from_rank_suit(item rank, item suit) {
     return suit_repr(suit) + rank_repr(rank) - C_2;
 }
+
+#endif // ITEMS_H

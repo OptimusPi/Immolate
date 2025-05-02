@@ -6,12 +6,12 @@ long filter(instance* inst) {
     for (int i = 0; i < 13; i++) scores[i] = 0;
     item deck[52];
     init_deck(inst, deck);
+    int score = 0;
     for (int i = 0; i < 52; i++) {
-       scores[rank(deck[i])-_2]++;
-    }
-    int score = scores[0];
-    for (int i = 1; i < 13; i++) {
-        if (scores[i] > score) score = scores[i];
+    int _rank = rank(deck[i])-_2;
+       if (++scores[_rank] > score) {
+           score = scores[_rank];
+       }
     }
     return score;
 }

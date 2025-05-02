@@ -36,6 +36,7 @@ void check_next_pack(instance* inst, int ante, bool *hasShowman, int *hasShowman
 
     for (int index = 0; index < pack.size; index++) {
         if (jokers[index] == Showman) {
+            inst->params.showman = true;
             *hasShowman = true;
             *hasShowmanAnte = ante;
             break;
@@ -44,6 +45,9 @@ void check_next_pack(instance* inst, int ante, bool *hasShowman, int *hasShowman
 }
 
 long filter(instance* inst) {
+    set_deck(inst, Magic_Deck);
+    set_stake(inst, White_Stake);
+    init_locks(inst, 1, false, false);
     int bestAnte = 0;
     long bestScore = 0;
     int hasShowmanAnte = 0;
@@ -53,8 +57,9 @@ long filter(instance* inst) {
     int maxPacks = 4;
 
     // Because of ante-based RNG, we check every ante and store the best ante as the result
-    for (int ante = 1; ante <= 5; ante++) {
-        bool hasEmperor = false;
+    bool hasEmperor = false;
+    for (int ante = 1; ante <= 2; ante++) {
+        init_unlocks(inst, ante, false);
         
         if (!hasShowman || !hasEmperor) {
             for (int shopItem = 0; shopItem < 6; shopItem++) {

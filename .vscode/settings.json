@@ -1,5 +1,7 @@
 {
     "files.associations": {
         "time.h": "c"
-    }
+    },
+    "OpenCL.explorer.localizedProperties": false,
+    "python-envs.pythonProjects": []
 }

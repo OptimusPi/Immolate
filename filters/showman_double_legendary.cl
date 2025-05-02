@@ -4,6 +4,9 @@ long filter(instance* inst) {
     int ante = 1;
     inst->params.showman = true;
 
+
+    
+
     if (next_tag(inst, 1) != Coupon_Tag) {
         return 0;
     }

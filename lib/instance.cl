@@ -1,3 +1,6 @@
+#ifndef INSTANCE_H
+#define INSTANCE_H
+
 // Contains settings used for different packs
 // Level means level of the voucher, level 0 -> no voucher, level 1 -> base voucher, level 2 -> upgraded voucher
 typedef struct InstanceParameters {
@@ -334,3 +337,5 @@ void init_unlocks(instance* inst, int ante, bool fresh_profile) {
         inst->locked[The_Ox] = false;
     }
 }
+
+#endif // INSTANCE_H

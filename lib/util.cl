@@ -1,3 +1,6 @@
+#ifndef UTIL_H
+#define UTIL_H
+
 // Pseudohash
 typedef struct Text {
     char str[256];
@@ -217,3 +220,5 @@ text int_to_str(int x) {
 #if V_AT_MOST(0,9999,9999,9999)
     #define DEMO
 #endif
+
+#endif // UTIL_H

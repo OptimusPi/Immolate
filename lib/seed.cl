@@ -1,10 +1,9 @@
+#ifndef SEED_H
+#define SEED_H
+
 // Some important definitions
 __constant char SEEDCHARS[] = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 __constant int NUM_CHARS = 35;
-
-int s_char_num(char c){
-    return c - (49 + (c>57)*7);
-}
 
 typedef struct Seed {
     ulong8 data;
@@ -36,7 +35,11 @@ seed s_new_c8(char8 str_seed) {
             seed.len = i;
             return seed;
         }
-        seed.data[i] = s_char_num(str_seed[i]);
+        for (char j = 0; j < NUM_CHARS; j++) {
+            if (SEEDCHARS[j] == str_seed[i]) {
+                seed.data[i] = j;
+            }
+        }
     }
     seed.len = 8;
     return seed;
@@ -72,30 +75,33 @@ void s_print_rank(seed* s, long rank) {
     printf("%s (%li)\n",s_str.str,rank);
 }
 void s_next(seed* s) {
-    s->data[s->len-1] = (s->data[s->len-1]+1)%NUM_CHARS;
-    int carry = s->data[s->len-1] == 0;
-    for (int i = s->len - 2; (i >= 0 && carry); i--) {
-        s->data[i] = (s->data[i]+carry)%NUM_CHARS;
-        carry = carry & (s->data[i] == 0);
+    bool carry = true;
+    while (carry) {
+        for (int i = 1; i <= s->len; i++) {
+            int j = s->len-i;
+            if (carry) {
+                s->data[j]++;
+                if ((carry = (s->data[j]>=NUM_CHARS))) {
+                    s->data[j] -= NUM_CHARS;
+                }
+            } else break;
+        }
+        if (carry) {
+            if (s->len<8) {
+                for (int i = 7; i > 0; i--) {
+                    s->data[i] = 0;
+                }
+                s->data[0] = 0;
+                s->len++;
+            } else {
+                s->len = 0;
+            }
+            carry = false;
+        }
     }
-    s->len += carry;
 }
 void s_skip(seed* s, long n) {
-    int carry = 0;
-    int i = s->len - 1;
-    int j = 0;
-    ulong8 data = 0;
-    while(n > 0 || carry || j < s->len){
-        int sum = carry + (n % NUM_CHARS);
-        sum += s->data[i * (i >= 0)] * (i >= 0) + -1 * (i < 0); //Branchless equivalent of if(i >= 0) {sum += s->data[i];} else {sum--;}
-        data[j] = sum % NUM_CHARS;
-        carry = sum >= NUM_CHARS;
-        n /= NUM_CHARS;
-        i--;
-        j++;
-    }
-    s->len += (j - s->len) * (s->len <= j);
-    for(int x = 0; x < s->len; x++){
-        s->data[s->len-1-x] = data[x];
-    }
+    for (int i = 0; i < n; i++) s_next(s);
 }
+
+#endif // SEED_H

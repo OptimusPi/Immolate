@@ -1,0 +1,550 @@
+PS X:\Immolate> .\Immolate.exe -f analyzer -g 1 -n 1 -s PUTVQWOS
+Immolate Beta v1.0.1f.1
+Building program...
+Starting searcher...
+
+==ANTE 1==
+Boss: The Window
+Voucher: Director's Cut
+Tags: D6 Tag, Speed Tag
+Shop Queue:
+1) Clever Joker
+2) Pluto
+3) The Star
+4) Blueprint
+5) Superposition
+6) To the Moon
+7) Smeared Joker
+8) Venus
+9) Trading Card
+10) Lusty Joker
+
+Reroll Queues:
+Shop Planets [1]: Jupiter, Pluto, Venus, Planet X, Earth, Venus
+Shop Tarots [1]: The Star, The Devil, The Magician, Strength, Temperance, The Fool
+Common Shop Jokers [1]: Photograph, Hanging Chad, Juggler, Hallucination, Business Card, Misprint
+Uncommon Shop Jokers [1]: Ceremonial Dagger, Four Fingers, Pareidolia, Seeing Double, Flower Pot, Seltzer
+Rare Shop Jokers [1]: The Family, Baseball Card, Burnt Joker, Invisible Joker, Baron, The Order
+Shop Planets [2]: Neptune, Jupiter, Eris
+Shop Tarots [2]: The Hanged Man, Temperance, The Moon
+Common Shop Jokers [2]: Raised Fist, Walkie Talkie, Even Steven
+Uncommon Shop Jokers [2]: Showman, Glass Joker, Luchador
+Rare Shop Jokers [2]: Campfire, Ancient Joker, Hit the Road
+
+Packs:
+Buffoon Pack: Greedy Joker, Red Card
+Celestial Pack: Saturn, Jupiter, Mercury
+Arcana Pack: The High Priestess, The Lovers, Strength
+Arcana Pack: The Star, The Tower, The High Priestess
+
+==ANTE 2==
+Boss: The House
+Voucher: Planet Merchant
+Tags: Speed Tag, Economy Tag
+Shop Queue:
+1) Drunkard
+2) Strength
+3) The Magician
+4) Neptune
+5) Wee Joker
+6) Misprint
+7) The Moon
+8) Delayed Gratification
+9) Neptune
+10) Hit the Road
+11) The Idol
+12) Drunkard
+13) Faceless Joker
+14) Midas Mask
+15) Ice Cream
+16) Chaos the Clown
+17) Half Joker
+18) Banner
+19) Red Card
+20) Business Card
+21) Ride the Bus
+22) Scholar
+23) Smiley Face
+24) Scary Face
+25) Banner
+26) Mercury
+27) Greedy Joker
+28) Smeared Joker
+29) Cloud 9
+30) Hologram
+
+Reroll Queues:
+Shop Planets [1]: Venus, Neptune, Mercury, Mars, Uranus, Saturn
+Shop Tarots [1]: The Magician, The Hierophant, The World, The Fool, The Hierophant, The Star
+Common Shop Jokers [1]: Golden Ticket, Red Card, Faceless Joker, Shoot the Moon, Crazy Joker, Fortune Teller
+Uncommon Shop Jokers [1]: Rocket, Diet Cola, Gift Card, Burglar, Rough Gem, Dusk
+Rare Shop Jokers [1]: The Trio, DNA, Burnt Joker, Vagabond, Driver's License, Brainstorm
+Shop Planets [2]: Earth, Mercury, Eris
+Shop Tarots [2]: The Emperor, The Empress, Judgement (Troubadour)
+Common Shop Jokers [2]: Golden Joker, Raised Fist, Chaos the Clown
+Uncommon Shop Jokers [2]: Acrobat, Card Sharp, Blackboard
+Rare Shop Jokers [2]: Ancient Joker, Wee Joker, Obelisk
+
+Packs:
+Jumbo Arcana Pack: The Sun, The Devil, Strength, The Emperor, The Empress
+Standard Pack: Glass D 3, Glass C Q, D 7
+Jumbo Arcana Pack: The Sun, The World, Death, Justice, The Hermit
+Celestial Pack: Venus, Mercury, Saturn
+Arcana Pack: Judgement (Egg), Strength, The Hierophant
+Arcana Pack: The Lovers, Strength, Temperance
+
+==ANTE 3==
+Boss: The Goad
+Voucher: Planet Merchant
+Tags: Polychrome Tag, Juggle Tag
+Shop Queue:
+1) Droll Joker
+2) Superposition
+3) Hack
+4) Raised Fist
+5) Showman
+6) Mercury
+7) The Sun
+8) Pareidolia
+9) Erosion
+10) Jupiter
+11) Devious Joker
+12) Fortune Teller
+13) The Hierophant
+14) Chaos the Clown
+15) Fortune Teller
+16) Neptune
+17) The Chariot
+18) Polychrome Fortune Teller
+19) Crazy Joker
+20) Smiley Face
+21) Crafty Joker
+22) The Devil
+23) Droll Joker
+24) Marble Joker
+25) To Do List
+26) Merry Andy
+27) Venus
+28) 8 Ball
+29) Mime
+30) Ramen
+31) The Emperor
+32) Mad Joker
+33) Delayed Gratification
+34) Popcorn
+35) Wrathful Joker
+36) Pluto
+37) Mad Joker
+38) Gluttonous Joker
+39) Foil Riff-raff
+40) Vampire
+41) Green Joker
+42) Sly Joker
+43) Rocket
+44) Certificate
+45) Blue Joker
+46) Joker Stencil
+47) Saturn
+48) Blackboard
+49) Sly Joker
+50) Zany Joker
+
+Reroll Queues:
+Shop Planets [1]: Planet X, Pluto, Jupiter, Mars, Saturn, Mercury
+Shop Tarots [1]: The Emperor, The Empress, The Hermit, Death, The Star, Strength
+Common Shop Jokers [1]: Golden Joker, Zany Joker, Half Joker, Clever Joker, Swashbuckler, Crafty Joker
+Uncommon Shop Jokers [1]: Constellation, Troubadour, Trading Card, Constellation, Ceremonial Dagger, The Idol
+Rare Shop Jokers [1]: Obelisk, Baseball Card, Ancient Joker, Burnt Joker, Burnt Joker, Campfire
+Shop Planets [2]: Venus, Jupiter, Pluto
+Shop Tarots [2]: The Hermit, Temperance, The Hermit
+Common Shop Jokers [2]: Hallucination, Cavendish, Runner
+Uncommon Shop Jokers [2]: Luchador, Hiker, Showman
+Rare Shop Jokers [2]: Brainstorm, The Duo, Burnt Joker
+
+Packs:
+Standard Pack: Wild S 8, Blue Seal Wild H A, Gold Seal D 8
+Jumbo Buffoon Pack: Baron, Ice Cream, Swashbuckler, Devious Joker
+Arcana Pack: Justice, The Hierophant, The High Priestess
+Jumbo Standard Pack: D A, Glass C J, Red Seal Holographic S K, C J, Blue Seal Holographic H 3
+Standard Pack: H A, Blue Seal S 6, C 7
+Buffoon Pack: Red Card, Seeing Double
+
+==ANTE 4==
+Boss: The Wall
+Voucher: Telescope
+Tags: Ethereal Tag, Rare Tag (Stuntman)
+Shop Queue:
+1) Riff-raff
+2) Mr. Bones
+3) Invisible Joker
+4) Crafty Joker
+5) Ride the Bus
+6) Mail-In Rebate
+7) Pluto
+8) The Hierophant
+9) Lusty Joker
+10) Gros Michel
+11) Greedy Joker
+12) The Hermit
+13) Half Joker
+14) Gift Card
+15) Blue Joker
+16) Crafty Joker
+17) Brainstorm
+18) Shoot the Moon
+19) Gluttonous Joker
+20) Droll Joker
+21) Merry Andy
+22) Ramen
+23) To Do List
+24) Hallucination
+25) Loyalty Card
+26) Constellation
+27) Hallucination
+28) Earth
+29) The Idol
+30) Venus
+31) Banner
+32) The Hanged Man
+33) The Star
+34) Ride the Bus
+35) Rough Gem
+36) Faceless Joker
+37) Wrathful Joker
+38) Abstract Joker
+39) The Star
+40) The Lovers
+41) Seance
+42) Neptune
+43) Photograph
+44) The World
+45) Odd Todd
+46) Pareidolia
+47) Vampire
+48) The World
+49) Rough Gem
+50) Ride the Bus
+
+Reroll Queues:
+Shop Planets [1]: Mercury, Neptune, Planet X, Planet X, Eris, Neptune
+Shop Tarots [1]: The Wheel of Fortune, The Hermit, The Tower, The Moon, The Moon, The Hanged Man
+Common Shop Jokers [1]: Gluttonous Joker, Scholar, Drunkard, Mail-In Rebate, Mail-In Rebate, Credit Card
+Uncommon Shop Jokers [1]: Seltzer, Throwback, Satellite, Matador, Burglar, Oops! All 6s
+Rare Shop Jokers [1]: Stuntman, Vagabond, Baron, Brainstorm, Obelisk, Driver's License
+Shop Planets [2]: Eris, Eris, Mars
+Shop Tarots [2]: The Magician, Strength, Strength
+Common Shop Jokers [2]: Hanging Chad, Faceless Joker, Wrathful Joker
+Uncommon Shop Jokers [2]: Madness, Lucky Cat, Bull
+Rare Shop Jokers [2]: Campfire, Obelisk, The Tribe
+
+Packs:
+Jumbo Arcana Pack: The Emperor, Judgement (Rocket), The Chariot, The Tower, The Fool
+Jumbo Arcana Pack: The Hermit, The Emperor, The Magician, The World, The Star
+Celestial Pack: Saturn, Jupiter, Pluto
+Jumbo Standard Pack: Foil C 7, Polychrome C 5, C Q, Gold D 9, Steel D 5
+Jumbo Standard Pack: Stone H A, D 8, C J, Glass C 5, H Q
+Arcana Pack: The Tower, The Soul (Perkeo), Justice
+
+==ANTE 5==
+Boss: The Arm
+Voucher: Hieroglyph
+Tags: Economy Tag, Negative Tag
+Shop Queue:
+1) Greedy Joker
+2) The Hierophant
+3) The World
+4) The Fool
+5) Holographic Astronomer
+6) Saturn
+7) Neptune
+8) Business Card
+9) Odd Todd
+10) The Tower
+11) Foil Scholar
+12) Uranus
+13) Neptune
+14) Diet Cola
+15) Saturn
+16) Chaos the Clown
+17) Scary Face
+18) Egg
+19) Rough Gem
+20) Walkie Talkie
+21) Ceremonial Dagger
+22) Uranus
+23) The Moon
+24) The Sun
+25) Supernova
+26) Pluto
+27) Drunkard
+28) Swashbuckler
+29) Mime
+30) Hanging Chad
+31) Madness
+32) Gluttonous Joker
+33) Even Steven
+34) Rough Gem
+35) Hallucination
+36) Lusty Joker
+37) Clever Joker
+38) Justice
+39) Acrobat
+40) Vagabond
+41) Card Sharp
+42) Baseball Card
+43) Luchador
+44) Shoot the Moon
+45) Joker
+46) The Hierophant
+47) Square Joker
+48) Mars
+49) Hack
+50) Odd Todd
+
+Reroll Queues:
+Shop Planets [1]: Planet X, Ceres, Mercury, Jupiter, Mercury, Eris
+Shop Tarots [1]: The Chariot, The Devil, The Devil, The Moon, The Fool, The Hanged Man
+Common Shop Jokers [1]: Smiley Face, Fortune Teller, Scholar, Runner, Greedy Joker, Wrathful Joker
+Uncommon Shop Jokers [1]: Troubadour, Four Fingers, Cloud 9, Hack, Ceremonial Dagger, Mime
+Rare Shop Jokers [1]: Hit the Road, Blueprint, Burnt Joker, The Order, Driver's License, Stuntman
+Shop Planets [2]: Eris, Mercury, Pluto
+Shop Tarots [2]: The Emperor, The Empress, The High Priestess
+Common Shop Jokers [2]: Swashbuckler, Hanging Chad, Swashbuckler
+Uncommon Shop Jokers [2]: Smeared Joker, Bloodstone, Rough Gem
+Rare Shop Jokers [2]: Baron, Driver's License, Driver's License
+
+Packs:
+Jumbo Standard Pack: Stone D 7, Lucky D 3, H 6, Lucky D 8, H 8
+Jumbo Buffoon Pack: Egg, Blue Joker, Popcorn, To the Moon
+Jumbo Celestial Pack: Pluto, Mercury, Mars, Earth, Uranus
+Mega Celestial Pack: Pluto, Mars, Neptune, Earth, Saturn
+Arcana Pack: The Devil, The Wheel of Fortune, Judgement (Misprint)
+Standard Pack: S K, Gold Seal Lucky D Q, Red Seal C 5
+
+==ANTE 6==
+Boss: The Plant
+Voucher: Planet Merchant
+Tags: Foil Tag, Buffoon Tag
+Shop Queue:
+1) Raised Fist
+2) Madness
+3) Saturn
+4) Erosion
+5) Devious Joker
+6) Foil Greedy Joker
+7) Sly Joker
+8) The Emperor
+9) Mail-In Rebate
+10) Driver's License
+11) Justice
+12) Saturn
+13) Saturn
+14) Joker Stencil
+15) The Wheel of Fortune
+16) The High Priestess
+17) Certificate
+18) Gluttonous Joker
+19) Turtle Bean
+20) Pluto
+21) Space Joker
+22) The Hanged Man
+23) Scholar
+24) Chaos the Clown
+25) 8 Ball
+26) Faceless Joker
+27) Jolly Joker
+28) Reserved Parking
+29) Earth
+30) Crafty Joker
+31) Supernova
+32) Vagabond
+33) Half Joker
+34) Faceless Joker
+35) Neptune
+36) Odd Todd
+37) Earth
+38) Devious Joker
+39) Odd Todd
+40) Red Card
+41) Mars
+42) The Devil
+43) Droll Joker
+44) Green Joker
+45) Foil Troubadour
+46) Flower Pot
+47) The Star
+48) Drunkard
+49) Space Joker
+50) Photograph
+
+Reroll Queues:
+Shop Planets [1]: Pluto, Ceres, Mars, Jupiter, Mercury, Mars
+Shop Tarots [1]: The Hierophant, The Wheel of Fortune, The Lovers, The Emperor, The Hanged Man, The World
+Common Shop Jokers [1]: Splash, Wily Joker, Wily Joker, Mad Joker, Green Joker, Superposition
+Uncommon Shop Jokers [1]: Marble Joker, Vampire, Arrowhead, Seeing Double, Rough Gem, Erosion
+Rare Shop Jokers [1]: DNA, Ancient Joker, Stuntman, Vagabond, Obelisk, Hit the Road
+Shop Planets [2]: Mercury, Saturn, Saturn
+Shop Tarots [2]: The High Priestess, The Magician, Judgement (Sock and Buskin)
+Common Shop Jokers [2]: Business Card, Blue Joker, 8 Ball
+Uncommon Shop Jokers [2]: Luchador, Dusk, Spare Trousers
+Rare Shop Jokers [2]: The Tribe, Blueprint, Invisible Joker
+
+Packs:
+Arcana Pack: The Empress, The Sun, The High Priestess
+Buffoon Pack: Foil Abstract Joker, Devious Joker
+Buffoon Pack: Zany Joker, Smiley Face
+Celestial Pack: Earth, Pluto, Jupiter
+Jumbo Buffoon Pack: Chaos the Clown, Juggler, Blueprint, Reserved Parking
+Celestial Pack: Earth, Neptune, Saturn
+
+==ANTE 7==
+Boss: The Eye
+Voucher: Grabber
+Tags: Speed Tag, Ethereal Tag
+Shop Queue:
+1) Holographic Shoot the Moon
+2) Strength
+3) Zany Joker
+4) Arrowhead
+5) Venus
+6) Polychrome Diet Cola
+7) Mystic Summit
+8) Mars
+9) Madness
+10) Sixth Sense
+11) Hanging Chad
+12) Fortune Teller
+13) Swashbuckler
+14) The Wheel of Fortune
+15) Drunkard
+16) Zany Joker
+17) Baseball Card
+18) Superposition
+19) Certificate
+20) Shoot the Moon
+21) Uranus
+22) Supernova
+23) Neptune
+24) Bootstraps
+25) Abstract Joker
+26) Crafty Joker
+27) Hallucination
+28) The High Priestess
+29) Clever Joker
+30) Death
+31) Runner
+32) Uranus
+33) Smiley Face
+34) Chaos the Clown
+35) Superposition
+36) Uranus
+37) Holographic Crafty Joker
+38) Astronomer
+39) Pluto
+40) Oops! All 6s
+41) Saturn
+42) Foil Wily Joker
+43) Castle
+44) Jupiter
+45) Jupiter
+46) Wrathful Joker
+47) Wrathful Joker
+48) Mail-In Rebate
+49) Mercury
+50) Even Steven
+
+Reroll Queues:
+Shop Planets [1]: Uranus, Pluto, Earth, Ceres, Uranus, Neptune
+Shop Tarots [1]: The High Priestess, The World, The Moon, The Moon, The Wheel of Fortune, The Fool
+Common Shop Jokers [1]: Joker, Runner, Droll Joker, Clever Joker, Square Joker, Drunkard
+Uncommon Shop Jokers [1]: Ramen, Steel Joker, Vampire, Spare Trousers, Certificate, Lucky Cat
+Rare Shop Jokers [1]: DNA, DNA, Brainstorm, Burnt Joker, Hit the Road, Hit the Road
+Shop Planets [2]: Jupiter, Eris, Earth
+Shop Tarots [2]: The Magician, The Devil, The Empress
+Common Shop Jokers [2]: Wrathful Joker, Odd Todd, Lusty Joker
+Uncommon Shop Jokers [2]: Satellite, Joker Stencil, Seltzer
+Rare Shop Jokers [2]: The Tribe, The Trio, Baseball Card
+
+Packs:
+Jumbo Standard Pack: Blue Seal H 6, Gold Seal Foil Glass D 7, Stone S J, D T, Gold S 6
+Arcana Pack: The Tower, Strength, The Empress
+Jumbo Celestial Pack: Uranus, Earth, Saturn, Mars, Venus
+Arcana Pack: The Tower, The Devil, Death
+Arcana Pack: The Tower, The Hanged Man, The Moon
+Standard Pack: S 9, Wild C K, Lucky S 3
+
+==ANTE 8==
+Boss: Cerulean Bell
+Voucher: Grabber
+Tags: Negative Tag, Rare Tag (Ancient Joker)
+Shop Queue:
+1) Scholar
+2) Ride the Bus
+3) Foil Clever Joker
+4) The Star
+5) The Wheel of Fortune
+6) Saturn
+7) Brainstorm
+8) Egg
+9) Banner
+10) The Fool
+11) Neptune
+12) Saturn
+13) Scholar
+14) Walkie Talkie
+15) The Idol
+16) Vampire
+17) The Lovers
+18) Throwback
+19) Holographic Supernova
+20) Blue Joker
+21) Neptune
+22) Scary Face
+23) Red Card
+24) 8 Ball
+25) Arrowhead
+26) Holographic Space Joker
+27) The Family
+28) Justice
+29) Wily Joker
+30) Foil Hologram
+31) Gros Michel
+32) Walkie Talkie
+33) Crafty Joker
+34) Certificate
+35) Shoot the Moon
+36) Golden Joker
+37) Mercury
+38) The Magician
+39) Square Joker
+40) The Hanged Man
+41) Gros Michel
+42) Blue Joker
+43) Gros Michel
+44) Saturn
+45) Odd Todd
+46) Delayed Gratification
+47) The Fool
+48) Joker
+49) Business Card
+50) The Hermit
+
+Reroll Queues:
+Shop Planets [1]: Ceres, Neptune, Eris, Mercury, Jupiter, Eris
+Shop Tarots [1]: Temperance, The Fool, Temperance, The Hierophant, The Hanged Man, The Fool
+Common Shop Jokers [1]: Splash, Business Card, Greedy Joker, Wily Joker, Clever Joker, Green Joker
+Uncommon Shop Jokers [1]: Seance, Fibonacci, Acrobat, Oops! All 6s, Cloud 9, Ceremonial Dagger
+Rare Shop Jokers [1]: Invisible Joker, The Order, Baron, Baseball Card, Hit the Road, The Trio
+Shop Planets [2]: Jupiter, Planet X, Mercury
+Shop Tarots [2]: Temperance, The Lovers, The World
+Common Shop Jokers [2]: Joker, Wily Joker, Swashbuckler
+Uncommon Shop Jokers [2]: Bootstraps, Constellation, Vampire
+Rare Shop Jokers [2]: Driver's License, Campfire, Brainstorm
+
+Packs:
+Arcana Pack: The Emperor, Justice, The Lovers
+Jumbo Arcana Pack: The Wheel of Fortune, Temperance, The Devil, The Hanged Man, The Lovers
+Celestial Pack: Pluto, Mars, Mercury
+Celestial Pack: Earth, Saturn, Pluto
+Standard Pack: Blue Seal Mult H K, Wild H 9, D 6
+Celestial Pack: Mars, Mercury, Saturn
