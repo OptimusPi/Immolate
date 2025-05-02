@@ -60,8 +60,7 @@ def run_immolate():
     number_of_seeds = number_of_seeds_var.get()
     thread_groups = default_thread_group.get()
 
-
-    command = f"\.Immolate.exe -s {starting_seed} -n {number_of_seeds} -g {thread_groups}"
+    command = f"\.Ouiji.exe -s {starting_seed} -n {number_of_seeds} -g {thread_groups}"
     print(f"{command}")
 
 # Add debugging to ensure the script initializes correctly

@@ -1,14 +1,12 @@
-cmake_minimum_required(VERSION 3.7) # 3.1 << C_STANDARD 11
+cmake_minimum_required(VERSION 3.10) # 3.1 << C_STANDARD 11
 
-project(Immolate LANGUAGES C)
+project(Ouiji LANGUAGES C)
 
 find_package(OpenCL REQUIRED)
-find_package(json-c CONFIG REQUIRED)
 
-add_executable(${PROJECT_NAME} immolate.c)
+add_executable(${PROJECT_NAME} ouiji.c)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL::OpenCL)
-target_link_libraries(${PROJECT_NAME} PRIVATE json-c::json-c)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES C_STANDARD 11
                                                  C_STANDARD_REQUIRED ON
