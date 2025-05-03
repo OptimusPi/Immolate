@@ -1,5 +1,6 @@
+# Import additional modules for process management and JSON handling
 import tkinter as tk
-from tkinter import ttk, messagebox, font
+from tkinter import ttk, messagebox, font, filedialog
 import subprocess
 import threading
 import json
@@ -8,12 +9,105 @@ import duckdb
 import atexit
 import signal
 import sys
+from datetime import datetime
+import time
 
 # Import Sun Valley theme
 import sv_ttk
 
 # Global variable to track active processes
 active_processes = []
+
+# Global variables to store selected needs and wants
+needs_list = []
+wants_list = []
+
+# Joker mapping to display names and internal values
+joker_mapping = {
+    # Jokers - Common (J_C)
+    "Joker": "Joker", 
+    "Greedy Joker": "Greedy_Joker",
+    "Lusty Joker": "Lusty_Joker",
+    "Wrathful Joker": "Wrathful_Joker",
+    "Gluttonous Joker": "Gluttonous_Joker",
+    "Jolly Joker": "Jolly_Joker",
+    "Zany Joker": "Zany_Joker",
+    "Mad Joker": "Mad_Joker",
+    "Crazy Joker": "Crazy_Joker",
+    "Droll Joker": "Droll_Joker",
+    "Sly Joker": "Sly_Joker",
+    "Wily Joker": "Wily_Joker",
+    "Clever Joker": "Clever_Joker",
+    "Devious Joker": "Devious_Joker",
+    "Crafty Joker": "Crafty_Joker",
+    "Half Joker": "Half_Joker",
+    "Credit Card": "Credit_Card",
+    "Banner": "Banner",
+    "Mystic Summit": "Mystic_Summit",
+    "8 Ball": "_8_Ball",
+    "Misprint": "Misprint",
+    "Raised Fist": "Raised_Fist",
+    
+    # Jokers - Uncommon (J_U)
+    "Joker Stencil": "Joker_Stencil",
+    "Four Fingers": "Four_Fingers",
+    "Mime": "Mime",
+    "Ceremonial Dagger": "Ceremonial_Dagger",
+    "Marble Joker": "Marble_Joker",
+    "Loyalty Card": "Loyalty_Card",
+    "Dusk": "Dusk",
+    "Fibonacci": "Fibonacci",
+    "Steel Joker": "Steel_Joker",
+    "Hack": "Hack",
+    "Pareidolia": "Pareidolia",
+    "Space Joker": "Space_Joker",
+    
+    # Jokers - Rare (J_R)
+    "DNA": "DNA",
+    "Vampire": "Vampire",
+    "Vagabond": "Vagabond",
+    "Baron": "Baron",
+    "Obelisk": "Obelisk",
+    "Baseball Card": "Baseball_Card",
+    "Ancient Joker": "Ancient_Joker",
+    "Campfire": "Campfire",
+    "Blueprint": "Blueprint",
+    "Brainstorm": "Brainstorm",
+    
+    # Jokers - Legendary (J_L)
+    "Canio": "Canio",
+    "Triboulet": "Triboulet",
+    "Yorick": "Yorick",
+    "Chicot": "Chicot",
+    "Perkeo": "Perkeo",
+    
+    # Spectral cards
+    "Familiar": "Familiar",
+    "Ankh": "Ankh",
+    "Ectoplasm": "Ectoplasm",
+    "The Soul": "The_Soul",
+    
+    # Tags
+    "Negative Tag": "Negative_Tag",
+    "Orbital Tag": "Orbital_Tag",
+    
+    # Vouchers
+    "Observatory": "Observatory",
+    "Telescope": "Telescope",
+    "Magic Trick": "Magic_Trick",
+}
+
+# Map of all available jokers, tarots, etc
+available_items = {
+    "Jokers": ["Showman", "Perkeo", "Blueprint", "Ankh", "DNA", "Ectoplasm", "Brainstorm", "The Soul", 
+               "Canio", "Oops All 6s", "Invisible Joker", "Trading Card", "Space Joker"],
+    "Tarots": ["The Fool", "The Magician", "The High Priestess", "The Empress", "The Emperor",
+               "The Hierophant", "The Lovers", "The Chariot", "Justice", "The Hermit"],
+    "Spectrals": ["Spectral Wolf", "Spectral Burn", "Spectral Ice", "Spectral Bolt",
+                  "Spectral Venom", "Spectral Force", "Spectral Radiance"],
+    "Tags": ["Orbital Tag", "Negative Tag"],
+    "Vouchers": ["Observatory", "Telescope", "Magic Trick", "Mystic Summit"]
+}
 
 # Function to terminate all active processes on exit
 def cleanup_processes():
@@ -111,6 +205,22 @@ seed_count_map = {
 }
 
 def run_ouiji_cmd():
+    # If the button is in "STOP SEARCH" mode, terminate the process
+    if run_button.cget("text") == "STOP SEARCH":
+        cleanup_processes()  # Use our existing cleanup function
+        run_button.config(text="Let Jimbo Cook!", bg=RED)
+        output_text.insert(tk.END, "\n--- Search Stopped ---\n")
+        output_text.see(tk.END)
+        return
+
+    # Check if we have criteria without having exported
+    if (needs_list or wants_list) and not config_name_entry.get().strip():
+        # Ask user if they want to export the configuration first
+        if messagebox.askyesno("Export Configuration", 
+                              "You have selected criteria but haven't named/exported your configuration.\n\n" +
+                              "Would you like to export it before running?"):
+            export_configuration()
+    
     starting_seed = starting_seed_entry.get()
     number_of_seeds_label = number_of_seeds_var.get()
     thread_groups_label = default_thread_group.get()
@@ -134,7 +244,39 @@ def run_ouiji_cmd():
     
     # Add GUI mode flag
     command_parts.append("--gui")
-
+    
+    # If we have criteria, generate a temporary config file to use
+    if needs_list or wants_list:
+        config_name = config_name_entry.get().strip()
+        if not config_name:
+            config_name = f"temp_config_{int(time.time())}"
+            
+        # Create configuration object
+        config = {
+            "name": config_name,
+            "description": f"Temporary configuration created on {datetime.now().strftime('%Y-%m-%d')}",
+            "author": "Ouiji GUI User",
+            "filter_config": {
+                "numNeeds": len(needs_list),
+                "numWants": len(wants_list),
+                "Needs": needs_list,
+                "Wants": wants_list,
+                "maxSearchAnte": 8  # Default to searching all antes
+            }
+        }
+        
+        # Make sure the ouiji_configs directory exists
+        os.makedirs("ouiji_configs", exist_ok=True)
+        
+        # Create a temporary configuration file
+        temp_config_path = os.path.join("ouiji_configs", f"{config_name}.ouiji.json")
+        
+        with open(temp_config_path, 'w') as file:
+            json.dump(config, file, indent=4)
+        
+        # Add config flag to command
+        command_parts.extend(["--config", temp_config_path])
+    
     # Join parts into the final command string
     command = " ".join(command_parts)
 
@@ -151,40 +293,250 @@ def run_ouiji_cmd():
         def read_output():
             output_text.delete('1.0', tk.END)  # Clear previous output
             output_text.insert(tk.END, "--- Search Starting ---\n")
-            while True:
-                # Check if process is still running
-                if process.poll() is not None:
-                    break
-                line = process.stdout.readline()
-                if not line:
-                    break
-                output_text.insert(tk.END, line)
+            output_text.insert(tk.END, f"Command: {command}\n\n")
+            
+            try:
+                while True:
+                    # Check if process is still running
+                    if process.poll() is not None:
+                        break
+                    
+                    line = process.stdout.readline()
+                    if not line:
+                        break
+                    
+                    # Process GUI result format
+                    if line.startswith("GUI_RESULT|"):
+                        parts = line.strip().split("|")
+                        if len(parts) >= 4:
+                            seed = parts[1]
+                            score = parts[2]
+                            wants_mask = parts[3]
+                            formatted_result = f"SEED: {seed} | SCORE: {score} | WANTS: {wants_mask}\n"
+                            output_text.insert(tk.END, formatted_result)
+                    else:
+                        # Regular output lines
+                        output_text.insert(tk.END, line)
+                    
+                    output_text.see(tk.END)  # Auto-scroll to the latest output
                 
-                output_text.see(tk.END)  # Auto-scroll to the latest output
-            
-            # Process any stderr after stdout is done
-            for line in process.stderr:
-                output_text.insert(tk.END, f"ERROR: {line}\n")
+                # Process any stderr after stdout is done
+                for line in process.stderr:
+                    output_text.insert(tk.END, f"ERROR: {line}\n")
+                    output_text.see(tk.END)
+                
+                # Remove process from active list
+                if process in active_processes:
+                    active_processes.remove(process)
+                
+                output_text.insert(tk.END, "--- Search Complete ---\n")
                 output_text.see(tk.END)
-            
-            # Remove process from active list
-            if process in active_processes:
-                active_processes.remove(process)
-            
-            output_text.insert(tk.END, "--- Search Complete ---\n")
-            output_text.see(tk.END)
-            run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")  # Re-enable button
+                
+                # Reset the button back to "Let Jimbo Cook!"
+                run_button.config(text="Let Jimbo Cook!", bg=RED)
+            except Exception as e:
+                output_text.insert(tk.END, f"Error reading process output: {e}\n")
+                output_text.see(tk.END)
+                # Reset button on error
+                run_button.config(text="Let Jimbo Cook!", bg=RED)
 
-        # Disable button and start output thread
-        run_button.config(state=tk.DISABLED, text="Cooking...")
+        # Change button to "STOP SEARCH" mode instead of disabling
+        run_button.config(text="STOP SEARCH", bg="#FF0000")  # Bright red for stop
+        
+        # Start reading output in a background thread
         threading.Thread(target=read_output, daemon=True).start()
 
     except FileNotFoundError:
         messagebox.showerror("Error", "Ouiji.exe not found in the current directory.")
-        run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
     except Exception as e:
         messagebox.showerror("Error", f"Failed to run Ouiji.exe: {e}")
-        run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
+
+# Add dialog for selecting a joker or other item
+class ItemSelectorDialog(tk.Toplevel):
+    def __init__(self, parent, title, category="Jokers", is_need=True):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry("400x500")
+        self.resizable(False, False)
+        
+        self.category = category
+        self.is_need = is_need
+        self.selected_item = None
+        self.selected_ante = 4  # Default ante value
+        
+        # Main frame
+        self.main_frame = tk.Frame(self)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Category selector
+        self.category_frame = tk.LabelFrame(self.main_frame, text="Category")
+        self.category_frame.pack(fill="x", padx=5, pady=5)
+        
+        self.category_var = tk.StringVar(value=category)
+        
+        for cat in available_items.keys():
+            rb = tk.Radiobutton(self.category_frame, text=cat, variable=self.category_var, 
+                                value=cat, command=self.update_items_list)
+            rb.pack(side="left", padx=5)
+        
+        # Items listbox
+        self.items_frame = tk.LabelFrame(self.main_frame, text="Items")
+        self.items_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        self.items_listbox = tk.Listbox(self.items_frame)
+        self.items_listbox.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Ante selection for needs
+        if is_need:
+            self.ante_frame = tk.LabelFrame(self.main_frame, text="Required by Ante")
+            self.ante_frame.pack(fill="x", padx=5, pady=5)
+            
+            self.ante_var = tk.IntVar(value=4)
+            for ante in range(1, 9):
+                rb = tk.Radiobutton(self.ante_frame, text=f"Ante {ante}", variable=self.ante_var, value=ante)
+                rb.pack(side="left")
+        
+        # Edition frame for jokers (simplified)
+        self.edition_frame = tk.LabelFrame(self.main_frame, text="Edition")
+        self.edition_frame.pack(fill="x", padx=5, pady=5)
+        
+        self.edition_var = tk.StringVar(value="No_Edition")
+        editions = ["No_Edition", "Foil", "Holographic", "Polychrome", "Negative"]
+        for edition in editions:
+            rb = tk.Radiobutton(self.edition_frame, text=edition, variable=self.edition_var, value=edition)
+            rb.pack(side="left")
+        
+        # Buttons
+        self.button_frame = tk.Frame(self.main_frame)
+        self.button_frame.pack(fill="x", padx=5, pady=10)
+        
+        self.select_button = tk.Button(self.button_frame, text="Select", command=self.on_select)
+        self.select_button.pack(side="left", padx=5)
+        
+        self.cancel_button = tk.Button(self.button_frame, text="Cancel", command=self.destroy)
+        self.cancel_button.pack(side="right", padx=5)
+        
+        # Initialize items list
+        self.update_items_list()
+    
+    def update_items_list(self):
+        self.items_listbox.delete(0, tk.END)
+        category = self.category_var.get()
+        for item in available_items.get(category, []):
+            self.items_listbox.insert(tk.END, item)
+    
+    def on_select(self):
+        if not self.items_listbox.curselection():
+            messagebox.showerror("Error", "Please select an item")
+            return
+        
+        selected_index = self.items_listbox.curselection()[0]
+        category = self.category_var.get()
+        selected_item = available_items[category][selected_index]
+        
+        # Convert display name to internal value for selected item
+        internal_value = joker_mapping.get(selected_item, selected_item.replace(" ", "_"))
+        
+        result = {
+            "type": category[:-1],  # Remove 's' from end: Jokers -> Joker
+            "value": internal_value
+        }
+        
+        # Add edition info for jokers
+        if category == "Jokers":
+            edition = self.edition_var.get()
+            if edition != "No_Edition":
+                result["joker"] = {
+                    "joker": internal_value,
+                    "edition": edition
+                }
+        
+        # Add ante requirement for needs
+        if self.is_need:
+            result["desireByAnte"] = self.ante_var.get()
+        else:
+            # For wants, default to searching all antes
+            result["desireByAnte"] = 8
+            
+        if self.is_need:
+            needs_list.append(result)
+        else:
+            wants_list.append(result)
+            
+        # Update the criteria list display
+        display_text = f"{'NEED' if self.is_need else 'WANT'}: {selected_item}"
+        if self.is_need:
+            display_text += f" by Ante {result['desireByAnte']}"
+        if "joker" in result and result["joker"]["edition"] != "No_Edition":
+            display_text += f" ({result['joker']['edition']})"
+            
+        selected_criteria_list.insert(tk.END, display_text)
+        
+        self.destroy()
+
+# Add buttons to trigger the item selector dialogs
+def add_need_item():
+    dialog = ItemSelectorDialog(root, "Select Need Item", "Jokers", True)
+    dialog.wait_window()
+
+def add_want_item():
+    dialog = ItemSelectorDialog(root, "Select Want Item", "Jokers", False)
+    dialog.wait_window()
+
+# Clear all selected criteria
+def clear_criteria():
+    selected_criteria_list.delete(0, tk.END)
+    needs_list.clear()
+    wants_list.clear()
+
+# Enhanced export function to create proper JSON structure
+def export_configuration():
+    config_name = config_name_entry.get().strip()
+    if not config_name:
+        messagebox.showerror("Error", "Please enter a configuration name before exporting.")
+        return
+        
+    if not needs_list and not wants_list:
+        messagebox.showerror("Error", "Please add at least one Need or Want before exporting.")
+        return
+    
+    # Create configuration object matching perkeo_finder.ouiji.json format
+    config = {
+        "name": config_name,
+        "description": f"Filter configuration created by Ouiji GUI on {datetime.now().strftime('%Y-%m-%d')}",
+        "author": "Ouiji GUI User",
+        "filter_config": {
+            "numNeeds": len(needs_list),
+            "numWants": len(wants_list),
+            "Needs": needs_list,
+            "Wants": wants_list,
+            "maxSearchAnte": 8  # Default to searching all antes
+        }
+    }
+    
+    # Suggest filename based on config name
+    suggested_filename = config_name.lower().replace(" ", "_") + ".ouiji.json"
+    
+    # Make sure the ouiji_configs directory exists
+    os.makedirs("ouiji_configs", exist_ok=True)
+    
+    file_path = filedialog.asksaveasfilename(
+        initialdir="ouiji_configs",
+        initialfile=suggested_filename,
+        defaultextension=".json", 
+        filetypes=[("Ouiji JSON files", "*.ouiji.json"), ("All files", "*.*")]
+    )
+    
+    if file_path:
+        with open(file_path, 'w') as file:
+            json.dump(config, file, indent=4)
+        messagebox.showinfo("Success", f"Configuration exported to {file_path}")
+        
+        # Also generate a --config parameter example
+        config_param = f"--config \"{os.path.basename(file_path)}\""
+        output_text.insert(tk.END, f"\n--- Configuration Export ---\n")
+        output_text.insert(tk.END, f"To use this configuration, run:\n{config_param}\n")
+        output_text.see(tk.END)
 
 # Add debugging to ensure the script initializes correctly
 print("Starting Ouiji GUI...")
@@ -249,7 +601,7 @@ add_tooltip_to_label(needs_label, "Selecting too many Needs may return no result
 
 needs_buttons = ["+ Joker", "+ Tarot", "+ Spectral", "+ Tag", "+ Voucher"]
 for button_text in needs_buttons:
-    tk.Button(search_parameters_frame, text=button_text, bg=BLUE, fg="white").pack(anchor="w", pady=2)
+    tk.Button(search_parameters_frame, text=button_text, bg=BLUE, fg="white", command=add_need_item).pack(anchor="w", pady=2)
 
 wants_label = tk.Label(search_parameters_frame, text="Select Wants")
 wants_label.pack(anchor="w", pady=5)
@@ -257,7 +609,7 @@ add_tooltip_to_label(wants_label, "Select some wants to define the score of each
 
 wants_buttons = ["+ Joker", "+ Tarot", "+ Spectral", "+ Tag", "+ Voucher"]
 for button_text in wants_buttons:
-    tk.Button(search_parameters_frame, text=button_text, bg=BLUE, fg="white").pack(anchor="w", pady=2)
+    tk.Button(search_parameters_frame, text=button_text, bg=BLUE, fg="white", command=add_want_item).pack(anchor="w", pady=2)
 
 # Simplify Selected Criteria Section
 selected_criteria_frame = tk.LabelFrame(settings_frame, text="Selected Criteria", padx=10, pady=10)
@@ -266,11 +618,6 @@ selected_criteria_frame.configure(bg="#394D53")
 
 selected_criteria_list = tk.Listbox(selected_criteria_frame, height=15)
 selected_criteria_list.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-# Update the add_joker_type function to add to the selected criteria list
-def add_joker_type(joker_type):
-    if joker_type:
-        selected_criteria_list.insert(tk.END, joker_type)
 
 # Add a Text widget to display output
 output_text = tk.Text(root, wrap=tk.WORD, height=15)
@@ -318,6 +665,21 @@ number_of_seeds_var = tk.StringVar(value="Default (All Seeds)")
 number_of_seeds_dropdown = ttk.Combobox(run_settings_frame, textvariable=number_of_seeds_var, state="readonly")
 number_of_seeds_dropdown['values'] = ["Single (1)", "Default (All Seeds)", "1K", "100K", "1M", "100M", "1B"]
 number_of_seeds_dropdown.pack(pady=5)
+
+# Add Configuration Name field
+config_name_label = tk.Label(run_settings_frame, text="Configuration Name")
+config_name_label.pack(pady=5)
+
+config_name_entry = tk.Entry(run_settings_frame)
+config_name_entry.pack(pady=5)
+
+# Add Export Configuration Button
+export_button = tk.Button(run_settings_frame, text="Export Configuration", command=export_configuration, bg=BLUE, fg="white")
+export_button.pack(pady=5)
+
+# Add Clear Criteria Button
+clear_button = tk.Button(run_settings_frame, text="Clear Criteria", command=clear_criteria, bg=RED, fg="white")
+clear_button.pack(pady=5)
 
 # Update the "Let Jimbo Cook!" button to make it bigger and styled with fancy red and white text
 run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_ouiji_cmd, bg=RED, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)

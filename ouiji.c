@@ -1,5 +1,8 @@
 #include "lib/ouiji.h"
 #include <time.h>
+#include <io.h> // For _access on Windows
+#define F_OK 0  // File exists flag
+
 // Replace stdatomic.h with Windows-specific atomic implementation
 #ifdef _WIN32
     #include <windows.h>
@@ -10,17 +13,24 @@
     #define atomic_store(ptr, val) InterlockedExchange(ptr, val)
 #else
     #include <stdatomic.h> // Only use on platforms where it's supported
+    #include <unistd.h>    // For access() on POSIX systems
 #endif
 
 // --- Define Structs matching OpenCL ---
 // C-compatible version of structures defined in ouiji_config.cl
-#define MAX_DESIRES_HOST 8
+#define MAX_DESIRES_HOST 10
+
+typedef struct {
+    int value; // the item, such as Wee_Joker, Perkeo, Sock_andL_Buskin, etc.
+    int edition; // NO_Edition, NEgative, Holographuic, or Polychrome
+} JokerAndEdition;
 
 // Per-item desire structure
 typedef struct {
     int type;          // 0 = JOKER, 1 = ITEM
     int value;         // Item or joker ID
-    int desireByAnte;  // Ante by which this item should be found
+    JokerAndEdition jokerDetails; // Joker and edition details
+    int desireByAnte; // Ante by which this item should be found
 } HostDesire;
 
 // Simple version of the config - we're only passing basic values for now
@@ -32,6 +42,102 @@ typedef struct {
     int maxSearchAnte;  // Maximum ante to search through
     long cutoff;        // Cutoff value from command line
 } OuijiConfig;
+
+// Item name to ID mapping
+typedef struct {
+    char name[50];
+    int id;
+} ItemMapping;
+
+// Complete mapping of item names to their enum IDs from lib/items.cl
+ItemMapping joker_mapping[] = {
+    // Jokers - Common (J_C)
+    {"Joker", 3},
+    {"Greedy_Joker", 4},
+    {"Lusty_Joker", 5},
+    {"Wrathful_Joker", 6},
+    {"Gluttonous_Joker", 7},
+    {"Jolly_Joker", 8},
+    {"Zany_Joker", 9},
+    {"Mad_Joker", 10},
+    {"Crazy_Joker", 11},
+    {"Droll_Joker", 12},
+    {"Sly_Joker", 13},
+    {"Wily_Joker", 14},
+    {"Clever_Joker", 15},
+    {"Devious_Joker", 16},
+    {"Crafty_Joker", 17},
+    {"Half_Joker", 18},
+    {"Credit_Card", 19},
+    {"Banner", 20},
+    {"Mystic_Summit", 21},
+    {"_8_Ball", 22},
+    {"Misprint", 23},
+    {"Raised_Fist", 24},
+    
+    // Jokers - Uncommon (J_U)
+    {"Joker_Stencil", 58},
+    {"Four_Fingers", 59},
+    {"Mime", 60},
+    {"Ceremonial_Dagger", 61},
+    {"Marble_Joker", 62},
+    {"Loyalty_Card", 63},
+    {"Dusk", 64},
+    {"Fibonacci", 65},
+    {"Steel_Joker", 66},
+    {"Hack", 67},
+    {"Pareidolia", 68},
+    {"Space_Joker", 69},
+    
+    // Jokers - Rare (J_R)
+    {"DNA", 164},
+    {"Vampire", 165},
+    {"Vagabond", 166},
+    {"Baron", 167},
+    {"Obelisk", 168},
+    {"Baseball_Card", 169},
+    {"Ancient_Joker", 170},
+    {"Campfire", 171},
+    {"Blueprint", 172},
+    {"Brainstorm", 173},
+    
+    // Jokers - Legendary (J_L)
+    {"Canio", 178},
+    {"Triboulet", 179},
+    {"Yorick", 180},
+    {"Chicot", 181},
+    {"Perkeo", 182},
+    
+    // Spectral cards
+    {"Familiar", 275},
+    {"Ankh", 285},
+    {"Ectoplasm", 286},
+    {"The_Soul", 292},
+    
+    // Tags
+    {"Negative_Tag", 309},
+    {"Orbital_Tag", 329},
+    
+    // Vouchers
+    {"Observatory", 239},
+    {"Telescope", 238},
+    {"Magic_Trick", 252},
+    
+    // End marker
+    {"", 0}
+};
+
+// Helper function to parse a string item name to its numeric ID
+int item_name_to_id(const char* name) {
+    for (int i = 0; joker_mapping[i].id != 0; i++) {
+        if (strcmp(joker_mapping[i].name, name) == 0) {
+            return joker_mapping[i].id;
+        }
+    }
+    // Default to Joker ID if not found
+    printf_s("Warning: Unknown item name: %s - using default ID\n", name);
+    return 181; // Default to Showman as fallback
+}
 
 // Helper function to create binary path
 void createBinaryPath(const char* executable_dir, const char* filter_name, char* binary_path, size_t max_len) {
@@ -46,6 +152,186 @@ void createBinaryPath(const char* executable_dir, const char* filter_name, char*
     #endif
 
     snprintf(binary_path, max_len, "%s%sfilters%s%s.bin", executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, filter_name);
+}
+
+// Load configuration from JSON file
+int load_config_from_json(const char* config_filename, OuijiConfig* config) {
+    char config_path[MAX_PATH];
+    char executable_dir[MAX_PATH];
+    
+    getExecutableDir(executable_dir);
+    
+    // First try to load from ouiji_configs directory
+    snprintf(config_path, MAX_PATH, "%s%souiji_configs%s%s", 
+             executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
+             
+    // If file doesn't exist with extension, try adding it
+    if (access(config_path, F_OK) != 0) {
+        if (strstr(config_filename, ".ouiji.json") == NULL) {
+            snprintf(config_path, MAX_PATH, "%s%souiji_configs%s%s.ouiji.json", 
+                     executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
+        }
+    }
+    
+    // If still doesn't exist, try as absolute path
+    if (access(config_path, F_OK) != 0) {
+        strncpy(config_path, config_filename, MAX_PATH);
+    }
+    
+    printf_s("Attempting to load config from: %s\n", config_path);
+    
+    FILE* file = fopen(config_path, "r");
+    if (!file) {
+        printf_s("Error: Could not open configuration file: %s\n", config_path);
+        return 0;
+    }
+    
+    // Read file contents
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
+    
+    char* json_content = malloc(file_size + 1);
+    if (!json_content) {
+        printf_s("Error: Memory allocation failed when reading config file\n");
+        fclose(file);
+        return 0;
+    }
+    
+    fread(json_content, 1, file_size, file);
+    json_content[file_size] = '\0';
+    fclose(file);
+    
+    // Simple JSON parsing - find "filter_config" section 
+    char* filter_config = strstr(json_content, "\"filter_config\"");
+    if (!filter_config) {
+        printf_s("Error: No filter_config section found in JSON\n");
+        free(json_content);
+        return 0;
+    }
+    
+    // Extract numNeeds
+    char* num_needs_str = strstr(filter_config, "\"numNeeds\"");
+    if (num_needs_str) {
+        num_needs_str = strstr(num_needs_str, ":");
+        if (num_needs_str) {
+            config->numNeeds = atoi(num_needs_str + 1);
+        }
+    }
+    
+    // Extract numWants
+    char* num_wants_str = strstr(filter_config, "\"numWants\"");
+    if (num_wants_str) {
+        num_wants_str = strstr(num_wants_str, ":");
+        if (num_wants_str) {
+            config->numWants = atoi(num_wants_str + 1);
+        }
+    }
+    
+    // Extract maxSearchAnte
+    char* max_search_ante_str = strstr(filter_config, "\"maxSearchAnte\"");
+    if (max_search_ante_str) {
+        max_search_ante_str = strstr(max_search_ante_str, ":");
+        if (max_search_ante_str) {
+            config->maxSearchAnte = atoi(max_search_ante_str + 1);
+        }
+    } else {
+        config->maxSearchAnte = 8; // Default value
+    }
+    
+    // Parse Needs section
+    char* needs_section = strstr(filter_config, "\"Needs\"");
+    if (needs_section) {
+        int need_index = 0;
+        
+        char* need_start = needs_section;
+        while ((need_start = strstr(need_start, "\"value\"")) && need_index < MAX_DESIRES_HOST) {
+            need_start = strchr(need_start, ':');
+            if (!need_start) break;
+            need_start++;
+            
+            // Skip whitespace and quotes
+            while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
+            
+            // Find the end of the value
+            char* need_end = strchr(need_start, '"');
+            if (!need_end) break;
+            
+            // Extract and copy the value name
+            char value_name[50];
+            int value_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
+            strncpy(value_name, need_start, value_len);
+            value_name[value_len] = '\0';
+            
+            // Set the need type and value
+            config->Needs[need_index].type = 0; // Default to Joker
+            config->Needs[need_index].value = item_name_to_id(value_name);
+            
+            // Find desireByAnte
+            char* ante_str = strstr(need_start, "\"desireByAnte\"");
+            if (ante_str) {
+                ante_str = strchr(ante_str, ':');
+                if (ante_str) {
+                    config->Needs[need_index].desireByAnte = atoi(ante_str + 1);
+                } else {
+                    config->Needs[need_index].desireByAnte = 4; // Default value
+                }
+            } else {
+                config->Needs[need_index].desireByAnte = 4; // Default value
+            }
+            
+            need_index++;
+        }
+    }
+    
+    // Parse Wants section - similar to Needs section
+    char* wants_section = strstr(filter_config, "\"Wants\"");
+    if (wants_section) {
+        int want_index = 0;
+        
+        char* want_start = wants_section;
+        while ((want_start = strstr(want_start, "\"value\"")) && want_index < MAX_DESIRES_HOST) {
+            want_start = strchr(want_start, ':');
+            if (!want_start) break;
+            want_start++;
+            
+            // Skip whitespace and quotes
+            while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
+            
+            // Find the end of the value
+            char* want_end = strchr(want_start, '"');
+            if (!want_end) break;
+            
+            // Extract and copy the value name
+            char value_name[50];
+            int value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
+            strncpy(value_name, want_start, value_len);
+            value_name[value_len] = '\0';
+            
+            // Set the want type and value
+            config->Wants[want_index].type = 0; // Default to Joker
+            config->Wants[want_index].value = item_name_to_id(value_name);
+            
+            // Find desireByAnte
+            char* ante_str = strstr(want_start, "\"desireByAnte\"");
+            if (ante_str) {
+                ante_str = strchr(ante_str, ':');
+                if (ante_str) {
+                    config->Wants[want_index].desireByAnte = atoi(ante_str + 1);
+                } else {
+                    config->Wants[want_index].desireByAnte = 8; // Default value for wants
+                }
+            } else {
+                config->Wants[want_index].desireByAnte = 8; // Default value for wants
+            }
+            
+            want_index++;
+        }
+    }
+    
+    free(json_content);
+    printf_s("Successfully loaded configuration from %s\n", config_path);
+    return 1;
 }
 
 int main(int argc, char **argv) {
@@ -64,18 +350,29 @@ int main(int argc, char **argv) {
     cl_long numSeeds = 2318107019761;
     // Default config values
     OuijiConfig config;
-    config.cutoff = 1;           // Default cutoff
-    config.numNeeds = 3;         // Default number of needs
-    config.numWants = 6;         // Default number of wants
-    config.maxSearchAnte = 6;    // Default maximum ante to search through
+    config.cutoff = 0;           // Default cutoff
+    config.numNeeds = 0;         // Default number of needs
+    config.numWants = 0;         // Default number of wants
+    config.maxSearchAnte = 8;    // Default maximum ante to search through
 
     char* filter = "ouiji_template"; // Default filter
+    int gui_mode = 0;          // GUI mode flag
+    char* config_file = NULL;  // Configuration file path
 
     // --- Argument Parsing Loop ---
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-h")==0) {
-            printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouiji to F. Defaults to ouiji_template\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for a seed to be printed to C. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Immolate run faster.\n--list_devices   Lists information about the detected CL devices.\n--gui    Enables GUI streaming mode.");
+            printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouiji to F. Defaults to ouiji_template\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for a seed to be printed to C. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Ouiji run faster.\n--config <JSON>  Load configuration from a JSON file.\n--list_devices   Lists information about the detected CL devices.\n--gui    Enables GUI streaming mode.");
             return 0;
+        }
+        if (strcmp(argv[i], "--gui")==0) {
+            gui_mode = 1;
+            printf_s("GUI mode enabled. Results will be formatted for GUI parsing.\n");
+        }
+        if (strcmp(argv[i], "--config")==0 && i + 1 < argc) {
+            config_file = argv[i+1];
+            printf_s("Using configuration file: %s\n", config_file);
+            i++;
         }
         if (strcmp(argv[i],  "-p")==0) {
             platformID = atoi(argv[i+1]);
@@ -193,6 +490,33 @@ int main(int argc, char **argv) {
         }
     }
     cl_int err;
+
+    // Handle loading configuration from file if specified
+    if (config_file != NULL) {
+        if (!load_config_from_json(config_file, &config)) {
+            printf_s("Failed to load configuration from %s. Using default configuration.\n", config_file);
+        } else {
+            printf_s("Configuration loaded: %d needs and %d wants, with max ante %d\n", 
+                    config.numNeeds, config.numWants, config.maxSearchAnte);
+            
+            // Print needs information
+            if (config.numNeeds > 0) {
+                printf_s("Needs:\n");
+                for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
+                    printf_s("  - Item %d by ante %d\n", 
+                            config.Needs[i].value, config.Needs[i].desireByAnte);
+                }
+            }
+            
+            // Print wants information
+            if (config.numWants > 0) {
+                printf_s("Wants:\n");
+                for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
+                    printf_s("  - Item %d\n", config.Wants[i].value);
+                }
+            }
+        }
+    }
 
     // --- Platform and Device Setup ---
     cl_uint numPlatforms;

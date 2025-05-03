@@ -1,0 +1,36 @@
+{
+    "name": "Ante 1 Perkeo Finder",
+    "description": "A filter to find Perkeo in ante 1.",
+    "author": "pifreak",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Perkeo",
+                "desireByAnte": 3
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Showman",
+                "joker": {
+                    "joker": "Showman",
+                    "edition": "Negative"
+                },
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Blueprint",
+                "joker": {
+                    "joker": "Blueprint",
+                    "edition": "No_Edition"
+                },
+                "desireByAnte": 8
+            }
+        ]
+    }
+}
