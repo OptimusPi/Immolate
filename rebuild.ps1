@@ -13,8 +13,8 @@ if (Test-Path ".\build") {
 }
 
 Write-Host "Checking cached template binary..." -ForegroundColor Yellow
-if (Test-Path ".\filters\template_ouiji.bin") {
-    Remove-Item .\filters\template_ouiji.bin
+if (Test-Path ".\filters\ouiji_template.bin") {
+    Remove-Item .\filters\ouiji_template.bin
     Write-Host "Template binary removed." -ForegroundColor Green
 } else {
     Write-Host "Template binary already does not exist." -ForegroundColor Green

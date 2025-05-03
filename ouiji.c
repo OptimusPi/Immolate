@@ -57,7 +57,6 @@ int main(int argc, char **argv) {
     unsigned int platformID = 0;
     unsigned int deviceID = 0;
     unsigned int numGroups = 16;
-    int gui_mode = 0; // Flag for GUI streaming mode
     cl_char8 startingSeed; // Keep as cl_char8
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
@@ -95,32 +94,30 @@ int main(int argc, char **argv) {
             i++;
         }
         if (strcmp(argv[i],  "-n")==0) {
-            numSeeds = strtoll(argv[i+1], NULL, 10);
+            numSeeds = (long long)strtoll(argv[i+1], NULL, 10);
             i++;
         }
         if (strcmp(argv[i],  "-c")==0) {
-            config.cutoff = strtoll(argv[i+1], NULL, 10); // Parse cutoff into config
+            config.cutoff = (int)strtoll(argv[i+1], NULL, 10); // Parse cutoff into config
             i++;
         }
         if (strcmp(argv[i],  "-s")==0) {
-            int seedLength = strlen(argv[i+1]);
+            int seedLength = (int)strlen(argv[i+1]);
             if (strcmp(argv[i+1],"random")==0 || seedLength > 8) {
                 if (seedLength > 8) {
-                    printf_s("Invalid seed length. Generating random seed instead...\n");
-                } else {
-                    printf_s("Using random seed as requested...\n");
-                }
+                    printf_s("Invalid seed length! ");
+                } 
+                printf_s("Generating random seed...\n");
                 srand(time(NULL));
                 char seedCharacters[] = {'1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
-                startingSeed.s[0] = seedCharacters[rand() % 35];
-                startingSeed.s[1] = seedCharacters[rand() % 35];
-                startingSeed.s[2] = seedCharacters[0];
-                startingSeed.s[3] = seedCharacters[0];
-                startingSeed.s[4] = seedCharacters[0];
-                startingSeed.s[5] = seedCharacters[0];
-                startingSeed.s[6] = seedCharacters[0];
-                startingSeed.s[7] = seedCharacters[0];
-                startingSeed.s[8] = '\0';
+                startingSeed.s[0] = seedCharacters[rand() % 25 + 10];
+                startingSeed.s[1] = seedCharacters[rand() % 25 + 10];
+                startingSeed.s[2] = seedCharacters[9];
+                startingSeed.s[3] = seedCharacters[9];
+                startingSeed.s[4] = seedCharacters[9];
+                startingSeed.s[5] = seedCharacters[10];
+                startingSeed.s[6] = seedCharacters[11];
+                startingSeed.s[7] = seedCharacters[11];
             } else {
                 for (int j = 0; j < seedLength; j++) {
                     startingSeed.s[j] = argv[i+1][j];
@@ -129,7 +126,7 @@ int main(int argc, char **argv) {
                     startingSeed.s[j] = '\0';
                 }
             }
-            printf_s("Using [%s] as the staring Seed!\n", startingSeed);
+            printf_s("Starting seed set to %s\n", startingSeed.s);
             i++;
         }
         if (strcmp(argv[i],  "--list_devices")==0) {
@@ -193,9 +190,6 @@ int main(int argc, char **argv) {
                 printf_s("No OpenCL devices found.\n");
             }
             return 0;
-        }
-        if (strcmp(argv[i], "--gui") == 0) {
-            gui_mode = 1;
         }
     }
     cl_int err;
@@ -280,7 +274,10 @@ int main(int argc, char **argv) {
                 fprintf_s(stderr, "Failed to read kernel binary.\n");
                 free(program_binary);
                 fclose(fp);
-            } else {
+                exit(1);
+            }
+            else
+            {
                 fclose(fp);
                 cl_int binary_status;
                 ssKernelProgram = clCreateProgramWithBinary(ctx, 1, &device, &binary_size, (const unsigned char**)&program_binary, &binary_status, &err);
@@ -317,6 +314,7 @@ int main(int argc, char **argv) {
                 exit(1);
             }
         }
+        printf_s("Loading kernel source from %s...\n", kernel_path);
 
         ssKernelCode = (char*)malloc(MAX_CODE_SIZE);
         char* ssKernelBuf = (char*)malloc(MAX_CODE_SIZE);
@@ -342,12 +340,14 @@ int main(int argc, char **argv) {
         fclose( fp );
         free(ssKernelBuf);
 
+        printf_s("Kernel source loaded. Size: %zu bytes.\n", ssKernelSize);
+
         ssKernelProgram = clCreateProgramWithSource(ctx, 1, (const char**)&ssKernelCode, (const size_t*)&ssKernelSize, &err);
         clErrCheck(err, "clCreateProgramWithSource - Creating OpenCL program from source");
     } else {
         printf_s("Using pre-compiled kernel binary.\n");
     }
-    printf_s("Running...\n");
+    printf_s("Kernel Binary is ready. Building OpenCL...\n");
 
     err = clBuildProgram(ssKernelProgram, 1, &device, include_path, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
@@ -388,6 +388,7 @@ int main(int argc, char **argv) {
         free(buf);
     }
     clErrCheck(err, "clBuildProgram - Building OpenCL program");
+    printf_s("OpenCL Program compiled successfully.\n");
 
     if (ssKernelCode != NULL) {
         free(ssKernelCode);
@@ -427,6 +428,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    printf("Kernel program built successfully. Setting PArameters\n");
     cl_kernel ssKernel = clCreateKernel(ssKernelProgram, "ouiji_search", &err);
     clErrCheck(err, "clCreateKernel - Creating OpenCL kernel");
 
@@ -442,7 +444,7 @@ int main(int argc, char **argv) {
 
     size_t globalSize = numGroups * numGroups;
     size_t localSize = numGroups;
-    printf_s("Starting search...\n");
+    printf_s("Starting search with filter %s\n", filter);
     err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
     clErrCheck(err, "clEnqueueNDRangeKernel - Executing OpenCL kernel");
 

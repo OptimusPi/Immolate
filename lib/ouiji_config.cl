@@ -8,10 +8,9 @@
 
 #include "lib/ouiji.cl" // Include the necessary headers for item and jokerdata types
 
-#define MAX_DESIRES_KERNEL 8
 typedef enum {
     DESIRE_JOKER,
-    DESIRE_ITEM,
+    DESIRE_ITEM
 } desiretype;
 
 // Enhanced desire structure with per-item ante requirement

@@ -1,32 +1,22 @@
 // Searches for seeds with Observatory in ante 2 and Perkeo in ante 1 or 2
 #include "lib/ouiji.cl"
 #define CACHE_SIZE 256
-#define _DFirst 100000000 // Reserved for total hits
-#define _D1 10000000
-#define _D2 1000000
-#define _D3 100000
-#define _D4 10000
-#define _D5 1000
-#define _D6 100
-#define _D7 10
-#define _D8 1
 #define FIXED_FILTER_CUTOFF 1
 
-long long ouiji_filter(instance* inst, __global OuijiConfig* config) {
+OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
 #ifdef _debugPrints
   printf("Starting filter\n");
 #endif
   set_deck(inst, Anaglyph_Deck);
   set_stake(inst, White_Stake);
   init_locks(inst, 1, false, true);
-  
+
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
   
   // Initialize score arrays
   bool ScoreNeeds[MAX_DESIRES_KERNEL];
   int ScoreWants[MAX_DESIRES_KERNEL];
-  int ScoreDigits[7] = {_D1, _D2, _D3, _D4, _D5, _D6, _D7};
 
   shopitem cards[128]; // Declare the array
   // Initialize all elements to RETRY
@@ -39,7 +29,9 @@ long long ouiji_filter(instance* inst, __global OuijiConfig* config) {
 
   bool firstLeg = true;
   bool firstBlue = true;
-  
+  OuijiResult result = {0}; // Initialize all members to 0/false
+  result.valid = true;
+
   // Search through all antes up to maxSearchAnte
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
     init_unlocks(inst, ante, false);
@@ -50,12 +42,24 @@ long long ouiji_filter(instance* inst, __global OuijiConfig* config) {
     print_item(voucher);
     printf("\n");
 #endif
-    if (ante > 1) {
+    if (ante > 1 && voucher != Hieroglyph && voucher != Petroglyph) {
       activate_voucher(inst, voucher);
     }
     
     item smallBlindTag = next_tag(inst, ante);
     item bigBlindTag = next_tag(inst, ante);
+
+    for (int x = 0; x < config->numNeeds; x++) {
+      // Check the tags
+      if (config->Needs[x].value == smallBlindTag || config->Needs[x].value == bigBlindTag) {
+        ScoreNeeds[x] = true;
+      }
+      // Check the vouchers
+      if (config->Needs[x].value == voucher) {
+        ScoreNeeds[x] = true;
+      }
+    }
+
     int cardsIndex = 0;
 
     // Check antes for desires!
@@ -177,17 +181,18 @@ long long ouiji_filter(instance* inst, __global OuijiConfig* config) {
         printf("Returning Score=0 because item never found by its required ante %d\n", ante);
         print_item(Needs[n]);
 #endif
-        return 0;
+        result.valid = false;
+        return result;
       }
     }
   } // End scoring cards for this ante
 
-  long long score = 0;
   for (int w = 0; w < config->numWants; w++) {
-    if (ScoreWants[w] > 0)
-      score += _DFirst;
-    score += ScoreWants[w] * ScoreDigits[w]; // Middle digits
+    result.TotalScore += ScoreWants[w] > 0 ? 10 : 0;
+    result.TotalScore += ScoreWants[w];
+    result.ScoreWants[w] = ScoreWants[w];
   };
+  result.valid = true;
 
-  return score;
+  return result;
 }

@@ -1,8 +1,9 @@
 #include "lib/ouiji.cl" // Includes all necessary headers
 #include "lib/ouiji_config.cl" // Include the config header file
+#include "lib/ouiji_result.cl" // Include the result header file
 
 // Forward declaration of the filter function in template files
-long long ouiji_filter(instance* inst, __global OuijiConfig* config);
+OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config);
 
 __kernel void ouiji_search(
     char8 starting_seed,
@@ -16,11 +17,19 @@ __kernel void ouiji_search(
         instance inst = i_new(_seed);
         
         // Call ouiji_filter with the correct parameter types
-        long long score = ouiji_filter(&inst, config);
+        OuijiResult result = ouiji_filter(&inst, config);
         
-        if (score >= config->cutoff) { // Use the cutoff from config
+        if (result.valid && result.TotalScore > 0 && result.TotalScore >= config->cutoff) {
             text s_str = s_to_string(&_seed);
-            printf("%s (%li)\n", s_str.str, score);
+            printf("{seed: '%s', ", s_str.str);
+            printf("scores: [");
+            for (int j = 0; j < config->numWants; j++) {
+                if (j > 0) printf(", ");
+                print_item(config->Wants[j].value);
+                printf(": (%lld)", result.ScoreWants[j]);
+            }
+            printf("]");
+            printf("}\n");
         }
 
         // Advance seed for the next iteration

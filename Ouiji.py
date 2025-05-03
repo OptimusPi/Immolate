@@ -5,9 +5,45 @@ import threading
 import json
 import os
 import duckdb
+import atexit
+import signal
+import sys
 
 # Import Sun Valley theme
 import sv_ttk
+
+# Global variable to track active processes
+active_processes = []
+
+# Function to terminate all active processes on exit
+def cleanup_processes():
+    for process in active_processes:
+        try:
+            if process.poll() is None:  # Process is still running
+                print(f"Terminating process with PID {process.pid}")
+                # Force kill the process
+                if os.name == 'nt':  # Windows
+                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(process.pid)])
+                else:  # Unix/Linux/Mac
+                    os.kill(process.pid, signal.SIGKILL)
+        except Exception as e:
+            print(f"Error terminating process: {e}")
+
+# Register the cleanup function to run on exit
+atexit.register(cleanup_processes)
+
+# Handle signals for more graceful termination
+def signal_handler(sig, frame):
+    print("Received termination signal, cleaning up...")
+    cleanup_processes()
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+if os.name == 'nt':  # Windows
+    signal.signal(signal.SIGBREAK, signal_handler)
+else:  # Unix/Linux/Mac
+    signal.signal(signal.SIGTERM, signal_handler)
 
 # Custom Tooltip implementation
 class Tooltip:
@@ -74,8 +110,7 @@ seed_count_map = {
     "1B": "1000000000"
 }
 
-# Update the run_immolate function to use the mappings and conditional logic
-def run_immolate():
+def run_ouiji_cmd():
     starting_seed = starting_seed_entry.get()
     number_of_seeds_label = number_of_seeds_var.get()
     thread_groups_label = default_thread_group.get()
@@ -100,40 +135,30 @@ def run_immolate():
     # Add GUI mode flag
     command_parts.append("--gui")
 
-    # --- TODO: Add logic to pass Needs/Wants/Antes ---
-    # Example: command_parts.extend(["--needs", needs_list, "--wants", wants_list, "--needAnte", need_ante])
-
     # Join parts into the final command string
     command = " ".join(command_parts)
 
-    print(f"Executing command: {command}")
+    print(f"{command}")
 
     try:
         # Start the process
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        
+        # Add to our list of active processes
+        active_processes.append(process)
 
         # Function to read stdout and parse results in real-time
         def read_output():
             output_text.delete('1.0', tk.END)  # Clear previous output
-            output_text.insert(tk.END, f"Starting search with command: {command}\n---\n")
-            
+            output_text.insert(tk.END, "--- Search Starting ---\n")
             while True:
+                # Check if process is still running
+                if process.poll() is not None:
+                    break
                 line = process.stdout.readline()
                 if not line:
                     break
-                
-                # Check if it's a GUI result
-                if line.startswith("GUI_RESULT|"):
-                    parts = line.strip().split("|")
-                    if len(parts) >= 4:
-                        seed = parts[1]
-                        score = parts[2]
-                        wants_mask = parts[3]
-                        formatted_result = f"SEED: {seed} | SCORE: {score} | WANTS: {wants_mask}\n"
-                        output_text.insert(tk.END, formatted_result)
-                else:
-                    # Regular output lines
-                    output_text.insert(tk.END, line)
+                output_text.insert(tk.END, line)
                 
                 output_text.see(tk.END)  # Auto-scroll to the latest output
             
@@ -141,6 +166,10 @@ def run_immolate():
             for line in process.stderr:
                 output_text.insert(tk.END, f"ERROR: {line}\n")
                 output_text.see(tk.END)
+            
+            # Remove process from active list
+            if process in active_processes:
+                active_processes.remove(process)
             
             output_text.insert(tk.END, "--- Search Complete ---\n")
             output_text.see(tk.END)
@@ -158,11 +187,11 @@ def run_immolate():
         run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
 
 # Add debugging to ensure the script initializes correctly
-print("Starting Immolate GUI...")
+print("Starting Ouiji GUI...")
 
 # Create the main window
 root = tk.Tk()
-root.title("Immolate GUI")
+root.title("Ouiji - Balatro Seed Finder by pifreak")
 # Set default window size to 720p
 root.geometry("1200x720")
 
@@ -291,8 +320,16 @@ number_of_seeds_dropdown['values'] = ["Single (1)", "Default (All Seeds)", "1K",
 number_of_seeds_dropdown.pack(pady=5)
 
 # Update the "Let Jimbo Cook!" button to make it bigger and styled with fancy red and white text
-run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_immolate, bg=RED, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)
+run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_ouiji_cmd, bg=RED, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)
 run_button.pack(pady=(20,5))
+
+# Bind window close event to cleanup function
+def on_closing():
+    print("Window closing, cleaning up processes...")
+    cleanup_processes()
+    root.destroy()
+
+root.protocol("WM_DELETE_WINDOW", on_closing)
 
 # Ensure mainloop is present and reachable
 root.mainloop()
