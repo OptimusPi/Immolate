@@ -3,19 +3,6 @@
 
 #include "lib/ouiji.cl"
 
-// Define the configuration struct that will be passed from the host
-#define MAX_DESIRES 10
-typedef struct OuijiConfig {
-    item Needs[MAX_DESIRES];
-    item Wants[MAX_DESIRES];
-    int numNeeds;
-    int numWants;
-    int needByAnte;
-    int wantByAnte;
-    int needByAntePerkeo; // Specific ante for Perkeo needs
-} OuijiConfig;
-
-
 // Renamed filter function, now accepts the config struct
 long ouiji_filter(instance* inst, __global OuijiConfig* config) {
     long score = 0;

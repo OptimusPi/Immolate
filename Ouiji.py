@@ -54,14 +54,114 @@ def insert_result(conn, result):
 def query_results(conn):
     return conn.execute("SELECT * FROM results;").fetchall()
 
-# Update the run_immolate function to print the command it would run instead of executing Immolate.exe
+# Mappings for dropdown values to command-line arguments
+thread_group_map = {
+    "Single": "1",
+    "Default (16)": "16",
+    "32": "32",
+    "64": "64",
+    "128": "128",
+    "256": "256"
+}
+
+seed_count_map = {
+    "Single (1)": "1",
+    "Default (All Seeds)": None, # Use None to indicate omitting the argument
+    "1K": "1000",
+    "100K": "100000",
+    "1M": "1000000",
+    "100M": "100000000",
+    "1B": "1000000000"
+}
+
+# Update the run_immolate function to use the mappings and conditional logic
 def run_immolate():
     starting_seed = starting_seed_entry.get()
-    number_of_seeds = number_of_seeds_var.get()
-    thread_groups = default_thread_group.get()
+    number_of_seeds_label = number_of_seeds_var.get()
+    thread_groups_label = default_thread_group.get()
 
-    command = f"\.Ouiji.exe -s {starting_seed} -n {number_of_seeds} -g {thread_groups}"
-    print(f"{command}")
+    # Get numerical values from mappings
+    number_of_seeds_value = seed_count_map.get(number_of_seeds_label) # Get value, could be None
+    thread_groups_value = thread_group_map.get(thread_groups_label, "16") # Default to 16 if somehow not found
+
+    # Construct the base command using a list
+    command_parts = [".\\Ouiji.exe"]
+
+    # Add starting seed
+    command_parts.extend(["-s", starting_seed])
+
+    # Add number of seeds argument ONLY if a specific value (not None) is selected
+    if number_of_seeds_value is not None:
+        command_parts.extend(["-n", number_of_seeds_value])
+
+    # Add thread groups argument
+    command_parts.extend(["-g", thread_groups_value])
+
+    # --- TODO: Add logic to pass Needs/Wants/Antes ---
+    # Example: command_parts.extend(["--needs", needs_list, "--wants", wants_list, "--needAnte", need_ante])
+
+    # Join parts into the final command string
+    command = " ".join(command_parts)
+
+    print(f"Executing command: {command}") # Keep printing for now
+
+    # --- Actual execution (commented out for now, uncomment when ready) ---
+    # try:
+    #     # Start the process
+    #     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    #
+    #     # Function to read stdout
+    #     def read_output(pipe, queue):
+    #         while True:
+    #             line = pipe.readline()
+    #             if line:
+    #                 queue.put(line)
+    #             else:
+    #                 break
+    #         queue.put(None) # Signal end of output
+    #
+    #     # Function to update GUI
+    #     def update_gui():
+    #         while True:
+    #             try:
+    #                 line = output_queue.get_nowait()
+    #                 if line is None:
+    #                     error_line = error_queue.get() # Check stderr after stdout is done
+    #                     if error_line:
+    #                          output_text.insert(tk.END, f"ERROR: {error_line}\\n")
+    #                     output_text.insert(tk.END, "--- Search Complete ---\\n")
+    #                     output_text.see(tk.END)
+    #                     run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!") # Re-enable button
+    #                     break
+    #                 else:
+    #                     output_text.insert(tk.END, line)
+    #                     output_text.see(tk.END)
+    #             except queue.Empty:
+    #                 root.after(100, update_gui) # Check again after 100ms
+    #                 break # Exit this loop iteration to avoid blocking
+    #
+    #     # Queues for communication
+    #     output_queue = queue.Queue()
+    #     error_queue = queue.Queue()
+    #
+    #     # Start threads for reading output/error
+    #     stdout_thread = threading.Thread(target=read_output, args=(process.stdout, output_queue))
+    #     stderr_thread = threading.Thread(target=read_output, args=(process.stderr, error_queue))
+    #     stdout_thread.start()
+    #     stderr_thread.start()
+    #
+    #     # Disable button and start GUI update loop
+    #     run_button.config(state=tk.DISABLED, text="Cooking...")
+    #     output_text.delete('1.0', tk.END) # Clear previous output
+    #     output_text.insert(tk.END, f"Starting search with command: {command}\\n---\\n")
+    #     update_gui()
+    #
+    # except FileNotFoundError:
+    #     messagebox.showerror("Error", "Ouiji.exe not found in the current directory.")
+    #     run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
+    # except Exception as e:
+    #     messagebox.showerror("Error", f"Failed to run Ouiji.exe: {e}")
+    #     run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
 
 # Add debugging to ensure the script initializes correctly
 print("Starting Immolate GUI...")
@@ -168,16 +268,16 @@ add_tooltip_to_label(thread_group_label, "Select the number of GPU thread groups
 default_thread_group = tk.StringVar(value="Default (16)")
 thread_group_dropdown = ttk.Combobox(run_settings_frame, textvariable=default_thread_group, state="readonly")
 thread_group_dropdown['values'] = ["Single", "Default (16)", "32", "64", "128", "256"]
-thread_group_dropdown.pack(pady=(5, 20))  # Add more space below the dropdown
+thread_group_dropdown.pack(pady=(5, 25))  # Add more space below the dropdown
 
 # Add Starting Seed and Number of Seeds to Search settings
 starting_seed_label = tk.Label(run_settings_frame, text="Starting Seed")
-starting_seed_label.pack(pady=(5, 20))
+starting_seed_label.pack(pady=(5, 5))
 
 # Limit the Starting Seed input to 8 characters
 starting_seed_entry = tk.Entry(run_settings_frame, validate="key")
-starting_seed_entry.insert(0, "random")  # Default value
-starting_seed_entry.pack(pady=(5, 20))
+starting_seed_entry.insert(0, random)  # Default value changed from "random" to random
+starting_seed_entry.pack(pady=(5, 5))
 
 # Add validation to enforce 8-character limit and seed dictionary
 seed_dictionary = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"

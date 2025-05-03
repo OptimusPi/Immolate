@@ -1,3 +1,6 @@
+#ifndef __DEBUG_H_
+#define __DEBUG_H_
+
 void print_item(item i) {
     switch(i) {
         case RETRY: printf("RETRY"); break;
@@ -486,3 +489,5 @@ void print_item(item i) {
     }
 }
 
+
+#endif

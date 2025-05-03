@@ -1,3 +1,5 @@
+#ifndef __CACHE_H_
+#define __CACHE_H_
 // RNG Cache
 typedef enum RandomType {
     R_Joker_Common,
@@ -194,3 +196,5 @@ int init_node(cache* c, ntype nodeTypes[], int nodeValues[], int depth) {
     c->nextFreeNode++;
     return c->nextFreeNode-1;
 };
+
+#endif // __CACHE_H_

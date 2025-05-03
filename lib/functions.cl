@@ -1,3 +1,6 @@
+#ifndef FUNCTIONS_CL
+#define FUNCTIONS_CL
+
 typedef struct Card {
     item base;
     item enhancement;
@@ -704,3 +707,5 @@ item next_orbital_tag(instance* inst) {
 
     return result;
 }
+
+#endif // FUNCTIONS_CL
