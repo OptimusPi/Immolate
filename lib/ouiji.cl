@@ -14,4 +14,4 @@
 #include "lib/cache.cl" // Contains RNG Cache implementation
 #include "lib/instance.cl" // Contains random instance implementation and core functions
 #include "lib/functions.cl" // Contains utility functions for searching seeds - what the user would interact with
-#include "lib/ouiji_config.h" // Include configuration structure
+#include "lib/ouiji_config.cl" // Include configuration structure

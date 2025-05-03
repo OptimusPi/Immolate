@@ -13,4 +13,4 @@
 #include "lib/debug.cl" // Debug printing functions
 #include "lib/cache.cl" // Contains RNG Cache implementation
 #include "lib/instance.cl" // Contains random instance implementation and core functions
-#include "functions.cl" // Contains utility functions for searching seeds - what the user would interact with
+#include "lib/functions.cl" // Contains utility functions for searching seeds - what the user would interact with

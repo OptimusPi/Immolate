@@ -13,40 +13,25 @@
 #endif
 
 // --- Define Structs matching OpenCL ---
-#define MAX_DESIRES_HOST 10
+// C-compatible version of structures defined in ouiji_config.cl
+#define MAX_DESIRES_HOST 8
+
+// Per-item desire structure
 typedef struct {
-    int Needs[MAX_DESIRES_HOST];
-    int Wants[MAX_DESIRES_HOST];
+    int type;          // 0 = JOKER, 1 = ITEM
+    int value;         // Item or joker ID
+    int desireByAnte;  // Ante by which this item should be found
+} HostDesire;
+
+// Simple version of the config - we're only passing basic values for now
+typedef struct {
     int numNeeds;
     int numWants;
-    int needByAnte;
-    int wantByAnte;
-    int needByAntePerkeo;
-    long cutoff; // Add cutoff to the struct
+    HostDesire Needs[MAX_DESIRES_HOST];
+    HostDesire Wants[MAX_DESIRES_HOST];
+    int maxSearchAnte;  // Maximum ante to search through
+    long cutoff;        // Cutoff value from command line
 } OuijiConfig;
-
-// Define seed struct matching OpenCL's internal seed representation if needed for printing
-// For simplicity, we'll convert the cl_char8 back later.
-typedef cl_char8 seed_internal; // Assuming seed is cl_char8 internally for now
-
-typedef struct {
-    seed_internal _seed; // Use the internal representation
-    long score;
-    unsigned int wants_mask;
-} ResultInfo;
-
-#define MAX_RESULTS_BUFFER 10000
-
-// Helper function to convert internal seed (cl_char8) to string
-void seedToString(seed_internal internal_seed, char* output_str, size_t max_len) {
-    // Find the length of the seed (up to 8 chars, null terminated potentially)
-    int len = 0;
-    for (int i = 0; i < 8 && internal_seed.s[i] != '\0'; ++i) {
-        len++;
-    }
-    // Copy the characters
-    snprintf(output_str, max_len, "%.*s", len, internal_seed.s);
-}
 
 // Helper function to create binary path
 void createBinaryPath(const char* executable_dir, const char* filter_name, char* binary_path, size_t max_len) {
@@ -72,6 +57,7 @@ int main(int argc, char **argv) {
     unsigned int platformID = 0;
     unsigned int deviceID = 0;
     unsigned int numGroups = 16;
+    int gui_mode = 0; // Flag for GUI streaming mode
     cl_char8 startingSeed; // Keep as cl_char8
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
@@ -79,23 +65,17 @@ int main(int argc, char **argv) {
     cl_long numSeeds = 2318107019761;
     // Default config values
     OuijiConfig config;
-    config.cutoff = 1; // Default cutoff
-    config.numNeeds = 0;
-    config.numWants = 0;
-    config.needByAnte = 8; // Default reasonable antes
-    config.wantByAnte = 8;
-    config.needByAntePerkeo = 8; // Default
-    for(int i=0; i<MAX_DESIRES_HOST; ++i) {
-        config.Needs[i] = 0;
-        config.Wants[i] = 0;
-    }
+    config.cutoff = 1;           // Default cutoff
+    config.numNeeds = 3;         // Default number of needs
+    config.numWants = 6;         // Default number of wants
+    config.maxSearchAnte = 6;    // Default maximum ante to search through
 
-    char* filter = "template-ouiji"; // Default filter
+    char* filter = "ouiji_template"; // Default filter
 
     // --- Argument Parsing Loop ---
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-h")==0) {
-            printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouiji to F. Defaults to template-ouiji.cl\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for a seed to be printed to C. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Immolate run faster.\n\n--list_devices   Lists information about the detected CL devices.");
+            printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouiji to F. Defaults to ouiji_template\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for a seed to be printed to C. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Immolate run faster.\n--list_devices   Lists information about the detected CL devices.\n--gui    Enables GUI streaming mode.");
             return 0;
         }
         if (strcmp(argv[i],  "-p")==0) {
@@ -123,22 +103,33 @@ int main(int argc, char **argv) {
             i++;
         }
         if (strcmp(argv[i],  "-s")==0) {
-            if (strcmp(argv[i+1],"random")==0) {
+            int seedLength = strlen(argv[i+1]);
+            if (strcmp(argv[i+1],"random")==0 || seedLength > 8) {
+                if (seedLength > 8) {
+                    printf_s("Invalid seed length. Generating random seed instead...\n");
+                } else {
+                    printf_s("Using random seed as requested...\n");
+                }
                 srand(time(NULL));
                 char seedCharacters[] = {'1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
-                for (int j = 0; j < 8; j++) {
-                    startingSeed.s[j] = seedCharacters[rand() % 35];
-                }
-            } else if (strlen(argv[i+1]) <= 8) {
-                for (int j = 0; j < strlen(argv[i+1]); j++) {
+                startingSeed.s[0] = seedCharacters[rand() % 35];
+                startingSeed.s[1] = seedCharacters[rand() % 35];
+                startingSeed.s[2] = seedCharacters[0];
+                startingSeed.s[3] = seedCharacters[0];
+                startingSeed.s[4] = seedCharacters[0];
+                startingSeed.s[5] = seedCharacters[0];
+                startingSeed.s[6] = seedCharacters[0];
+                startingSeed.s[7] = seedCharacters[0];
+                startingSeed.s[8] = '\0';
+            } else {
+                for (int j = 0; j < seedLength; j++) {
                     startingSeed.s[j] = argv[i+1][j];
                 }
-                for (int j = strlen(argv[i+1]); j < 8; j++) {
+                for (int j = seedLength; j < 8; j++) {
                     startingSeed.s[j] = '\0';
                 }
-            } else {
-                printf_s("Warning: Inputted seed is not valid, ignoring...\n");
             }
+            printf_s("Using [%s] as the staring Seed!\n", startingSeed);
             i++;
         }
         if (strcmp(argv[i],  "--list_devices")==0) {
@@ -203,19 +194,10 @@ int main(int argc, char **argv) {
             }
             return 0;
         }
+        if (strcmp(argv[i], "--gui") == 0) {
+            gui_mode = 1;
+        }
     }
-
-    if (config.numNeeds == 0 && config.numWants == 0) {
-        printf_s("Warning: No Needs or Wants specified via args, using hardcoded example (Perkeo/Canio).\n");
-        config.Needs[0] = 149; // Perkeo
-        config.numNeeds = 1;
-        config.Wants[0] = 145; // Canio
-        config.numWants = 1;
-        config.needByAnte = 4;
-        config.wantByAnte = 4;
-        config.needByAntePerkeo = 2;
-    }
-
     cl_int err;
 
     // --- Platform and Device Setup ---
@@ -317,14 +299,15 @@ int main(int argc, char **argv) {
     }
 
     if (!loaded_from_binary) {
+        printf_s("Building program...\n");
         strcpy_s(kernel_path, sizeof kernel_path, executable_dir);
         strcat_s(kernel_path, sizeof kernel_path, PATH_SEPARATOR);
-        strcat_s(kernel_path, sizeof kernel_path, "ouiji-search.cl");
+        strcat_s(kernel_path, sizeof kernel_path, "ouiji_search.cl");
 
         fp = fopen(kernel_path, "r");
         if (!fp) {
             printf_s("Warning: Kernel source not found at %s, attempting working directory...\n", kernel_path);
-            fp = fopen("ouiji-search.cl","r");
+            fp = fopen("ouiji_search.cl","r");
             if (!fp) {
                 fprintf_s(stderr, "Failed to load kernel source.\n");
                 free(devices);
@@ -361,9 +344,11 @@ int main(int argc, char **argv) {
 
         ssKernelProgram = clCreateProgramWithSource(ctx, 1, (const char**)&ssKernelCode, (const size_t*)&ssKernelSize, &err);
         clErrCheck(err, "clCreateProgramWithSource - Creating OpenCL program from source");
+    } else {
+        printf_s("Using pre-compiled kernel binary.\n");
     }
+    printf_s("Running...\n");
 
-    printf_s("Building program...\n");
     err = clBuildProgram(ssKernelProgram, 1, &device, include_path, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t logLength = 0;
@@ -442,100 +427,33 @@ int main(int argc, char **argv) {
         }
     }
 
-    cl_kernel ssKernel = clCreateKernel(ssKernelProgram, "search", &err);
+    cl_kernel ssKernel = clCreateKernel(ssKernelProgram, "ouiji_search", &err);
     clErrCheck(err, "clCreateKernel - Creating OpenCL kernel");
 
     cl_mem configBuf = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(OuijiConfig), &config, &err);
     clErrCheck(err, "clCreateBuffer - Creating config buffer");
 
-    cl_mem resultsBuf = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY, sizeof(ResultInfo) * MAX_RESULTS_BUFFER, NULL, &err);
-    clErrCheck(err, "clCreateBuffer - Creating results buffer");
-
-    cl_uint initial_result_count = 0;
-    cl_mem resultCountBuf = clCreateBuffer(ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &initial_result_count, &err);
-    clErrCheck(err, "clCreateBuffer - Creating result count buffer");
-
     err = clSetKernelArg(ssKernel, 0, sizeof(startingSeed), &startingSeed);
     clErrCheck(err, "clSetKernelArg - Adding starting seed argument");
     err = clSetKernelArg(ssKernel, 1, sizeof(numSeeds), &numSeeds);
     clErrCheck(err, "clSetKernelArg - Adding number of seeds argument");
-
-    err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &configBuf);
+    err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
     clErrCheck(err, "clSetKernelArg - Adding config struct argument");
-
-    err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &resultsBuf);
-    clErrCheck(err, "clSetKernelArg - Adding results buffer argument");
-
-    err = clSetKernelArg(ssKernel, 5, sizeof(cl_mem), &resultCountBuf);
-    clErrCheck(err, "clSetKernelArg - Adding result count argument");
 
     size_t globalSize = numGroups * numGroups;
     size_t localSize = numGroups;
-    printf_s("Starting searcher with cutoff %ld...\n", config.cutoff);
-    clock_t begin = clock();
+    printf_s("Starting search...\n");
     err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
     clErrCheck(err, "clEnqueueNDRangeKernel - Executing OpenCL kernel");
 
-    err = clFinish(queue);
-    clErrCheck(err, "clFinish - Waiting for kernel completion");
-    clock_t end = clock();
-
-    cl_uint final_result_count = 0;
-    err = clEnqueueReadBuffer(queue, resultCountBuf, CL_TRUE, 0, sizeof(cl_uint), &final_result_count, 0, NULL, NULL);
-    clErrCheck(err, "clEnqueueReadBuffer - Reading result count");
-
-    printf_s("Kernel finished. Found %u potential results (up to buffer limit %d).\n", final_result_count, MAX_RESULTS_BUFFER);
-
-    ResultInfo* host_results = NULL;
-    cl_uint results_to_read = (final_result_count < MAX_RESULTS_BUFFER) ? final_result_count : MAX_RESULTS_BUFFER;
-
-    if (results_to_read > 0) {
-        host_results = (ResultInfo*)malloc(sizeof(ResultInfo) * results_to_read);
-        if (!host_results) {
-            fprintf_s(stderr, "Failed to allocate memory for host results buffer.\n");
-            err = clReleaseMemObject(resultCountBuf);
-            err = clReleaseMemObject(resultsBuf);
-            err = clReleaseMemObject(configBuf);
-            err = clReleaseKernel(ssKernel);
-            err = clReleaseProgram(ssKernelProgram);
-            err = clReleaseCommandQueue(queue);
-            err = clReleaseContext(ctx);
-            free(devices);
-            free(platforms);
-            exit(EXIT_FAILURE);
-        } else {
-            err = clEnqueueReadBuffer(queue, resultsBuf, CL_TRUE, 0, sizeof(ResultInfo) * results_to_read, host_results, 0, NULL, NULL);
-            clErrCheck(err, "clEnqueueReadBuffer - Reading results buffer");
-
-            printf_s("--- Found Seeds ---\n");
-            for (cl_uint i = 0; i < results_to_read; ++i) {
-                char seed_str[9];
-                seedToString(host_results[i]._seed, seed_str, sizeof(seed_str));
-                printf("FOUND_SEED: %s SCORE: %ld WANTS_MASK: %u\n",
-                       seed_str,
-                       host_results[i].score,
-                       host_results[i].wants_mask);
-            }
-            printf_s("-------------------\n");
-        }
-    }
-
-    if (host_results) {
-        free(host_results);
-    }
-    err = clReleaseMemObject(resultCountBuf);
-    err = clReleaseMemObject(resultsBuf);
+    // Clean up
     err = clReleaseMemObject(configBuf);
     err = clReleaseKernel(ssKernel);
     err = clReleaseProgram(ssKernelProgram);
     err = clReleaseCommandQueue(queue);
     err = clReleaseContext(ctx);
-
     free(devices);
     free(platforms);
-
-    double time_spent = (double)(end-begin) / CLOCKS_PER_SEC;
-    printf("Done in %fs\n",time_spent);
 
     return EXIT_SUCCESS;
 }

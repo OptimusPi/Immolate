@@ -255,6 +255,7 @@ int main(int argc, char **argv) {
     clErrCheck(err, "clSetKernelArg - Adding starting seed argument");
     err = clSetKernelArg(ssKernel, 1, sizeof(numSeeds), &numSeeds);
     clErrCheck(err, "clSetKernelArg - Adding number of seeds argument");
+    
     // Loading a writable buffer to the kernel
     cl_mem cutoffBuf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, sizeof(long), NULL, &err);
     clErrCheck(err, "clCreateBuffer - Creating cutoff buffer");

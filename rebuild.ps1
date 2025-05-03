@@ -1,0 +1,69 @@
+# rebuild.ps1
+# This script cleans and rebuilds the Immolate project
+
+Write-Host "Starting clean rebuild process..." -ForegroundColor Cyan
+
+# Clean up operations
+Write-Host "Checking build directory..." -ForegroundColor Yellow
+if (Test-Path ".\build") {
+    Remove-Item -Recurse -Force build
+    Write-Host "Build directory removed." -ForegroundColor Green
+} else {
+    Write-Host "Build directory is already empty." -ForegroundColor Green
+}
+
+Write-Host "Checking cached template binary..." -ForegroundColor Yellow
+if (Test-Path ".\filters\template_ouiji.bin") {
+    Remove-Item .\filters\template_ouiji.bin
+    Write-Host "Template binary removed." -ForegroundColor Green
+} else {
+    Write-Host "Template binary already does not exist." -ForegroundColor Green
+}
+
+# Run CMake to configure the project
+Write-Host "Running CMake configuration..." -ForegroundColor Yellow
+$configResult = cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="vcpkg\scripts\buildsystems\vcpkg.cmake"
+$configSuccess = $LASTEXITCODE -eq 0
+
+if (-not $configSuccess) {
+    Write-Host "CMake configuration failed with exit code $LASTEXITCODE" -ForegroundColor Red
+    Write-Host "Clean rebuild failed!" -ForegroundColor Red
+    exit 1
+}
+
+# Build the project
+Write-Host "Building project..." -ForegroundColor Yellow
+$buildResult = cmake --build build --config Release
+$buildSuccess = $LASTEXITCODE -eq 0
+
+if (-not $buildSuccess) {
+    Write-Host "Build failed with exit code $LASTEXITCODE" -ForegroundColor Red
+    Write-Host "Clean rebuild failed!" -ForegroundColor Red
+    exit 1
+}
+
+# Copy the output executable to the root directory
+$source = "x:\Immolate\build\Release\Ouiji.exe" # Changed from Immolate.exe to Ouiji.exe
+$destination = "x:\Immolate\Ouiji.exe" # Changed destination name to match executable name
+if (Test-Path $source) {
+    Copy-Item -Path $source -Destination $destination -Force
+    Write-Host "Copied output to Ouiji.exe" -ForegroundColor Green
+} else {
+    Write-Host "Build output not found at $source. Ensure the build was successful." -ForegroundColor Red
+    Write-Host "Clean rebuild failed!" -ForegroundColor Red
+    exit 1
+}
+
+# Activate Python virtual environment
+Write-Host "Activating Python virtual environment..." -ForegroundColor Yellow
+try {
+    & "x:\Immolate\.venv\Scripts\activate.ps1"
+    Write-Host "Virtual environment activated." -ForegroundColor Green
+} catch {
+    Write-Host "Failed to activate virtual environment. GUI may not run correctly." -ForegroundColor Red
+    Write-Host "Error: $_" -ForegroundColor Red
+}
+
+# Notify the user
+Write-Host "Clean rebuild complete!" -ForegroundColor Green
+Write-Host "You can now run the GUI with: python Ouiji.py" -ForegroundColor Cyan

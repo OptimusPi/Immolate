@@ -96,6 +96,9 @@ def run_immolate():
 
     # Add thread groups argument
     command_parts.extend(["-g", thread_groups_value])
+    
+    # Add GUI mode flag
+    command_parts.append("--gui")
 
     # --- TODO: Add logic to pass Needs/Wants/Antes ---
     # Example: command_parts.extend(["--needs", needs_list, "--wants", wants_list, "--needAnte", need_ante])
@@ -103,65 +106,56 @@ def run_immolate():
     # Join parts into the final command string
     command = " ".join(command_parts)
 
-    print(f"Executing command: {command}") # Keep printing for now
+    print(f"Executing command: {command}")
 
-    # --- Actual execution (commented out for now, uncomment when ready) ---
-    # try:
-    #     # Start the process
-    #     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-    #
-    #     # Function to read stdout
-    #     def read_output(pipe, queue):
-    #         while True:
-    #             line = pipe.readline()
-    #             if line:
-    #                 queue.put(line)
-    #             else:
-    #                 break
-    #         queue.put(None) # Signal end of output
-    #
-    #     # Function to update GUI
-    #     def update_gui():
-    #         while True:
-    #             try:
-    #                 line = output_queue.get_nowait()
-    #                 if line is None:
-    #                     error_line = error_queue.get() # Check stderr after stdout is done
-    #                     if error_line:
-    #                          output_text.insert(tk.END, f"ERROR: {error_line}\\n")
-    #                     output_text.insert(tk.END, "--- Search Complete ---\\n")
-    #                     output_text.see(tk.END)
-    #                     run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!") # Re-enable button
-    #                     break
-    #                 else:
-    #                     output_text.insert(tk.END, line)
-    #                     output_text.see(tk.END)
-    #             except queue.Empty:
-    #                 root.after(100, update_gui) # Check again after 100ms
-    #                 break # Exit this loop iteration to avoid blocking
-    #
-    #     # Queues for communication
-    #     output_queue = queue.Queue()
-    #     error_queue = queue.Queue()
-    #
-    #     # Start threads for reading output/error
-    #     stdout_thread = threading.Thread(target=read_output, args=(process.stdout, output_queue))
-    #     stderr_thread = threading.Thread(target=read_output, args=(process.stderr, error_queue))
-    #     stdout_thread.start()
-    #     stderr_thread.start()
-    #
-    #     # Disable button and start GUI update loop
-    #     run_button.config(state=tk.DISABLED, text="Cooking...")
-    #     output_text.delete('1.0', tk.END) # Clear previous output
-    #     output_text.insert(tk.END, f"Starting search with command: {command}\\n---\\n")
-    #     update_gui()
-    #
-    # except FileNotFoundError:
-    #     messagebox.showerror("Error", "Ouiji.exe not found in the current directory.")
-    #     run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
-    # except Exception as e:
-    #     messagebox.showerror("Error", f"Failed to run Ouiji.exe: {e}")
-    #     run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
+    try:
+        # Start the process
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+
+        # Function to read stdout and parse results in real-time
+        def read_output():
+            output_text.delete('1.0', tk.END)  # Clear previous output
+            output_text.insert(tk.END, f"Starting search with command: {command}\n---\n")
+            
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                
+                # Check if it's a GUI result
+                if line.startswith("GUI_RESULT|"):
+                    parts = line.strip().split("|")
+                    if len(parts) >= 4:
+                        seed = parts[1]
+                        score = parts[2]
+                        wants_mask = parts[3]
+                        formatted_result = f"SEED: {seed} | SCORE: {score} | WANTS: {wants_mask}\n"
+                        output_text.insert(tk.END, formatted_result)
+                else:
+                    # Regular output lines
+                    output_text.insert(tk.END, line)
+                
+                output_text.see(tk.END)  # Auto-scroll to the latest output
+            
+            # Process any stderr after stdout is done
+            for line in process.stderr:
+                output_text.insert(tk.END, f"ERROR: {line}\n")
+                output_text.see(tk.END)
+            
+            output_text.insert(tk.END, "--- Search Complete ---\n")
+            output_text.see(tk.END)
+            run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")  # Re-enable button
+
+        # Disable button and start output thread
+        run_button.config(state=tk.DISABLED, text="Cooking...")
+        threading.Thread(target=read_output, daemon=True).start()
+
+    except FileNotFoundError:
+        messagebox.showerror("Error", "Ouiji.exe not found in the current directory.")
+        run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to run Ouiji.exe: {e}")
+        run_button.config(state=tk.NORMAL, text="Let Jimbo Cook!")
 
 # Add debugging to ensure the script initializes correctly
 print("Starting Immolate GUI...")
@@ -276,7 +270,7 @@ starting_seed_label.pack(pady=(5, 5))
 
 # Limit the Starting Seed input to 8 characters
 starting_seed_entry = tk.Entry(run_settings_frame, validate="key")
-starting_seed_entry.insert(0, random)  # Default value changed from "random" to random
+starting_seed_entry.insert(0, "random")  # Default value changed from "random" to random
 starting_seed_entry.pack(pady=(5, 5))
 
 # Add validation to enforce 8-character limit and seed dictionary
