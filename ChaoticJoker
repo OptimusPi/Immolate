@@ -1,54 +1,47 @@
 {
     "name": "ChaoticJoker",
-    "description": "Temporary configuration created on 2025-05-03",
+    "description": "Temporary configuration created on 2025-05-04",
     "author": "Ouiji GUI User",
     "filter_config": {
-        "numNeeds": 1,
-        "numWants": 5,
+        "numNeeds": 3,
+        "numWants": 4,
         "Needs": [
             {
-                "type": "Tarot",
-                "value": "The_Magician",
+                "type": "Spectral",
+                "value": "The_Soul",
+                "desireByAnte": 2
+            },
+            {
+                "type": "Tag",
+                "value": "Top_up_Tag",
+                "desireByAnte": 6
+            },
+            {
+                "type": "Voucher",
+                "value": "Petroglyph",
                 "desireByAnte": 7
             }
         ],
         "Wants": [
             {
-                "type": "Voucher",
-                "value": "Money_Tree",
+                "type": "Joker",
+                "value": "Blueprint",
                 "desireByAnte": 8
             },
             {
                 "type": "Joker",
-                "value": "Gift_Card",
-                "desireByAnte": 8,
-                "joker": {
-                    "joker": "Gift_Card",
-                    "edition": "Negative"
-                }
-            },
-            {
-                "type": "Tarot",
-                "value": "Justice",
+                "value": "To_the_Moon",
                 "desireByAnte": 8
             },
             {
                 "type": "Joker",
-                "value": "Card_Sharp",
-                "desireByAnte": 8,
-                "joker": {
-                    "joker": "Card_Sharp",
-                    "edition": "Foil"
-                }
+                "value": "Fortune_Teller",
+                "desireByAnte": 8
             },
             {
                 "type": "Joker",
-                "value": "Ramen",
-                "desireByAnte": 8,
-                "joker": {
-                    "joker": "Ramen",
-                    "edition": "Holographic"
-                }
+                "value": "The_Duo",
+                "desireByAnte": 8
             }
         ],
         "maxSearchAnte": 8

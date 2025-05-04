@@ -9,8 +9,8 @@
 #include "lib/ouiji.cl" // Include the necessary headers for item and jokerdata types
 
 typedef enum {
-    DESIRE_JOKER,
-    DESIRE_ITEM
+    DesireType_Joker = 0,
+    DesireType_Value = 1,
 } desiretype;
 
 // Enhanced desire structure with per-item ante requirement

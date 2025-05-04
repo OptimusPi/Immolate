@@ -1,15 +1,15 @@
 {
-    "name": "Legendary Triumph",
-    "description": "Filter configuration created by Ouiji GUI on 2025-05-03",
+    "name": "GoldenFortune",
+    "description": "Temporary configuration created on 2025-05-03",
     "author": "Ouiji GUI User",
     "filter_config": {
         "numNeeds": 1,
         "numWants": 0,
         "Needs": [
             {
-                "type": "Tag",
-                "value": "Rare_Tag",
-                "desireByAnte": 8
+                "type": "Joker",
+                "value": "Splash",
+                "desireByAnte": 1
             }
         ],
         "Wants": [],

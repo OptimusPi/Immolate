@@ -522,12 +522,9 @@ def run_ouiji_cmd():
     # Add number of seeds argument ONLY if a specific value (not None) is selected
     if number_of_seeds_value is not None:
         command_parts.extend(["-n", number_of_seeds_value])
-
+        
     # Add thread groups argument
     command_parts.extend(["-g", thread_groups_value])
-    
-    # Add GUI mode flag
-    command_parts.append("--gui")
     
     # If we have criteria, generate a temporary config file to use
     if needs_list or wants_list:
@@ -545,7 +542,9 @@ def run_ouiji_cmd():
                 "numWants": len(wants_list),
                 "Needs": needs_list,
                 "Wants": wants_list,
-                "maxSearchAnte": 8  # Default to searching all antes
+                "maxSearchAnte": 8,  # Default to searching all antes
+                "deck": joker_mapping.get(deck_var.get(), deck_var.get()),  # Get internal value of selected deck
+                "stake": joker_mapping.get(stake_var.get(), stake_var.get())  # Get internal value of selected stake
             }
         }
         
@@ -555,7 +554,7 @@ def run_ouiji_cmd():
         # Create a temporary configuration file
         temp_config_path = f"{config_name}"
         
-        with open(temp_config_path, 'w') as file:
+        with open(temp_config_path, "w") as file:
             json.dump(config, file, indent=4)
         
         # Add config flag to command
@@ -646,7 +645,7 @@ class ItemSelectorDialog(tk.Toplevel):
         self.category = category
         self.is_need = is_need
         self.selected_item = None
-        self.selected_ante = 4  # Default ante value
+        self.selected_ante = 0
         
         # Main container frame
         self.main_frame = tk.Frame(self)
@@ -766,18 +765,13 @@ class ItemSelectorDialog(tk.Toplevel):
         # Add edition info for jokers
         if self.category == "Jokers":
             edition = self.edition_var.get()
-            if edition != "No_Edition":
-                result["joker"] = {
-                    "joker": internal_value,
-                    "edition": edition
-                }
+            result["joker"] = {
+                "joker": internal_value,
+                "edition": edition
+            }
         
         # Add ante requirement for needs
-        if self.is_need:
-            result["desireByAnte"] = self.ante_var.get()
-        else:
-            # For wants, default to searching all antes
-            result["desireByAnte"] = 8
+        result["desireByAnte"] = self.ante_var.get()
             
         # If this was originally a "Need" but the ante is set to 0 (nah option),
         # treat it as a "Want" instead
@@ -804,18 +798,22 @@ class ItemSelectorDialog(tk.Toplevel):
 
 # Helper function to convert category name to item type
 def category_to_item_type(category):
+    print("Converting category to item type: %s\n", category)
     # Remove the trailing 's' from the category name to get the item type
     # Special case for some plurals
-    if category == "Vouchers":
-        return "Voucher"
+    if category == "Jokers":
+        return "Desire_Joker"
+    elif category == "Tarots":
+        return "Desire_Tarot"
     elif category == "Spectrals":
-        return "Spectral" 
-    elif category == "Decks":
-        return "Deck"
-    elif category == "Stakes":
-        return "Stake"
+        return "Desire_Spectral"
+    elif category == "Tags":
+        return "Desire_Tag"
+    elif category == "Vouchers":
+        return "Desire_Voucher"
     else:
-        return category[:-1]  # Remove 's' from the end: Jokers -> Joker
+        return f"Desire_{category[:-1]}"
+    
 
 # Add buttons to trigger the item selector dialogs for different categories
 def add_need_joker():
@@ -975,7 +973,9 @@ def export_configuration():
             "numWants": len(wants_list),
             "Needs": needs_list,
             "Wants": wants_list,
-            "maxSearchAnte": 8  # Default to searching all antes
+            "maxSearchAnte": 8,  # Default to searching all antes
+            "deck": joker_mapping.get(deck_var.get(), deck_var.get()),  # Get internal value of selected deck
+            "stake": joker_mapping.get(stake_var.get(), stake_var.get())  # Get internal value of selected stake
         }
     }
     
@@ -1001,6 +1001,7 @@ def export_configuration():
         config_param = f"--config \"{os.path.basename(file_path)}\""
         output_text.insert(tk.END, f"\n--- Configuration Export ---\n")
         output_text.insert(tk.END, f"To use this configuration, run:\n{config_param}\n")
+        output_text.insert(tk.END, f"Using {deck_var.get()} with {stake_var.get()}\n")
         output_text.see(tk.END)
 
 # Function to load a saved configuration
@@ -1058,16 +1059,33 @@ def load_configuration():
             selected_criteria_list.insert(tk.END, display_text)
         
         # Load deck if specified in config
-        if "deck" in config.get("filter_config", {}):
-            deck_name = config["filter_config"]["deck"].replace('_', ' ')
+        filter_config = config.get("filter_config", {})
+        if "deck" in filter_config:
+            deck_name = filter_config["deck"].replace('_', ' ')
+            # Try to find the matching deck in the available items
+            # First try a direct match
             if deck_name in available_items["Decks"]:
                 deck_var.set(deck_name)
+            else:
+                # Try to find the name from the internal value
+                for display_name, internal_name in joker_mapping.items():
+                    if internal_name == filter_config["deck"] and display_name in available_items["Decks"]:
+                        deck_var.set(display_name)
+                        break
         
         # Load stake if specified in config
-        if "stake" in config.get("filter_config", {}):
-            stake_name = config["filter_config"]["stake"].replace('_', ' ')
+        if "stake" in filter_config:
+            stake_name = filter_config["stake"].replace('_', ' ')
+            # Try to find the matching stake in the available items
+            # First try a direct match
             if stake_name in available_items["Stakes"]:
                 stake_var.set(stake_name)
+            else:
+                # Try to find the name from the internal value
+                for display_name, internal_name in joker_mapping.items():
+                    if internal_name == filter_config["stake"] and display_name in available_items["Stakes"]:
+                        stake_var.set(display_name)
+                        break
         
         messagebox.showinfo("Success", f"Configuration loaded from {os.path.basename(file_path)}")
         
@@ -1139,7 +1157,7 @@ custom_config_frame.configure(bg="#394D53")
 
 # Add Configuration Name field
 config_name_label = tk.Label(custom_config_frame, text="Configuration Name")
-config_name_label.pack(pady=5)
+config_name_label.pack(anchor="w",pady=5)
 
 config_name_entry = tk.Entry(custom_config_frame)
 config_name_entry.pack(pady=5)
@@ -1205,12 +1223,6 @@ tk.Button(special_criteria_frame, text="Remove Selected Item", command=clear_cri
 special_criteria_frame.configure(bg="#394D53")
 special_criteria_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=10)
 
-
-
-# Add a Text widget to display output
-output_text = tk.Text(root, wrap=tk.WORD, height=15)
-output_text.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=True, padx=5, pady=5)
-
 # Run Settings Section
 run_settings_frame = tk.LabelFrame(settings_frame, text="Run Settings", padx=10, pady=10)
 run_settings_frame.pack(fill=tk.BOTH, expand=False, side=tk.LEFT, padx=10, pady=10)
@@ -1224,7 +1236,7 @@ add_tooltip_to_label(thread_group_label, "Select the number of GPU thread groups
 default_thread_group = tk.StringVar(value="Default (16)")
 thread_group_dropdown = ttk.Combobox(run_settings_frame, textvariable=default_thread_group, state="readonly")
 thread_group_dropdown['values'] = ["Single", "Default (16)", "32", "64", "128", "256"]
-thread_group_dropdown.pack(pady=(5, 25))  # Add more space below the dropdown
+thread_group_dropdown.pack(pady=(5, 10))  # Add more space below the dropdown
 
 # Add Starting Seed and Number of Seeds to Search settings
 starting_seed_label = tk.Label(run_settings_frame, text="Starting Seed")
@@ -1233,7 +1245,7 @@ starting_seed_label.pack(anchor="w", pady=5)
 # Limit the Starting Seed input to 8 characters
 starting_seed_entry = tk.Entry(run_settings_frame, validate="key")
 starting_seed_entry.insert(0, "random")  # Default value changed from "random" to random
-starting_seed_entry.pack(pady=(5, 5))
+starting_seed_entry.pack(anchor="w",pady=(5, 5))
 
 # Add validation to enforce 8-character limit and seed dictionary
 seed_dictionary = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -1255,6 +1267,11 @@ number_of_seeds_dropdown.pack(pady=5)
 # Update the "Let Jimbo Cook!" button to make it bigger and styled with fancy red and white text
 run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_ouiji_cmd, bg=BLUE, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)
 run_button.pack(pady=(20,5))
+
+# Add a Text widget to display output
+output_text = tk.Text(root, wrap=tk.WORD, height=15)
+output_text.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=True, padx=5, pady=5)
+output_text.configure(bg="#394D53", fg="white", font=("m6x11", 12), insertbackground='white')
 
 # Bind window close event to cleanup function
 def on_closing():

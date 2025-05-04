@@ -1,5 +1,5 @@
 {
-    "name": "temp_config_1746320191",
+    "name": "ChaoticFortune",
     "description": "Temporary configuration created on 2025-05-03",
     "author": "Ouiji GUI User",
     "filter_config": {
@@ -7,9 +7,9 @@
         "numWants": 0,
         "Needs": [
             {
-                "type": "Joker",
-                "value": "Triboulet",
-                "desireByAnte": 8
+                "type": "Tag",
+                "value": "Orbital_Tag",
+                "desireByAnte": 3
             }
         ],
         "Wants": [],

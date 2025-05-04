@@ -3,44 +3,55 @@
     "description": "Temporary configuration created on 2025-05-03",
     "author": "Ouiji GUI User",
     "filter_config": {
-        "numNeeds": 2,
-        "numWants": 4,
+        "numNeeds": 3,
+        "numWants": 6,
         "Needs": [
             {
-                "type": "Tag",
-                "value": "D6_Tag",
-                "desireByAnte": 8
+                "type": "Joker",
+                "value": "Scary_Face",
+                "desireByAnte": 2
             },
             {
-                "type": "Voucher",
-                "value": "Hieroglyph",
-                "desireByAnte": 8
+                "type": "Joker",
+                "value": "Spare_Trousers",
+                "desireByAnte": 4
+            },
+            {
+                "type": "Tag",
+                "value": "Boss_Tag",
+                "desireByAnte": 5
             }
         ],
         "Wants": [
             {
-                "type": "Joker",
-                "value": "Golden_Ticket",
+                "type": "Tag",
+                "value": "Buffoon_Tag",
                 "desireByAnte": 8
             },
             {
-                "type": "Voucher",
-                "value": "Telescope",
+                "type": "Joker",
+                "value": "Baseball_Card",
                 "desireByAnte": 8
             },
             {
                 "type": "Tag",
-                "value": "Holographic_Tag",
+                "value": "Negative_Tag",
                 "desireByAnte": 8
             },
             {
                 "type": "Joker",
-                "value": "Gluttonous_Joker",
-                "desireByAnte": 8,
-                "joker": {
-                    "joker": "Gluttonous_Joker",
-                    "edition": "Foil"
-                }
+                "value": "Seeing_Double",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tarot",
+                "value": "The_Hermit",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Rocket",
+                "desireByAnte": 8
             }
         ],
         "maxSearchAnte": 8
