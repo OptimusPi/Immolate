@@ -1,0 +1,22 @@
+{
+    "name": "natey",
+    "description": "Filter configuration created by Ouiji GUI on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 0,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Clever_Joker",
+                "joker": {
+                    "joker": "Clever_Joker",
+                    "edition": "Polychrome"
+                },
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [],
+        "maxSearchAnte": 8
+    }
+}
