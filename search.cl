@@ -4,7 +4,7 @@ __kernel void search(char8 starting_seed, long num_seeds, __global long* filter_
     for (long i = get_global_id(0); i < num_seeds; i+=get_global_size(0)) {
         instance inst = i_new(_seed);
         long score = filter(&inst);
-        if (score >= filter_cutoff[0]) {
+        if (score >= 0 && score >= filter_cutoff[0]) {
             text s_str = s_to_string(&_seed);
             printf("%s (%li)\n", s_str.str, score);
             if (score > filter_cutoff[0]) {

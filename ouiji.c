@@ -29,6 +29,7 @@ typedef struct {
 typedef struct {
     int type;          // 0 = JOKER, 1 = ITEM
     int value;         // Item or joker ID
+    char *name;         // Item name
     JokerAndEdition jokerDetails; // Joker and edition details
     int desireByAnte; // Ante by which this item should be found
 } HostDesire;
@@ -74,54 +75,278 @@ ItemMapping joker_mapping[] = {
     {"_8_Ball", 22},
     {"Misprint", 23},
     {"Raised_Fist", 24},
+    {"Chaos_the_Clown", 25},
+    {"Scary_Face", 26},
+    {"Abstract_Joker", 27},
+    {"Delayed_Gratification", 28},
+    {"Gros_Michel", 29},
+    {"Even_Steven", 30},
+    {"Odd_Todd", 31},
+    {"Scholar", 32},
+    {"Business_Card", 33},
+    {"Supernova", 34},
+    {"Ride_the_Bus", 35},
+    {"Egg", 36},
+    {"Runner", 37},
+    {"Ice_Cream", 38},
+    {"Splash", 39},
+    {"Blue_Joker", 40},
+    {"Faceless_Joker", 41},
+    {"Green_Joker", 42},
+    {"Superposition", 43},
+    {"To_Do_List", 44},
+    {"Cavendish", 45},
+    {"Red_Card", 46},
+    {"Square_Joker", 47},
+    {"Riff_raff", 48},
+    {"Photograph", 49},
+    {"Reserved_Parking", 50},
+    {"Mail_In_Rebate", 51},
+    {"Hallucination", 52},
+    {"Fortune_Teller", 53},
+    {"Juggler", 54},
+    {"Drunkard", 55},
+    {"Golden_Joker", 56},
+    {"Popcorn", 57},
+    {"Walkie_Talkie", 58},
+    {"Smiley_Face", 59},
+    {"Golden_Ticket", 60},
+    {"Swashbuckler", 61},
+    {"Hanging_Chad", 62},
+    {"Shoot_the_Moon", 63},
     
     // Jokers - Uncommon (J_U)
-    {"Joker_Stencil", 58},
-    {"Four_Fingers", 59},
-    {"Mime", 60},
-    {"Ceremonial_Dagger", 61},
-    {"Marble_Joker", 62},
-    {"Loyalty_Card", 63},
-    {"Dusk", 64},
-    {"Fibonacci", 65},
-    {"Steel_Joker", 66},
-    {"Hack", 67},
-    {"Pareidolia", 68},
-    {"Space_Joker", 69},
+    {"Joker_Stencil", 65},
+    {"Four_Fingers", 66},
+    {"Mime", 67},
+    {"Ceremonial_Dagger", 68},
+    {"Marble_Joker", 69},
+    {"Loyalty_Card", 70},
+    {"Dusk", 71},
+    {"Fibonacci", 72},
+    {"Steel_Joker", 73},
+    {"Hack", 74},
+    {"Pareidolia", 75},
+    {"Space_Joker", 76},
+    {"Burglar", 77},
+    {"Blackboard", 78},
+    {"Sixth_Sense", 79},
+    {"Constellation", 80},
+    {"Hiker", 81},
+    {"Card_Sharp", 82},
+    {"Madness", 83},
+    {"Seance", 84},
+    {"Shortcut", 85},
+    {"Hologram", 86},
+    {"Cloud_9", 87},
+    {"Rocket", 88},
+    {"Midas_Mask", 89},
+    {"Luchador", 90},
+    {"Gift_Card", 91},
+    {"Turtle_Bean", 92},
+    {"Erosion", 93},
+    {"To_the_Moon", 94},
+    {"Stone_Joker", 95},
+    {"Lucky_Cat", 96},
+    {"Bull", 97},
+    {"Diet_Cola", 98},
+    {"Trading_Card", 99},
+    {"Flash_Card", 100},
+    {"Spare_Trousers", 101},
+    {"Ramen", 102},
+    {"Seltzer", 103},
+    {"Castle", 104},
+    {"Mr_Bones", 105},
+    {"Acrobat", 106},
+    {"Sock_and_Buskin", 107},
+    {"Troubadour", 108},
+    {"Certificate", 109},
+    {"Smeared_Joker", 110},
+    {"Throwback", 111},
+    {"Rough_Gem", 112},
+    {"Bloodstone", 113},
+    {"Arrowhead", 114},
+    {"Onyx_Agate", 115},
+    {"Glass_Joker", 116},
+    {"Showman", 117},
+    {"Flower_Pot", 118},
+    {"Merry_Andy", 119},
+    {"Oops_All_6s", 120},
+    {"The_Idol", 121},
+    {"Seeing_Double", 122},
+    {"Matador", 123},
+    {"Stuntman", 124},
+    {"Satellite", 125},
+    {"Cartomancer", 126},
+    {"Astronomer", 127},
+    {"Bootstraps", 128},
     
     // Jokers - Rare (J_R)
-    {"DNA", 164},
-    {"Vampire", 165},
-    {"Vagabond", 166},
-    {"Baron", 167},
-    {"Obelisk", 168},
-    {"Baseball_Card", 169},
-    {"Ancient_Joker", 170},
-    {"Campfire", 171},
-    {"Blueprint", 172},
-    {"Brainstorm", 173},
+    {"DNA", 130},
+    {"Vampire", 131},
+    {"Vagabond", 132},
+    {"Baron", 133},
+    {"Obelisk", 134},
+    {"Baseball_Card", 135},
+    {"Ancient_Joker", 136},
+    {"Campfire", 137},
+    {"Blueprint", 138},
+    {"Wee_Joker", 139},
+    {"Hit_the_Road", 140},
+    {"The_Duo", 141},
+    {"The_Trio", 142},
+    {"The_Family", 143},
+    {"The_Order", 144},
+    {"The_Tribe", 145},
+    {"Invisible_Joker", 146},
+    {"Brainstorm", 147},
+    {"Drivers_License", 148},
+    {"Burnt_Joker", 149},
     
     // Jokers - Legendary (J_L)
-    {"Canio", 178},
-    {"Triboulet", 179},
-    {"Yorick", 180},
-    {"Chicot", 181},
-    {"Perkeo", 182},
+    {"Canio", 151},
+    {"Triboulet", 152},
+    {"Yorick", 153},
+    {"Chicot", 154},
+    {"Perkeo", 155},
+    
+    // Tarots
+    {"The_Fool", 157},
+    {"The_Magician", 158},
+    {"The_High_Priestess", 159},
+    {"The_Empress", 160},
+    {"The_Emperor", 161},
+    {"The_Hierophant", 162},
+    {"The_Lovers", 163},
+    {"The_Chariot", 164},
+    {"Justice", 165},
+    {"The_Hermit", 166},
+    {"The_Wheel_of_Fortune", 167},
+    {"Strength", 168},
+    {"The_Hanged_Man", 169},
+    {"Death", 170},
+    {"Temperance", 171},
+    {"The_Devil", 172},
+    {"The_Tower", 173},
+    {"The_Star", 174},
+    {"The_Moon", 175},
+    {"The_Sun", 176},
+    {"Judgement", 177},
+    {"The_World", 178},
     
     // Spectral cards
-    {"Familiar", 275},
-    {"Ankh", 285},
-    {"Ectoplasm", 286},
-    {"The_Soul", 292},
+    {"Familiar", 181},
+    {"Grim", 182},
+    {"Incantation", 183},
+    {"Talisman", 184},
+    {"Aura", 185},
+    {"Wraith", 186},
+    {"Sigil", 187},
+    {"Ouija", 188},
+    {"Ectoplasm", 189},
+    {"Immolate", 190},
+    {"Ankh", 191},
+    {"Deja_Vu", 192},
+    {"Hex", 193},
+    {"Trance", 194},
+    {"Medium", 195},
+    {"Cryptid", 196},
+    {"The_Soul", 197},
+    {"Black_Hole", 198},
     
     // Tags
-    {"Negative_Tag", 309},
-    {"Orbital_Tag", 329},
+    {"Uncommon_Tag", 201},
+    {"Rare_Tag", 202},
+    {"Negative_Tag", 203},
+    {"Foil_Tag", 204},
+    {"Holographic_Tag", 205},
+    {"Polychrome_Tag", 206},
+    {"Investment_Tag", 207},
+    {"Voucher_Tag", 208},
+    {"Boss_Tag", 209},
+    {"Standard_Tag", 210},
+    {"Charm_Tag", 211},
+    {"Meteor_Tag", 212},
+    {"Buffoon_Tag", 213},
+    {"Handy_Tag", 214},
+    {"Garbage_Tag", 215},
+    {"Ethereal_Tag", 216},
+    {"Coupon_Tag", 217},
+    {"Double_Tag", 218},
+    {"Juggle_Tag", 219},
+    {"D6_Tag", 220},
+    {"Top_up_Tag", 221},
+    {"Speed_Tag", 222},
+    {"Orbital_Tag", 223},
+    {"Economy_Tag", 224},
     
     // Vouchers
-    {"Observatory", 239},
-    {"Telescope", 238},
-    {"Magic_Trick", 252},
+    {"Overstock", 226},
+    {"Overstock_Plus", 227},
+    {"Clearance_Sale", 228},
+    {"Liquidation", 229},
+    {"Hone", 230},
+    {"Glow_Up", 231},
+    {"Reroll_Surplus", 232},
+    {"Reroll_Glut", 233},
+    {"Crystal_Ball", 234},
+    {"Omen_Globe", 235},
+    {"Telescope", 236},
+    {"Observatory", 237},
+    {"Grabber", 238},
+    {"Nacho_Tong", 239},
+    {"Wasteful", 240},
+    {"Recyclomancy", 241},
+    {"Tarot_Merchant", 242},
+    {"Tarot_Tycoon", 243},
+    {"Planet_Merchant", 244},
+    {"Planet_Tycoon", 245},
+    {"Seed_Money", 246},
+    {"Money_Tree", 247},
+    {"Blank", 248},
+    {"Antimatter", 249},
+    {"Magic_Trick", 250},
+    {"Illusion", 251},
+    {"Hieroglyph", 252},
+    {"Petroglyph", 253},
+    {"Directors_Cut", 254},
+    {"Retcon", 255},
+    {"Paint_Brush", 256},
+    {"Palette", 257},
+    
+    // Decks
+    {"Red_Deck", 416},
+    {"Blue_Deck", 417},
+    {"Yellow_Deck", 418},
+    {"Green_Deck", 419},
+    {"Black_Deck", 420},
+    {"Magic_Deck", 421},
+    {"Nebula_Deck", 422},
+    {"Ghost_Deck", 423},
+    {"Abandoned_Deck", 424},
+    {"Checkered_Deck", 425},
+    {"Zodiac_Deck", 426},
+    {"Painted_Deck", 427},
+    {"Anaglyph_Deck", 428},
+    {"Plasma_Deck", 429},
+    {"Erratic_Deck", 430},
+    
+    // Stakes
+    {"White_Stake", 432},
+    {"Red_Stake", 433},
+    {"Green_Stake", 434},
+    {"Black_Stake", 435},
+    {"Blue_Stake", 436},
+    {"Purple_Stake", 437},
+    {"Orange_Stake", 438},
+    {"Gold_Stake", 439},
+    
+    // Editions
+    {"No_Edition", 397},
+    {"Foil", 398},
+    {"Holographic", 399},
+    {"Polychrome", 400},
+    {"Negative", 401},
     
     // End marker
     {"", 0}
@@ -266,6 +491,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             // Set the need type and value
             config->Needs[need_index].type = 0; // Default to Joker
             config->Needs[need_index].value = item_name_to_id(value_name);
+            config->Needs[need_index].name = strdup(value_name); // Allocate memory for name
             
             // Find desireByAnte
             char* ante_str = strstr(need_start, "\"desireByAnte\"");
@@ -311,6 +537,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             // Set the want type and value
             config->Wants[want_index].type = 0; // Default to Joker
             config->Wants[want_index].value = item_name_to_id(value_name);
+            config->Wants[want_index].name = strdup(value_name); // Allocate memory for name
             
             // Find desireByAnte
             char* ante_str = strstr(want_start, "\"desireByAnte\"");
@@ -503,8 +730,8 @@ int main(int argc, char **argv) {
             if (config.numNeeds > 0) {
                 printf_s("Needs:\n");
                 for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item %d by ante %d\n", 
-                            config.Needs[i].value, config.Needs[i].desireByAnte);
+                    printf_s("  - Item %s by ante %d\n", 
+                            config.Needs[i].name, config.Needs[i].desireByAnte);
                 }
             }
             
@@ -512,7 +739,7 @@ int main(int argc, char **argv) {
             if (config.numWants > 0) {
                 printf_s("Wants:\n");
                 for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item %d\n", config.Wants[i].value);
+                    printf_s("  - Item %s\n", config.Wants[i].name);
                 }
             }
         }
@@ -616,11 +843,10 @@ int main(int argc, char **argv) {
             }
         }
     } else {
-        printf_s("No pre-compiled kernel binary found. Compiling from source...\n");
+        printf_s("No pre-compiled kernel binary found.\n");
     }
 
     if (!loaded_from_binary) {
-        printf_s("Building program...\n");
         strcpy_s(kernel_path, sizeof kernel_path, executable_dir);
         strcat_s(kernel_path, sizeof kernel_path, PATH_SEPARATOR);
         strcat_s(kernel_path, sizeof kernel_path, "ouiji_search.cl");
@@ -671,7 +897,7 @@ int main(int argc, char **argv) {
     } else {
         printf_s("Using pre-compiled kernel binary.\n");
     }
-    printf_s("Kernel Binary is ready. Building OpenCL...\n");
+    printf_s("Kernel Binary is ready. Building OpenCL ...\n");
 
     err = clBuildProgram(ssKernelProgram, 1, &device, include_path, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
@@ -752,7 +978,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("Kernel program built successfully. Setting PArameters\n");
+    printf("Kernel program built successfully. Setting Parameters\n");
     cl_kernel ssKernel = clCreateKernel(ssKernelProgram, "ouiji_search", &err);
     clErrCheck(err, "clCreateKernel - Creating OpenCL kernel");
 
@@ -768,7 +994,22 @@ int main(int argc, char **argv) {
 
     size_t globalSize = numGroups * numGroups;
     size_t localSize = numGroups;
-    printf_s("Starting search with filter %s\n", filter);
+    printf_s("Starting OpenCL Search search with filter %s\n", filter);
+    printf_s("--- CSV RESULTS ---\n");
+    // Print header for CSV output
+    printf_s("Seed,Score,");
+    for (int i = 0; i < MAX_DESIRES_HOST; i++) {
+        //print the name and another comma
+        if (i < config.numNeeds) {
+            printf_s("%s", config.Needs[i].name);
+        } else if (i < config.numNeeds + config.numWants) {
+            printf_s("");
+        }
+        if (i < MAX_DESIRES_HOST - 1) {
+            printf_s(",");
+        }
+    }
+    printf_s("\n");
     err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
     clErrCheck(err, "clEnqueueNDRangeKernel - Executing OpenCL kernel");
 

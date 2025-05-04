@@ -1,0 +1,29 @@
+{
+    "name": "GoldenAdventure",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 1,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Midas_Mask",
+                "desireByAnte": 3
+            },
+            {
+                "type": "Joker",
+                "value": "Vampire",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Tarot",
+                "value": "The_Hermit",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

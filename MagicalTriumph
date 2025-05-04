@@ -1,0 +1,49 @@
+{
+    "name": "MagicalTriumph",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 4,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Certificate",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tarot",
+                "value": "The_World",
+                "desireByAnte": 2
+            },
+            {
+                "type": "Spectral",
+                "value": "Ankh",
+                "desireByAnte": 4
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Spectral",
+                "value": "Ectoplasm",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Voucher",
+                "value": "Money_Tree",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tarot",
+                "value": "The_Lovers",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Spectral",
+                "value": "Immolate",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

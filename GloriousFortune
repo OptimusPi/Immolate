@@ -1,0 +1,34 @@
+{
+    "name": "GloriousFortune",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Spectral",
+                "value": "Ankh",
+                "desireByAnte": 2
+            },
+            {
+                "type": "Tarot",
+                "value": "The_Hermit",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Sock_and_Buskin",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tarot",
+                "value": "Temperance",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

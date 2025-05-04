@@ -1,0 +1,56 @@
+{
+    "name": "ChaoticJoker",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 5,
+        "Needs": [
+            {
+                "type": "Tarot",
+                "value": "The_Magician",
+                "desireByAnte": 7
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Voucher",
+                "value": "Money_Tree",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Gift_Card",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Gift_Card",
+                    "edition": "Negative"
+                }
+            },
+            {
+                "type": "Tarot",
+                "value": "Justice",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Card_Sharp",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Card_Sharp",
+                    "edition": "Foil"
+                }
+            },
+            {
+                "type": "Joker",
+                "value": "Ramen",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Ramen",
+                    "edition": "Holographic"
+                }
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

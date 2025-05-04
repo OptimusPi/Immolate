@@ -1,0 +1,48 @@
+{
+    "name": "LegendaryJoker",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 4,
+        "Needs": [
+            {
+                "type": "Tag",
+                "value": "D6_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Voucher",
+                "value": "Hieroglyph",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Golden_Ticket",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Voucher",
+                "value": "Telescope",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tag",
+                "value": "Holographic_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Gluttonous_Joker",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Gluttonous_Joker",
+                    "edition": "Foil"
+                }
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

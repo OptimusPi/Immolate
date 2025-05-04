@@ -1,0 +1,44 @@
+{
+    "name": "Mysterious Jackpot",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 4,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Photograph",
+                "desireByAnte": 2
+            },
+            {
+                "type": "Joker",
+                "value": "Lusty_Joker",
+                "desireByAnte": 5
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Loyalty_Card",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Spectral",
+                "value": "Familiar",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Spectral",
+                "value": "Hex",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tag",
+                "value": "Investment_Tag",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

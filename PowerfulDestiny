@@ -1,0 +1,47 @@
+{
+    "name": "PowerfulDestiny",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Lucky_Cat",
+                "desireByAnte": 7,
+                "joker": {
+                    "joker": "Lucky_Cat",
+                    "edition": "Foil"
+                }
+            },
+            {
+                "type": "Tarot",
+                "value": "The_World",
+                "desireByAnte": 1
+            },
+            {
+                "type": "Joker",
+                "value": "Riff_raff",
+                "desireByAnte": 4,
+                "joker": {
+                    "joker": "Riff_raff",
+                    "edition": "Negative"
+                }
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Stuntman",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Mr_Bones",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

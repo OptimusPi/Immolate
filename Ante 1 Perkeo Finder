@@ -1,0 +1,37 @@
+{
+    "name": "Ante 1 Perkeo Finder",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Perkeo",
+                "desireByAnte": 3
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Showman",
+                "joker": {
+                    "joker": "Showman",
+                    "edition": "Negative"
+                },
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Blueprint",
+                "joker": {
+                    "joker": "Blueprint",
+                    "edition": "No_Edition"
+                },
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

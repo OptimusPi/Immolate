@@ -19,17 +19,22 @@ __kernel void ouiji_search(
         // Call ouiji_filter with the correct parameter types
         OuijiResult result = ouiji_filter(&inst, config);
         
-        if (result.valid && result.TotalScore > 0 && result.TotalScore >= config->cutoff) {
+        if (result.valid && result.TotalScore > 0) {
             text s_str = s_to_string(&_seed);
-            printf("{seed: '%s', ", s_str.str);
-            printf("scores: [");
-            for (int j = 0; j < config->numWants; j++) {
-                if (j > 0) printf(", ");
-                print_item(config->Wants[j].value);
-                printf(": (%lld)", result.ScoreWants[j]);
-            }
-            printf("]");
-            printf("}\n");
+            printf("%s,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i\n",
+                s_str.str,
+                result.TotalScore,
+                result.ScoreWants[0],
+                result.ScoreWants[1],
+                result.ScoreWants[2],
+                result.ScoreWants[3],
+                result.ScoreWants[4],
+                result.ScoreWants[5],
+                result.ScoreWants[6],
+                result.ScoreWants[7],
+                result.ScoreWants[8],
+                result.ScoreWants[9]
+            );
         }
 
         // Advance seed for the next iteration

@@ -553,7 +553,7 @@ def run_ouiji_cmd():
         os.makedirs("ouiji_configs", exist_ok=True)
         
         # Create a temporary configuration file
-        temp_config_path = os.path.join("ouiji_configs", f"{config_name}.ouiji.json")
+        temp_config_path = f"{config_name}"
         
         with open(temp_config_path, 'w') as file:
             json.dump(config, file, indent=4)
@@ -668,7 +668,7 @@ class ItemSelectorDialog(tk.Toplevel):
         
         # Items listbox with scrollbar
         self.items_frame = tk.LabelFrame(self.main_frame, text="Items")
-        self.items_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.items_frame.pack(fill="x", expand=True, padx=5, pady=5)
         
         self.listbox_frame = tk.Frame(self.items_frame)
         self.listbox_frame.pack(fill="both", expand=True, padx=5, pady=5)
@@ -685,43 +685,45 @@ class ItemSelectorDialog(tk.Toplevel):
         # Ante selection for needs - horizontal radio buttons with better visibility
         if is_need:
             self.ante_frame = tk.LabelFrame(self.main_frame, text="Required by Ante")
-            self.ante_frame.pack(fill="x", padx=5, pady=10)  # Increased padding
+            self.ante_frame.pack(side=tk.LEFT, fill="y", padx=5, pady=5)
             
-            self.ante_var = tk.IntVar(value=4)
+            self.ante_var = tk.IntVar(value=0)
             ante_container = tk.Frame(self.ante_frame)
-            ante_container.pack(fill="x", padx=5, pady=10)  # Increased padding
+            ante_container.pack(side=tk.LEFT, fill="y", padx=5, pady=5)
             
-            # Create two rows of ante buttons with clearer spacing
+            # Create four rows of ante buttons with clearer spacing
             for ante in range(1, 9):
-                rb = tk.Radiobutton(ante_container, text=f"Ante {ante}", variable=self.ante_var, value=ante)
-                rb.grid(row=0 if ante <= 4 else 1, column=(ante-1)%4, padx=20, pady=10, sticky="w")
+                rb = ttk.Radiobutton(ante_container, text=f"Ante {ante}", variable=self.ante_var, value=ante)
+                rb.grid(row=(ante-1)%4, column=(ante-1)//4, padx=5, pady=2, sticky="w")
+            nah = ttk.Radiobutton(ante_container, text=f"Not required, just Want.", variable=self.ante_var, value=0)
+            nah.grid(row=5, column=0, columnspan=2, padx=5, pady=2, sticky="w")
         
         # Edition frame for jokers (better organized)
         if category == "Jokers":  # Only show edition options for Jokers
             self.edition_frame = tk.LabelFrame(self.main_frame, text="Edition")
-            self.edition_frame.pack(fill="x", padx=5, pady=10)  # Increased padding
+            self.edition_frame.pack(side=tk.LEFT, fill="y", padx=5, pady=5)  # Increased padding
             
             self.edition_var = tk.StringVar(value="No_Edition")
             editions = ["No_Edition", "Foil", "Holographic", "Polychrome", "Negative"]
             
             edition_container = tk.Frame(self.edition_frame)
-            edition_container.pack(fill="x", padx=5, pady=10)  # Increased padding
+            edition_container.pack(fill="x", padx=5, pady=5)  # Increased padding
             
             for i, edition in enumerate(editions):
-                rb = tk.Radiobutton(edition_container, text=edition, variable=self.edition_var, value=edition)
-                rb.grid(row=i//3, column=i%3, padx=15, pady=5, sticky="w")
+                rb = ttk.Radiobutton(edition_container, text=edition, variable=self.edition_var, value=edition)
+                rb.grid(row=i, column=0, padx=5, pady=2, sticky="w")
         
         # Buttons
         self.button_frame = tk.Frame(self.main_frame)
-        self.button_frame.pack(fill="x", padx=5, pady=10)  # Increased padding
+        self.button_frame.pack(side=tk.BOTTOM, fill="x", padx=5, pady=5)  # Increased padding
         
         self.select_button = tk.Button(self.button_frame, text="Select", command=self.on_select,
                                       width=15, height=2)  # Larger buttons
-        self.select_button.pack(side="left", padx=20, pady=10)
+        self.select_button.pack(side="right", padx=20, pady=5)
         
         self.cancel_button = tk.Button(self.button_frame, text="Cancel", command=self.destroy,
                                       width=15, height=2)  # Larger buttons
-        self.cancel_button.pack(side="right", padx=20, pady=10)
+        self.cancel_button.pack(side="left", padx=20, pady=5)
         
         # Initialize items list with the pre-selected category
         self.update_items_list()
@@ -777,15 +779,22 @@ class ItemSelectorDialog(tk.Toplevel):
             # For wants, default to searching all antes
             result["desireByAnte"] = 8
             
-        if self.is_need:
-            needs_list.append(result)
-        else:
+        # If this was originally a "Need" but the ante is set to 0 (nah option),
+        # treat it as a "Want" instead
+        if self.is_need and result["desireByAnte"] == 0:
+            # Convert to a want
             wants_list.append(result)
+            display_text = f"WANT: {selected_item}"
+        elif self.is_need:
+            # Regular need
+            needs_list.append(result)
+            display_text = f"NEED: {selected_item} by Ante {result['desireByAnte']}"
+        else:
+            # Regular want
+            wants_list.append(result)
+            display_text = f"WANT: {selected_item}"
             
-        # Update the criteria list display
-        display_text = f"{'NEED' if self.is_need else 'WANT'}: {selected_item}"
-        if self.is_need:
-            display_text += f" by Ante {result['desireByAnte']}"
+        # Add edition info to display text if applicable
         if self.category == "Jokers" and "joker" in result and result["joker"]["edition"] != "No_Edition":
             display_text += f" ({result['joker']['edition']})"
             
@@ -850,10 +859,100 @@ def add_want_voucher():
     dialog.wait_window()
 
 # Clear all selected criteria
-def clear_criteria():
+def clear_all_criteria():
     selected_criteria_list.delete(0, tk.END)
     needs_list.clear()
     wants_list.clear()
+
+# Clear only the single currently selected criteria
+def clear_criteria():
+    selected_indices = selected_criteria_list.curselection()
+    if selected_indices:
+        for index in reversed(selected_indices):
+            selected_criteria_list.delete(index)
+            if index < len(needs_list):
+                needs_list.pop(index)
+            else:
+                wants_list.pop(index - len(needs_list))
+
+# Make randomized configuration for fun!
+def randomize_all_criteria():
+    # Clear existing criteria before randomizing
+    clear_all_criteria()
+    import random
+    # Randomly select between 2-10 items
+    num_items = random.randint(1, 10)
+    
+    # Categories to randomly pick from, with weights favoring jokers
+    categories = ["Jokers", "Jokers", "Jokers", "Tarots", "Spectrals", "Tags", "Vouchers"]
+    
+    # Ensure at least one need
+    need_count = random.randint(1, min(3, num_items))
+    want_count = num_items - need_count
+    
+    # Add random needs
+    for i in range(need_count):
+        # Pick a random category
+        category = random.choice(categories)
+        # Pick a random item from that category
+        selected_item = random.choice(available_items[category])
+        internal_value = joker_mapping.get(selected_item, selected_item.replace(" ", "_"))
+        
+        result = {
+            "type": category_to_item_type(category),
+            "value": internal_value,
+            "desireByAnte": random.randint(1, 8)  # Random ante requirement
+        }
+        
+        # Add random edition for jokers with 30% chance
+        if category == "Jokers" and random.random() < 0.3:
+            editions = ["Foil", "Holographic", "Polychrome", "Negative"]
+            edition = random.choice(editions)
+            result["joker"] = {
+                "joker": internal_value,
+                "edition": edition
+            }
+            needs_list.append(result)
+            selected_criteria_list.insert(tk.END, f"NEED: {selected_item} by Ante {result['desireByAnte']} ({edition})")
+        else:
+            needs_list.append(result)
+            selected_criteria_list.insert(tk.END, f"NEED: {selected_item} by Ante {result['desireByAnte']}")
+    
+    # Add random wants
+    for i in range(want_count):
+        category = random.choice(categories)
+        selected_item = random.choice(available_items[category])
+        internal_value = joker_mapping.get(selected_item, selected_item.replace(" ", "_"))
+        
+        result = {
+            "type": category_to_item_type(category),
+            "value": internal_value,
+            "desireByAnte": 8  # Default to searching all antes
+        }
+        
+        # Add random edition for jokers with 30% chance
+        if category == "Jokers" and random.random() < 0.3:
+            editions = ["Foil", "Holographic", "Polychrome", "Negative"]
+            edition = random.choice(editions)
+            result["joker"] = {
+                "joker": internal_value,
+                "edition": edition
+            }
+            wants_list.append(result)
+            selected_criteria_list.insert(tk.END, f"WANT: {selected_item} ({edition})")
+        else:
+            wants_list.append(result)
+            selected_criteria_list.insert(tk.END, f"WANT: {selected_item}")
+    
+    # Also randomly select a deck and stake
+    deck_var.set(random.choice(available_items["Decks"]))
+    stake_var.set(random.choice(available_items["Stakes"]))
+    
+    # Set a random name for the configuration
+    adjectives = ["Spicy", "Lucky", "Glorious", "Mysterious", "Powerful", "Chaotic", "Epic", "Golden", "Legendary", "Magical"]
+    nouns = ["Fortune", "Destiny", "Victory", "Adventure", "Jackpot", "Treasure", "Poker", "Champion", "Joker", "Triumph"]
+    config_name_entry.delete(0, tk.END)
+    config_name_entry.insert(0, f"{random.choice(adjectives)}{random.choice(nouns)}")
 
 # Enhanced export function to create proper JSON structure
 def export_configuration():
@@ -998,10 +1097,11 @@ root.option_add("*Font", custom_font)
 # Define custom colors
 BLUE = "#008DFB"
 RED = "#F94C3E"
+GREEN = "#4CAF50"
 
 # Organize layout into sections
 settings_frame = tk.Frame(root)
-settings_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+settings_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 settings_frame.configure(bg="#394D53")
 
 # Update labels to act as tooltips on hover
@@ -1032,46 +1132,25 @@ left_parameters_frame = tk.Frame(settings_frame)
 left_parameters_frame.pack(fill=tk.Y, side=tk.LEFT, padx=5, pady=5)
 left_parameters_frame.configure(bg="#394D53")
 
-search_parameters_frame = tk.LabelFrame(left_parameters_frame, text="Search Parameters", padx=10, pady=10)
-search_parameters_frame.pack(fill=tk.X, expand=True, side=tk.TOP, padx=10, pady=10)
-search_parameters_frame.configure(bg="#394D53")
+custom_config_frame = tk.LabelFrame(left_parameters_frame, text="Custom Configuration", padx=10, pady=10)
+custom_config_frame.pack(fill=tk.X, expand=True, side=tk.TOP, padx=10, pady=10)
+custom_config_frame.configure(bg="#394D53")
 
-# Create a frame to organize Needs and Wants horizontally
-search_columns_frame = tk.Frame(search_parameters_frame)
-search_columns_frame.pack(fill=tk.BOTH, expand=True)
-search_columns_frame.configure(bg="#394D53")
 
-# Create left column for Needs
-needs_column = tk.Frame(search_columns_frame)
-needs_column.pack(fill=tk.Y, side=tk.LEFT, expand=True, padx=(0, 5))
-needs_column.configure(bg="#394D53")
+# Add Configuration Name field
+config_name_label = tk.Label(custom_config_frame, text="Configuration Name")
+config_name_label.pack(pady=5)
 
-needs_label = tk.Label(needs_column, text="Select Needs")
-needs_label.pack(anchor="w", pady=5)
-add_tooltip_to_label(needs_label, "Selecting too many Needs may return no results. If no results display, wait longer or try to be less Needy!")
+config_name_entry = tk.Entry(custom_config_frame)
+config_name_entry.pack(pady=5)
 
-# Updated buttons with specific commands for each type
-tk.Button(needs_column, text="+ Joker", bg=BLUE, fg="white", command=add_need_joker).pack(anchor="w", pady=2)
-tk.Button(needs_column, text="+ Tarot", bg=BLUE, fg="white", command=add_need_tarot).pack(anchor="w", pady=2)
-tk.Button(needs_column, text="+ Spectral", bg=BLUE, fg="white", command=add_need_spectral).pack(anchor="w", pady=2)
-tk.Button(needs_column, text="+ Tag", bg=BLUE, fg="white", command=add_need_tag).pack(anchor="w", pady=2)
-tk.Button(needs_column, text="+ Voucher", bg=BLUE, fg="white", command=add_need_voucher).pack(anchor="w", pady=2)
+# Add Export Configuration Button
+export_button = tk.Button(custom_config_frame, text="Save Configuration", command=export_configuration, bg=BLUE, fg="white")
+export_button.pack(pady=5)
 
-# Create right column for Wants
-wants_column = tk.Frame(search_columns_frame)
-wants_column.pack(fill=tk.Y, side=tk.LEFT, expand=True, padx=(5, 0))
-wants_column.configure(bg="#394D53")
-
-wants_label = tk.Label(wants_column, text="Select Wants")
-wants_label.pack(anchor="w", pady=5)
-add_tooltip_to_label(wants_label, "Select some wants to define the score of each seed. Some scored seed results may have none, some, or all of these jokers!")
-
-# Updated buttons with specific commands for each type
-tk.Button(wants_column, text="+ Joker", bg=BLUE, fg="white", command=add_want_joker).pack(anchor="w", pady=2)
-tk.Button(wants_column, text="+ Tarot", bg=BLUE, fg="white", command=add_want_tarot).pack(anchor="w", pady=2)
-tk.Button(wants_column, text="+ Spectral", bg=BLUE, fg="white", command=add_want_spectral).pack(anchor="w", pady=2)
-tk.Button(wants_column, text="+ Tag", bg=BLUE, fg="white", command=add_want_tag).pack(anchor="w", pady=2)
-tk.Button(wants_column, text="+ Voucher", bg=BLUE, fg="white", command=add_want_voucher).pack(anchor="w", pady=2)
+# Add Load Configuration Button
+load_button = tk.Button(custom_config_frame, text="Load Configuration", command=load_configuration, bg=BLUE, fg="white")
+load_button.pack(pady=5)
 
 # Create a new Deck Parameters section below Search Parameters
 deck_parameters_frame = tk.LabelFrame(left_parameters_frame, text="Deck Parameters", padx=10, pady=10)
@@ -1100,15 +1179,37 @@ stake_dropdown.pack(pady=5, fill=tk.X)
 
 # Simplify Selected Criteria Section
 selected_criteria_frame = tk.LabelFrame(settings_frame, text="Selected Criteria", padx=10, pady=10)
-selected_criteria_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=10, pady=10)
 selected_criteria_frame.configure(bg="#394D53")
+selected_criteria_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=10, pady=10)
 
-selected_criteria_list = tk.Listbox(selected_criteria_frame, height=15)
-selected_criteria_list.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+# Updated buttons with specific commands for each type
+add_criteria_buttons_frame = tk.Frame(selected_criteria_frame)
+tk.Button(add_criteria_buttons_frame, text="+ Joker", bg=BLUE, fg="white", command=add_need_joker).pack(anchor="w", side=tk.LEFT, padx=5)
+tk.Button(add_criteria_buttons_frame, text="+ Tarot", bg=BLUE, fg="white", command=add_need_tarot).pack(side=tk.LEFT, padx=5)
+tk.Button(add_criteria_buttons_frame, text="+ Spectral", bg=BLUE, fg="white", command=add_need_spectral).pack(side=tk.LEFT, padx=5)
+tk.Button(add_criteria_buttons_frame, text="+ Tag", bg=BLUE, fg="white", command=add_need_tag).pack(side=tk.LEFT, padx=5)
+tk.Button(add_criteria_buttons_frame, text="+ Voucher", bg=BLUE, fg="white", command=add_need_voucher).pack(side=tk.LEFT, padx=5)
+add_criteria_buttons_frame.configure(bg="#394D53")
+add_criteria_buttons_frame.pack(fill=tk.X, side=tk.TOP, padx=5, pady=5)
+
+show_criteria = tk.Frame(selected_criteria_frame)
+selected_criteria_list = tk.Listbox(show_criteria, height=15)
+selected_criteria_list.pack(fill=tk.X, expand=True, side=tk.BOTTOM, padx=5, pady=5)
+show_criteria.configure(bg="#394D53")
+show_criteria.pack(fill=tk.X, side=tk.TOP, padx=5)
+
+special_criteria_frame = tk.Frame(selected_criteria_frame)
+tk.Button(special_criteria_frame, text="Randomize! 🎲", command=randomize_all_criteria, bg=GREEN, fg="white").pack(side=tk.LEFT, pady=3)
+tk.Button(special_criteria_frame, text="Clear All", command=clear_all_criteria, bg=RED, fg="white").pack(side=tk.RIGHT, pady=3)
+tk.Button(special_criteria_frame, text="Remove Selected Item", command=clear_criteria, bg=RED, fg="white").pack(side=tk.RIGHT, padx=3)
+special_criteria_frame.configure(bg="#394D53")
+special_criteria_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=10)
+
+
 
 # Add a Text widget to display output
 output_text = tk.Text(root, wrap=tk.WORD, height=15)
-output_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+output_text.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=True, padx=5, pady=5)
 
 # Run Settings Section
 run_settings_frame = tk.LabelFrame(settings_frame, text="Run Settings", padx=10, pady=10)
@@ -1117,7 +1218,7 @@ run_settings_frame.config(width=int(root.winfo_screenwidth() * 0.2))
 run_settings_frame.configure(bg="#394D53")
 
 thread_group_label = tk.Label(run_settings_frame, text="GPU Thread Groups:")
-thread_group_label.pack(pady=5)
+thread_group_label.pack(anchor="w", pady=5)
 add_tooltip_to_label(thread_group_label, "Select the number of GPU thread groups to use. Use 'Single' for analyzing one seed. Optimal value differs per system. Experimenting/Benchmarking Recommended!")
 
 default_thread_group = tk.StringVar(value="Default (16)")
@@ -1127,7 +1228,7 @@ thread_group_dropdown.pack(pady=(5, 25))  # Add more space below the dropdown
 
 # Add Starting Seed and Number of Seeds to Search settings
 starting_seed_label = tk.Label(run_settings_frame, text="Starting Seed")
-starting_seed_label.pack(pady=(5, 5))
+starting_seed_label.pack(anchor="w", pady=5)
 
 # Limit the Starting Seed input to 8 characters
 starting_seed_entry = tk.Entry(run_settings_frame, validate="key")
@@ -1151,27 +1252,8 @@ number_of_seeds_dropdown = ttk.Combobox(run_settings_frame, textvariable=number_
 number_of_seeds_dropdown['values'] = ["Single (1)", "Default (All Seeds)", "1K", "100K", "1M", "100M", "1B"]
 number_of_seeds_dropdown.pack(pady=5)
 
-# Add Configuration Name field
-config_name_label = tk.Label(run_settings_frame, text="Configuration Name")
-config_name_label.pack(pady=5)
-
-config_name_entry = tk.Entry(run_settings_frame)
-config_name_entry.pack(pady=5)
-
-# Add Export Configuration Button
-export_button = tk.Button(run_settings_frame, text="Export Configuration", command=export_configuration, bg=BLUE, fg="white")
-export_button.pack(pady=5)
-
-# Add Load Configuration Button
-load_button = tk.Button(run_settings_frame, text="Load Configuration", command=load_configuration, bg=BLUE, fg="white")
-load_button.pack(pady=5)
-
-# Add Clear Criteria Button
-clear_button = tk.Button(run_settings_frame, text="Clear Criteria", command=clear_criteria, bg=RED, fg="white")
-clear_button.pack(pady=5)
-
 # Update the "Let Jimbo Cook!" button to make it bigger and styled with fancy red and white text
-run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_ouiji_cmd, bg=RED, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)
+run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_ouiji_cmd, bg=BLUE, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)
 run_button.pack(pady=(20,5))
 
 # Bind window close event to cleanup function

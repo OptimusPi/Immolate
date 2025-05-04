@@ -1,0 +1,53 @@
+{
+    "name": "Spicy Joker",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 5,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Brainstorm",
+                "desireByAnte": 4
+            },
+            {
+                "type": "Joker",
+                "value": "Rough_Gem",
+                "desireByAnte": 4
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Joker",
+                "value": "Madness",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Madness",
+                    "edition": "Negative"
+                }
+            },
+            {
+                "type": "Spectral",
+                "value": "Wraith",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tarot",
+                "value": "The_Chariot",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tarot",
+                "value": "The_World",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Spectral",
+                "value": "Grim",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

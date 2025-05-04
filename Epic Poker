@@ -1,0 +1,58 @@
+{
+    "name": "Epic Poker",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 7,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Gros_Michel",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Voucher",
+                "value": "Grabber",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Merry_Andy",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Merry_Andy",
+                    "edition": "Negative"
+                }
+            },
+            {
+                "type": "Tarot",
+                "value": "Death",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tag",
+                "value": "Standard_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Voucher",
+                "value": "Grabber",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tag",
+                "value": "Uncommon_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Spectral",
+                "value": "Medium",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

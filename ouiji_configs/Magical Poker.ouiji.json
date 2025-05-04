@@ -1,0 +1,47 @@
+{
+    "name": "Magical Poker",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Vampire",
+                "desireByAnte": 3,
+                "joker": {
+                    "joker": "Vampire",
+                    "edition": "Negative"
+                }
+            },
+            {
+                "type": "Joker",
+                "value": "Lusty_Joker",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Lusty_Joker",
+                    "edition": "Polychrome"
+                }
+            },
+            {
+                "type": "Tarot",
+                "value": "The_Hanged_Man",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Tarot",
+                "value": "Strength",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Joker",
+                "value": "Lucky_Cat",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}

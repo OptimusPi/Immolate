@@ -1,0 +1,38 @@
+{
+    "name": "SpicyDestiny",
+    "description": "Temporary configuration created on 2025-05-03",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Joker",
+                "value": "Luchador",
+                "desireByAnte": 8,
+                "joker": {
+                    "joker": "Luchador",
+                    "edition": "Polychrome"
+                }
+            },
+            {
+                "type": "Voucher",
+                "value": "Recyclomancy",
+                "desireByAnte": 5
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Tag",
+                "value": "Coupon_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "type": "Tag",
+                "value": "Foil_Tag",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8
+    }
+}
