@@ -1,8 +1,8 @@
 // Searches for seeds with Observatory in ante 2 and Perkeo in ante 1 or 2
 #include "lib/ouiji.cl"
 #define CACHE_SIZE 256
-#define FIXED_FILTER_CUTOFF 1
-#define _debugPrints 1
+//#define FIXED_FILTER_CUTOFF 1
+//#define _debugPrints 1
 
 OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
 #ifdef _debugPrints
