@@ -574,10 +574,6 @@ def run_ouiji_cmd():
 
         # Function to read stdout and parse results in real-time
         def read_output():
-            output_text.delete('1.0', tk.END)  # Clear previous output
-            output_text.insert(tk.END, "--- Search Starting ---\n")
-            output_text.insert(tk.END, f"Command: {command}\n\n")
-            
             try:
                 while True:
                     # Check if process is still running
@@ -589,7 +585,7 @@ def run_ouiji_cmd():
                         break
                     
                     # Process GUI result format
-                    if line.startswith("GUI_RESULT|"):
+                    if line.startswith("|"):
                         parts = line.strip().split("|")
                         if len(parts) >= 4:
                             seed = parts[1]

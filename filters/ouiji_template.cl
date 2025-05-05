@@ -1,10 +1,10 @@
 // Searches for seeds with Observatory in ante 2 and Perkeo in ante 1 or 2
 #include "lib/ouiji.cl"
 #define CACHE_SIZE 256
-//#define FIXED_FILTER_CUTOFF 1
-//#define _debugPrints 1
+// #define FIXED_FILTER_CUTOFF 1
+// #define _debugPrints 1
 
-OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
+OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
 #ifdef _debugPrints
   printf("Starting filter\n");
 #endif
@@ -25,38 +25,16 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
   // Initialize score arrays
   bool ScoreNeeds[MAX_DESIRES_KERNEL];
   int ScoreWants[MAX_DESIRES_KERNEL];
-  
+
   // Initialize all need scores to false
   for (int i = 0; i < config->numNeeds; i++) {
     ScoreNeeds[i] = false;
   }
-  
   // Initialize all want scores to 0
   for (int i = 0; i < config->numWants; i++) {
     ScoreWants[i] = 0;
   }
 
-  // Debug display config values
-#ifdef _debugPrints
-  for (int i = 0; i < config->numNeeds; i++) {
-    printf("Need %d: Type=%d Value=%d", i, config->Needs[i].type, config->Needs[i].value);
-    print_item(config->Needs[i].value);
-    if (config->Needs[i].type == DesireType_Joker) {
-      printf(" (joker edition=%d)", config->Needs[i].joker.edition);
-    }
-    printf(" desireByAnte=%d\n", config->Needs[i].desireByAnte);
-    printf("\n");    
-  }
-  for (int i = 0; i < config->numWants; i++) {
-    printf("Want %d: Type=%d Value=%d", i, config->Wants[i].type, config->Wants[i].value);
-    print_item(config->Wants[i].value);
-    if (config->Wants[i].type == DesireType_Joker) {
-      printf(" (joker edition=%d)", config->Wants[i].joker.edition);
-    }
-    printf(" desireByAnte=%d\n", config->Wants[i].desireByAnte);
-    printf("\n");
-  }
-#endif
 
   shopitem cards[128]; // Declare the array
   // Initialize all elements to RETRY
@@ -64,6 +42,7 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
     shopitem shit = {ItemType_Joker, RETRY, RETRY};
     cards[i] = shit;
   }
+  int negativeJokers = 0;
   int shCount = 0;
   bool magic = false;
 
@@ -75,7 +54,7 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
   // Search through all antes up to maxSearchAnte
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
     init_unlocks(inst, ante, false);
-    
+
     item voucher = next_voucher(inst, ante);
 #ifdef _debugPrints
     printf("Ante %d Voucher: \r\n", ante);
@@ -85,42 +64,49 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
     if (ante > 1 && voucher != Hieroglyph && voucher != Petroglyph) {
       activate_voucher(inst, voucher);
     }
-    
+
     item smallBlindTag = next_tag(inst, ante);
     item bigBlindTag = next_tag(inst, ante);
 
     for (int x = 0; x < config->numNeeds; x++) {
       // Check the tags
-      if (config->Needs[x].value == smallBlindTag || config->Needs[x].value == bigBlindTag) {
+      if (config->Needs[x].value == smallBlindTag ||
+          config->Needs[x].value == bigBlindTag) {
         ScoreNeeds[x] = true;
-#ifdef _debugPrints
-        printf("Found Need %d from a tag in ante %d\n", x, ante);
-#endif
       }
       // Check the vouchers
       if (config->Needs[x].value == voucher) {
         ScoreNeeds[x] = true;
-#ifdef _debugPrints
-        printf("Found Need %d from voucher in ante %d\n", x, ante);
-#endif
+      }
+    }
+
+    for (int x = 0; x < config->numWants; x++) {
+      // Check the tags
+      if (config->Wants[x].value == smallBlindTag ||
+          config->Wants[x].value == bigBlindTag) {
+        ScoreWants[x]++;
+      }
+      // Check the vouchers
+      if (config->Wants[x].value == voucher) {
+        ScoreWants[x]++;
       }
     }
 
     int cardsIndex = 0;
 
     // Check antes for desires!
-    shCount = ante == 1 ? 4 : 6 + ante;
+    shCount = ante == 1 ? 4 : ante >= 8 ? 10 : 6;
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
       if (shItem.value == RETRY)
         continue;
 #ifdef _debugPrints
-        printf("Shop item %d: ", sh);
-        print_item(shItem.value);
-        if (shItem.type == ItemType_Joker) {
-            printf(" (Edition ID: %d)", shItem.joker.edition);
-        }
-        printf("\n");
+      printf("Shop item %d: ", sh);
+      print_item(shItem.value);
+      if (shItem.type == ItemType_Joker) {
+        printf(" (Edition ID: %d)", shItem.joker.edition);
+      }
+      printf("\n");
 #endif
       cards[cardsIndex++] = shItem;
     }
@@ -138,11 +124,10 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
       if (_pack.type == Arcana_Pack) {
         arcana_pack(cardsTemp, _pack.size, inst, ante);
         useType = ItemType_Tarot;
-      }
-      else if (_pack.type == Spectral_Pack) {
+      } else if (_pack.type == Spectral_Pack) {
         spectral_pack(cardsTemp, _pack.size, inst, ante);
-      }
-      else if (_pack.type == Buffoon_Pack) {
+        useType = ItemType_Spectral;
+      } else if (_pack.type == Buffoon_Pack) {
         jokerdata jkrsTemp[5];
         buffoon_pack_detailed(jkrsTemp, _pack.size, inst, ante);
 
@@ -152,7 +137,7 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
         }
       } else
         continue;
-        
+
       for (int t = 0; t < _pack.size; t++) {
         if (cardsTemp[t] == The_Soul) {
           jokerdata jkrData = next_joker_with_info(inst, S_Soul, ante);
@@ -161,7 +146,7 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
               ScoreNeeds[ww] = true;
             }
             if (The_Soul == config->Wants[ww].value) {
-              ScoreNeeds[ww] = true;
+              ScoreWants[ww]++;
             }
           }
           shopitem soulShit = {ItemType_Joker, jkrData.joker, jkrData};
@@ -174,7 +159,7 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
     }
 
     // Score the entire collection
-    for (int c = 0; c < 126; c++) {
+    for (int c = 0; c < cardsIndex; c++) {
       shopitem shit = cards[c];
       if (shit.value == RETRY)
         continue;
@@ -185,18 +170,20 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
       // Score check for Needs
       for (int x = 0; x < config->numNeeds; x++) {
         // First handle Jokers
-        if (config->Needs[x].type == DesireType_Joker && shit.type == ItemType_Joker) {
+        if (config->Needs[x].type == DesireType_Joker &&
+            shit.type == ItemType_Joker) {
           // Check for Joker value match
           if (config->Needs[x].value == shit.value) {
             // Check for edition match if specified - USE MAPPING FUNCTION
-            item edition = config->Needs[x].joker.edition; // This is the host ID (e.g., 397, 398)
+            item edition =
+                config->Needs[x]
+                    .joker.edition; // This is the host ID (e.g., 397, 398)
 
             if (edition == No_Edition || edition == shit.joker.edition) {
               ScoreNeeds[x] = true;
             }
           }
-        }
-        else if (config->Needs[x].value == shit.value) {
+        } else if (config->Needs[x].value == shit.value) {
           // Check value of non-Joker items
           ScoreNeeds[x] = true;
         }
@@ -204,56 +191,40 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
 
       // Score check for Wants
       for (int x = 0; x < config->numWants; x++) {
-#ifdef _debugPrints
-        printf("Checking want %d (type=%d value=%d) against shop item (type=%d value=%d)\n", 
-               x, config->Wants[x].type, config->Wants[x].value, shit.type, shit.value);
-#endif
         // First handle Jokers
         if (config->Wants[x].type == DesireType_Joker && shit.type == ItemType_Joker) {
           // Check for Joker value match
           if (config->Wants[x].value == shit.value) {
-#ifdef _debugPrints
-            printf("Found Want Joker: %d in ante %d", shit.value, ante);
-#endif
-            item edition = config->Wants[x].joker.edition; // FIX: Use 'item' type
+            item edition = config->Wants[x].joker.edition;
 
-           if (edition == No_Edition || edition == shit.joker.edition) {
-              // Add an increment only if this is the first time we've seen this want
-              // OR if we have showman which allows duplicates to be useful
+            if (edition == No_Edition || edition == shit.joker.edition) {
+              // Add an increment only if this is the first time we've seen this
+              // want OR if we have showman which allows duplicates to be useful
               ScoreWants[x] += ((ScoreWants[x] < 1) || (inst->params.showman == true)) ? 1 : 0;
-#ifdef _debugPrints
-              printf("  - Found Want and edition matches\n");
-#endif
-            } else {
-#ifdef _debugPrints
-              printf(" - Found Want, but not scoring because edition doesn't match.\n  - Host Edition:");
-              print_item(edition);
-              printf("\n  - found Edition: ");
-              print_item(shit.joker.edition);
-              printf("\n\n");
-#endif
             }
           }
-        }
-        else if (config->Wants[x].value == shit.value) {
+        } else if (config->Wants[x].value == shit.value) {
           // Check value of non-Joker items
-#ifdef _debugPrints
-          printf("Found Want %d: Item %d (name: ", x, shit.value);
-          print_item(shit.value);
-          printf(") in ante %d\n", ante);
-#endif
           ScoreWants[x]++;
         }
       }
+
+      // Score check for fancy cards
+      if (shit.type == ItemType_Joker && shit.joker.edition == Negative) {
+        negativeJokers++;
+      }
+
     } // Done scoring collection of cards
 
     // Check per-need ante requirements at the end of each ante
     for (int n = 0; n < config->numNeeds; n++) {
-      // If this need's desireByAnte is the current ante, check if it's been found
+      // If this need's desireByAnte is the current ante, check if it's been
+      // found
       if (ante == config->Needs[n].desireByAnte && !ScoreNeeds[n]) {
         // We've reached the ante deadline for this need and it's not been found
 #ifdef _debugPrints
-        printf("Returning invalid result because need %d not found by its required ante %d\n", 
+        printf("Returning invalid result because need %d not found by its "
+               "required ante %d\n",
                n, config->Needs[n].desireByAnte);
         print_item(config->Needs[n].value);
         printf("\n");
@@ -265,29 +236,19 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
   } // End of ante loop
 
   // Calculate final score
-  result.TotalScore = 0;
-  int totalNeeds = 0;
-  for (int n = 0; n < config->numNeeds; n++) {
-    if (ScoreNeeds[n] == true) {
-      totalNeeds++;
-      result.TotalScore ++;
-#ifdef _debugPrints
-      printf("Need %d was satisfied\n", n);
-#endif
-    }
-  }
-  
+  result.TotalScore = 1;
+
   // Add bonus points for wants
-  for (int w = 0; w < config->numWants; w++) {
+  for (int w = 0; w < MAX_DESIRES_KERNEL; w++) {
     result.ScoreWants[w] = ScoreWants[w];
     // 1 point if this want was ever found (helps weigh it)
-    result.TotalScore += ScoreWants[w] > 0 ? 1 : 0;
+    result.TotalScore += ScoreWants[w] > 0 ? 10 : 0;
   }
-  
+
+  // Add bonus points for negative jokers
+  result.NegativeJokers = negativeJokers;
+  result.TotalScore += negativeJokers * 1;
   result.valid = true;
-#ifdef _debugPrints
-  printf("VALID RESULT - TotalScore = %d (from %i needs)\n", result.TotalScore, totalNeeds);
-#endif
 
   return result;
 }

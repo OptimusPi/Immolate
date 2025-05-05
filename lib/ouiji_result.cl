@@ -10,6 +10,7 @@
 
 typedef struct {
     int TotalScore;
+    int NegativeJokers;
     int ScoreWants[MAX_DESIRES_KERNEL];
     bool valid;
 } OuijiResult;
