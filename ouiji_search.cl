@@ -1,3 +1,8 @@
+// Include a define to check for fixed cutoff
+#ifndef FIXED_FILTER_CUTOFF
+#define DYNAMIC_FILTER_CUTOFF
+#endif
+
 #include "lib/ouiji.cl"        // Includes all necessary headers
 #include "lib/ouiji_config.cl" // Include the config header file
 #include "lib/ouiji_result.cl" // Include the result header file
@@ -12,8 +17,17 @@ __kernel void ouiji_search(char8 starting_seed, long num_seeds,
 
   // Make a local copy of cutoff to reduce global memory access
   long current_cutoff = config->cutoff;
+  
+  // Counter to determine when to refresh the cutoff value from global memory
+  int refresh_counter = 0;
 
   for (long i = get_global_id(0); i < num_seeds; i += get_global_size(0)) {
+    // Periodically refresh the cutoff value to capture updates from other work-groups
+    if (++refresh_counter >= 100) {
+      current_cutoff = config->cutoff;
+      refresh_counter = 0;
+    }
+    
     instance inst = i_new(_seed);
 
     // Call ouiji_filter with the correct parameter types
@@ -29,12 +43,15 @@ __kernel void ouiji_search(char8 starting_seed, long num_seeds,
              result.ScoreWants[5], result.ScoreWants[6], result.ScoreWants[7],
              result.ScoreWants[8], result.ScoreWants[9]);
       
-      // Use atomic operation and safer global memory update
+      // Use atomic operation for safer global memory update
+      #ifndef FIXED_FILTER_CUTOFF
       if (result.TotalScore > current_cutoff) {
-        config->cutoff = result.TotalScore;
-        current_cutoff = config->cutoff;  // Update local copy after write
-        barrier(CLK_GLOBAL_MEM_FENCE);    // Ensure memory consistency
+        // Use atomic_max to safely update the cutoff value
+        atomic_max(&config->cutoff, result.TotalScore);
+        // Update local copy immediately after our own update
+        current_cutoff = result.TotalScore;
       }
+      #endif
     }
 
     // Advance seed for the next iteration
