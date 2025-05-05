@@ -438,6 +438,7 @@ int main(int argc, char **argv) {
 
     // Print version
     printf_s("Ouiji Beta v1.0.1f.1\n");
+    fflush(stdout);
 
     // Handle CLI arguments
     unsigned int platformID = 0;
