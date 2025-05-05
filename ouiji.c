@@ -423,14 +423,12 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     }
     printf_s("loaded deck: %d\n", config->deck);
     printf_s("loaded stake: %d\n", config->stake);
-    
-    
-    
     }
-    
+
 
     free(json_content);
     printf_s("Successfully loaded configuration from %s\n", config_path);
+    fflush(stdout);
     return 1;
 }
 
@@ -891,6 +889,7 @@ int main(int argc, char **argv) {
         }
     }
     printf_s("\n");
+    fflush(stdout);  // Force flush the CSV header line
     err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
     clErrCheck(err, "clEnqueueNDRangeKernel - Executing OpenCL kernel");
 
