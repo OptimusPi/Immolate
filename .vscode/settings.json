@@ -3,7 +3,8 @@
         "*.cl": "opencl",
         "*.csv": "csv",
         "time.h": "c",
-        "immolate.h": "c"
+        "immolate.h": "c",
+        "host_items.h": "c"
     },
     "OpenCL.explorer.localizedProperties": false,
     "python-envs.pythonProjects": []

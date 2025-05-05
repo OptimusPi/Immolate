@@ -1,0 +1,43 @@
+{
+    "name": "egg",
+    "description": "Temporary configuration created on 2025-05-04",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 2,
+        "Needs": [
+            {
+                "type": "Desire_Joker",
+                "value": "Egg",
+                "joker": {
+                    "joker": "Egg",
+                    "edition": "No_Edition"
+                },
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "type": "Desire_Joker",
+                "value": "Egg",
+                "joker": {
+                    "joker": "Egg",
+                    "edition": "No_Edition"
+                },
+                "desireByAnte": 0
+            },
+            {
+                "type": "Desire_Joker",
+                "value": "Blueprint",
+                "joker": {
+                    "joker": "Blueprint",
+                    "edition": "No_Edition"
+                },
+                "desireByAnte": 0
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Red_Deck",
+        "stake": "Black_Stake"
+    }
+}

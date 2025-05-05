@@ -1,368 +1,32 @@
 #include "lib/ouiji.h"
+#include "lib/host_items.h"
+
 #include <time.h>
 #include <io.h> // For _access on Windows
 #define F_OK 0  // File exists flag
-
-// Replace stdatomic.h with Windows-specific atomic implementation
-#ifdef _WIN32
-    #include <windows.h>
-    // Define atomic_uint and atomic operations for Windows
-    typedef volatile LONG atomic_uint;
-    #define atomic_fetch_add(ptr, val) InterlockedExchangeAdd(ptr, val)
-    #define atomic_load(ptr) InterlockedCompareExchange(ptr, 0, 0)
-    #define atomic_store(ptr, val) InterlockedExchange(ptr, val)
-#else
-    #include <stdatomic.h> // Only use on platforms where it's supported
-    #include <unistd.h>    // For access() on POSIX systems
-#endif
 
 // --- Define Structs matching OpenCL ---
 // C-compatible version of structures defined in ouiji_config.cl
 #define MAX_DESIRES_HOST 10
 
-typedef struct {
-    int value; // the item, such as Wee_Joker, Perkeo, Sock_andL_Buskin, etc.
-    int edition; // NO_Edition, NEgative, Holographuic, or Polychrome
-} JokerAndEdition;
-
 // Per-item desire structure
 typedef struct {
-    int type;          // 0 = JOKER, 1 = ITEM
-    int value;         // Item or joker ID
+    cl_int type;          // 0 = JOKER, 1 = ITEM
+    cl_int value;         // Item or joker ID
     char *name;         // Item name
-    JokerAndEdition jokerDetails; // Joker and edition details
-    int desireByAnte; // Ante by which this item should be found
+    jokerdata joker; // Joker and edition details
+    cl_int desireByAnte; // Ante by which this item should be found
 } HostDesire;
 
 // Simple version of the config - we're only passing basic values for now
 typedef struct {
-    int numNeeds;
-    int numWants;
+    cl_int numNeeds;
+    cl_int numWants;
     HostDesire Needs[MAX_DESIRES_HOST];
     HostDesire Wants[MAX_DESIRES_HOST];
-    int maxSearchAnte;  // Maximum ante to search through
-    long cutoff;        // Cutoff value from command line
+    cl_int maxSearchAnte;  // Maximum ante to search through
+    cl_long cutoff;        // Cutoff value from command line
 } OuijiConfig;
-
-// Item name to ID mapping
-typedef struct {
-    char name[50];
-    int id;
-} ItemMapping;
-
-// Complete mapping of item names to their enum IDs from lib/items.cl
-ItemMapping joker_mapping[] = {
-    // Jokers - Common (J_C)
-    {"Joker", 3},
-    {"Greedy_Joker", 4},
-    {"Lusty_Joker", 5},
-    {"Wrathful_Joker", 6},
-    {"Gluttonous_Joker", 7},
-    {"Jolly_Joker", 8},
-    {"Zany_Joker", 9},
-    {"Mad_Joker", 10},
-    {"Crazy_Joker", 11},
-    {"Droll_Joker", 12},
-    {"Sly_Joker", 13},
-    {"Wily_Joker", 14},
-    {"Clever_Joker", 15},
-    {"Devious_Joker", 16},
-    {"Crafty_Joker", 17},
-    {"Half_Joker", 18},
-    {"Credit_Card", 19},
-    {"Banner", 20},
-    {"Mystic_Summit", 21},
-    {"_8_Ball", 22},
-    {"Misprint", 23},
-    {"Raised_Fist", 24},
-    {"Chaos_the_Clown", 25},
-    {"Scary_Face", 26},
-    {"Abstract_Joker", 27},
-    {"Delayed_Gratification", 28},
-    {"Gros_Michel", 29},
-    {"Even_Steven", 30},
-    {"Odd_Todd", 31},
-    {"Scholar", 32},
-    {"Business_Card", 33},
-    {"Supernova", 34},
-    {"Ride_the_Bus", 35},
-    {"Egg", 36},
-    {"Runner", 37},
-    {"Ice_Cream", 38},
-    {"Splash", 39},
-    {"Blue_Joker", 40},
-    {"Faceless_Joker", 41},
-    {"Green_Joker", 42},
-    {"Superposition", 43},
-    {"To_Do_List", 44},
-    {"Cavendish", 45},
-    {"Red_Card", 46},
-    {"Square_Joker", 47},
-    {"Riff_raff", 48},
-    {"Photograph", 49},
-    {"Reserved_Parking", 50},
-    {"Mail_In_Rebate", 51},
-    {"Hallucination", 52},
-    {"Fortune_Teller", 53},
-    {"Juggler", 54},
-    {"Drunkard", 55},
-    {"Golden_Joker", 56},
-    {"Popcorn", 57},
-    {"Walkie_Talkie", 58},
-    {"Smiley_Face", 59},
-    {"Golden_Ticket", 60},
-    {"Swashbuckler", 61},
-    {"Hanging_Chad", 62},
-    {"Shoot_the_Moon", 63},
-    
-    // Jokers - Uncommon (J_U)
-    {"Joker_Stencil", 65},
-    {"Four_Fingers", 66},
-    {"Mime", 67},
-    {"Ceremonial_Dagger", 68},
-    {"Marble_Joker", 69},
-    {"Loyalty_Card", 70},
-    {"Dusk", 71},
-    {"Fibonacci", 72},
-    {"Steel_Joker", 73},
-    {"Hack", 74},
-    {"Pareidolia", 75},
-    {"Space_Joker", 76},
-    {"Burglar", 77},
-    {"Blackboard", 78},
-    {"Sixth_Sense", 79},
-    {"Constellation", 80},
-    {"Hiker", 81},
-    {"Card_Sharp", 82},
-    {"Madness", 83},
-    {"Seance", 84},
-    {"Shortcut", 85},
-    {"Hologram", 86},
-    {"Cloud_9", 87},
-    {"Rocket", 88},
-    {"Midas_Mask", 89},
-    {"Luchador", 90},
-    {"Gift_Card", 91},
-    {"Turtle_Bean", 92},
-    {"Erosion", 93},
-    {"To_the_Moon", 94},
-    {"Stone_Joker", 95},
-    {"Lucky_Cat", 96},
-    {"Bull", 97},
-    {"Diet_Cola", 98},
-    {"Trading_Card", 99},
-    {"Flash_Card", 100},
-    {"Spare_Trousers", 101},
-    {"Ramen", 102},
-    {"Seltzer", 103},
-    {"Castle", 104},
-    {"Mr_Bones", 105},
-    {"Acrobat", 106},
-    {"Sock_and_Buskin", 107},
-    {"Troubadour", 108},
-    {"Certificate", 109},
-    {"Smeared_Joker", 110},
-    {"Throwback", 111},
-    {"Rough_Gem", 112},
-    {"Bloodstone", 113},
-    {"Arrowhead", 114},
-    {"Onyx_Agate", 115},
-    {"Glass_Joker", 116},
-    {"Showman", 117},
-    {"Flower_Pot", 118},
-    {"Merry_Andy", 119},
-    {"Oops_All_6s", 120},
-    {"The_Idol", 121},
-    {"Seeing_Double", 122},
-    {"Matador", 123},
-    {"Stuntman", 124},
-    {"Satellite", 125},
-    {"Cartomancer", 126},
-    {"Astronomer", 127},
-    {"Bootstraps", 128},
-    
-    // Jokers - Rare (J_R)
-    {"DNA", 130},
-    {"Vampire", 131},
-    {"Vagabond", 132},
-    {"Baron", 133},
-    {"Obelisk", 134},
-    {"Baseball_Card", 135},
-    {"Ancient_Joker", 136},
-    {"Campfire", 137},
-    {"Blueprint", 138},
-    {"Wee_Joker", 139},
-    {"Hit_the_Road", 140},
-    {"The_Duo", 141},
-    {"The_Trio", 142},
-    {"The_Family", 143},
-    {"The_Order", 144},
-    {"The_Tribe", 145},
-    {"Invisible_Joker", 146},
-    {"Brainstorm", 147},
-    {"Drivers_License", 148},
-    {"Burnt_Joker", 149},
-    
-    // Jokers - Legendary (J_L)
-    {"Canio", 151},
-    {"Triboulet", 152},
-    {"Yorick", 153},
-    {"Chicot", 154},
-    {"Perkeo", 155},
-    
-    // Tarots
-    {"The_Fool", 157},
-    {"The_Magician", 158},
-    {"The_High_Priestess", 159},
-    {"The_Empress", 160},
-    {"The_Emperor", 161},
-    {"The_Hierophant", 162},
-    {"The_Lovers", 163},
-    {"The_Chariot", 164},
-    {"Justice", 165},
-    {"The_Hermit", 166},
-    {"The_Wheel_of_Fortune", 167},
-    {"Strength", 168},
-    {"The_Hanged_Man", 169},
-    {"Death", 170},
-    {"Temperance", 171},
-    {"The_Devil", 172},
-    {"The_Tower", 173},
-    {"The_Star", 174},
-    {"The_Moon", 175},
-    {"The_Sun", 176},
-    {"Judgement", 177},
-    {"The_World", 178},
-    
-    // Spectral cards
-    {"Familiar", 181},
-    {"Grim", 182},
-    {"Incantation", 183},
-    {"Talisman", 184},
-    {"Aura", 185},
-    {"Wraith", 186},
-    {"Sigil", 187},
-    {"Ouija", 188},
-    {"Ectoplasm", 189},
-    {"Immolate", 190},
-    {"Ankh", 191},
-    {"Deja_Vu", 192},
-    {"Hex", 193},
-    {"Trance", 194},
-    {"Medium", 195},
-    {"Cryptid", 196},
-    {"The_Soul", 197},
-    {"Black_Hole", 198},
-    
-    // Tags
-    {"Uncommon_Tag", 201},
-    {"Rare_Tag", 202},
-    {"Negative_Tag", 203},
-    {"Foil_Tag", 204},
-    {"Holographic_Tag", 205},
-    {"Polychrome_Tag", 206},
-    {"Investment_Tag", 207},
-    {"Voucher_Tag", 208},
-    {"Boss_Tag", 209},
-    {"Standard_Tag", 210},
-    {"Charm_Tag", 211},
-    {"Meteor_Tag", 212},
-    {"Buffoon_Tag", 213},
-    {"Handy_Tag", 214},
-    {"Garbage_Tag", 215},
-    {"Ethereal_Tag", 216},
-    {"Coupon_Tag", 217},
-    {"Double_Tag", 218},
-    {"Juggle_Tag", 219},
-    {"D6_Tag", 220},
-    {"Top_up_Tag", 221},
-    {"Speed_Tag", 222},
-    {"Orbital_Tag", 223},
-    {"Economy_Tag", 224},
-    
-    // Vouchers
-    {"Overstock", 226},
-    {"Overstock_Plus", 227},
-    {"Clearance_Sale", 228},
-    {"Liquidation", 229},
-    {"Hone", 230},
-    {"Glow_Up", 231},
-    {"Reroll_Surplus", 232},
-    {"Reroll_Glut", 233},
-    {"Crystal_Ball", 234},
-    {"Omen_Globe", 235},
-    {"Telescope", 236},
-    {"Observatory", 237},
-    {"Grabber", 238},
-    {"Nacho_Tong", 239},
-    {"Wasteful", 240},
-    {"Recyclomancy", 241},
-    {"Tarot_Merchant", 242},
-    {"Tarot_Tycoon", 243},
-    {"Planet_Merchant", 244},
-    {"Planet_Tycoon", 245},
-    {"Seed_Money", 246},
-    {"Money_Tree", 247},
-    {"Blank", 248},
-    {"Antimatter", 249},
-    {"Magic_Trick", 250},
-    {"Illusion", 251},
-    {"Hieroglyph", 252},
-    {"Petroglyph", 253},
-    {"Directors_Cut", 254},
-    {"Retcon", 255},
-    {"Paint_Brush", 256},
-    {"Palette", 257},
-    
-    // Decks
-    {"Red_Deck", 416},
-    {"Blue_Deck", 417},
-    {"Yellow_Deck", 418},
-    {"Green_Deck", 419},
-    {"Black_Deck", 420},
-    {"Magic_Deck", 421},
-    {"Nebula_Deck", 422},
-    {"Ghost_Deck", 423},
-    {"Abandoned_Deck", 424},
-    {"Checkered_Deck", 425},
-    {"Zodiac_Deck", 426},
-    {"Painted_Deck", 427},
-    {"Anaglyph_Deck", 428},
-    {"Plasma_Deck", 429},
-    {"Erratic_Deck", 430},
-    
-    // Stakes
-    {"White_Stake", 432},
-    {"Red_Stake", 433},
-    {"Green_Stake", 434},
-    {"Black_Stake", 435},
-    {"Blue_Stake", 436},
-    {"Purple_Stake", 437},
-    {"Orange_Stake", 438},
-    {"Gold_Stake", 439},
-    
-    // Editions
-    {"No_Edition", 397},
-    {"Foil", 398},
-    {"Holographic", 399},
-    {"Polychrome", 400},
-    {"Negative", 401},
-    
-    // End marker
-    {"", 0}
-};
-
-// Helper function to parse a string item name to its numeric ID
-int item_name_to_id(const char* name) {
-    for (int i = 0; joker_mapping[i].id != 0; i++) {
-        if (strcmp(joker_mapping[i].name, name) == 0) {
-            return joker_mapping[i].id;
-        }
-    }
-    // Default to Joker ID if not found
-    printf_s("Warning: Unknown item name: %s - using default ID\n", name);
-    return 181; // Default to Showman as fallback
-}
 
 // Helper function to create binary path
 void createBinaryPath(const char* executable_dir, const char* filter_name, char* binary_path, size_t max_len) {
@@ -391,7 +55,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
              executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
              
     // If file doesn't exist with extension, try adding it
-    if (access(config_path, F_OK) != 0) {
+    if (_access(config_path, F_OK) != 0) {
         if (strstr(config_filename, ".ouiji.json") == NULL) {
             snprintf(config_path, MAX_PATH, "%s%souiji_configs%s%s.ouiji.json", 
                      executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
@@ -399,8 +63,8 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     }
     
     // If still doesn't exist, try as absolute path
-    if (access(config_path, F_OK) != 0) {
-        strncpy(config_path, config_filename, MAX_PATH);
+    if (_access(config_path, F_OK) != 0) {
+        strncpy_s(config_path, MAX_PATH, config_filename, MAX_PATH);
     }
     
     printf_s("Attempting to load config from: %s\n", config_path);
@@ -443,6 +107,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             config->numNeeds = atoi(num_needs_str + 1);
         }
     }
+    printf_s("loaded numNeeds: %d\n", config->numNeeds);
     
     // Extract numWants
     char* num_wants_str = strstr(filter_config, "\"numWants\"");
@@ -452,6 +117,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             config->numWants = atoi(num_wants_str + 1);
         }
     }
+    printf_s("loaded numWants: %d\n", config->numWants);
     
     // Extract maxSearchAnte
     char* max_search_ante_str = strstr(filter_config, "\"maxSearchAnte\"");
@@ -459,9 +125,38 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
         max_search_ante_str = strstr(max_search_ante_str, ":");
         if (max_search_ante_str) {
             config->maxSearchAnte = atoi(max_search_ante_str + 1);
+            if (config->maxSearchAnte < 1) {
+                printf_s("Warning: maxSearchAnte is set to %d, which is less than 1.\n", config->maxSearchAnte);
+                config->maxSearchAnte = 8; // Reset to default
+            }
         }
     } else {
         config->maxSearchAnte = 8; // Default value
+    }
+
+    if (config->maxSearchAnte > 8) {
+        printf_s("Warning: maxSearchAnte is set to %d, which is higher than the default of 8.\n", config->maxSearchAnte);
+        printf_s("  - max_search_ante_str is: %s\n", max_search_ante_str);
+        config->maxSearchAnte = 8; // Reset to default
+    } else {
+        printf_s("loaded maxSearchAnte: %d\n", config->maxSearchAnte);
+    }
+    
+    // Initialize Needs and Wants arrays
+    for (int i = 0; i < MAX_DESIRES_HOST; i++) {
+        config->Needs[i].type = 0;
+        config->Needs[i].value = RETRY;
+        config->Needs[i].name = "RETRY";
+        config->Needs[i].desireByAnte = 8;
+        // Initialize joker data with defaults
+        config->Needs[i].joker.edition = No_Edition;
+        
+        config->Wants[i].type = 0;
+        config->Wants[i].value = RETRY;
+        config->Wants[i].name = "RETRY";
+        config->Wants[i].desireByAnte = 8;
+        // Initialize joker data with defaults
+        config->Wants[i].joker.edition = 8;
     }
     
     // Parse Needs section
@@ -469,8 +164,41 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     if (needs_section) {
         int need_index = 0;
         
+        // Find the start of each Need item
         char* need_start = needs_section;
-        while ((need_start = strstr(need_start, "\"value\"")) && need_index < MAX_DESIRES_HOST) {
+        while (need_index < MAX_DESIRES_HOST && need_index < config->numNeeds) {
+            // Find the "type" field within the current Need
+            need_start = strstr(need_start, "\"type\"");
+            if (!need_start) break;
+            
+            need_start = strchr(need_start, ':');
+            if (!need_start) break;
+            need_start++;
+            
+            // Skip whitespace and quotes
+            while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
+            
+            // Find the end of the type value
+            char* need_end = strchr(need_start, '"');
+            if (!need_end) break;
+            
+            // Extract and copy the type name
+            char type_name[50];
+            size_t type_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
+            strncpy_s(type_name, sizeof(type_name), need_start, type_len);
+            type_name[type_len] = '\0';
+            
+            // Set the need type based on the type name
+            if (strcmp(type_name, "Desire_Joker") == 0) {
+                config->Needs[need_index].type = 1; // Joker
+            } else {
+                config->Needs[need_index].type = 0; // Item
+            }
+            
+            // Find the start of the value
+            need_start = strstr(need_start, "\"value\"");
+            if (!need_start) break;
+
             need_start = strchr(need_start, ':');
             if (!need_start) break;
             need_start++;
@@ -479,19 +207,23 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
             
             // Find the end of the value
-            char* need_end = strchr(need_start, '"');
+            need_end = strchr(need_start, '"');
             if (!need_end) break;
             
             // Extract and copy the value name
             char value_name[50];
-            int value_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
-            strncpy(value_name, need_start, value_len);
+            size_t value_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
+            strncpy_s(value_name, sizeof(value_name), need_start, value_len);
             value_name[value_len] = '\0';
             
-            // Set the need type and value
-            config->Needs[need_index].type = 0; // Default to Joker
-            config->Needs[need_index].value = item_name_to_id(value_name);
-            config->Needs[need_index].name = strdup(value_name); // Allocate memory for name
+            // Set the need value (but not type, as it's already set above)
+            config->Needs[need_index].value = parse_item(value_name);
+            config->Needs[need_index].name = _strdup(value_name); // Allocate memory for name
+            if (!config->Needs[need_index].name) {
+                printf_s("Error: Memory allocation failed for need name\n");
+                free(json_content);
+                return 0;
+            }
             
             // Find desireByAnte
             char* ante_str = strstr(need_start, "\"desireByAnte\"");
@@ -506,7 +238,13 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                 config->Needs[need_index].desireByAnte = 4; // Default value
             }
             
+            printf_s("  - Need %d: %s by ante %d\n", need_index, config->Needs[need_index].name, config->Needs[need_index].desireByAnte);
             need_index++;
+            
+            // Move to the next Need item if there are more
+            need_start = strstr(need_start, "},");
+            if (!need_start) break;
+            need_start += 2;
         }
     }
     
@@ -514,9 +252,11 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     char* wants_section = strstr(filter_config, "\"Wants\"");
     if (wants_section) {
         int want_index = 0;
-        
         char* want_start = wants_section;
-        while ((want_start = strstr(want_start, "\"value\"")) && want_index < MAX_DESIRES_HOST) {
+
+        // This Need/Want is looking for a Joker if the "type": value in json is "Desire_Joker"
+        // Otherwise, it's just looking for an item and does not need to fill out the jokerdata.
+        while ((want_start = strstr(want_start, "\"type\"")) && want_index < MAX_DESIRES_HOST && want_index < config->numWants) {
             want_start = strchr(want_start, ':');
             if (!want_start) break;
             want_start++;
@@ -530,14 +270,45 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             
             // Extract and copy the value name
             char value_name[50];
-            int value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
-            strncpy(value_name, want_start, value_len);
+            size_t value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
+            strncpy_s(value_name, sizeof(value_name), want_start, value_len);
             value_name[value_len] = '\0';
             
             // Set the want type and value
-            config->Wants[want_index].type = 0; // Default to Joker
-            config->Wants[want_index].value = item_name_to_id(value_name);
-            config->Wants[want_index].name = strdup(value_name); // Allocate memory for name
+            if (strcmp(value_name, "Desire_Joker") == 0) {
+                config->Wants[want_index].type = 1; // Joker
+            } else {
+                config->Wants[want_index].type = 0; // Item
+            }
+            
+            // Find the start of the value
+            want_start = strstr(want_start, "\"value\"");
+            if (!want_start) break;
+
+            want_start = strchr(want_start, ':');
+            if (!want_start) break;
+            want_start++;
+            
+            // Skip whitespace and quotes
+            while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
+            
+            // Find the end of the value
+            want_end = strchr(want_start, '"');
+            if (!want_end) break;
+            
+            // Extract and copy the value name
+            value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
+            strncpy_s(value_name, sizeof(value_name), want_start, value_len);
+            value_name[value_len] = '\0';
+            
+            // Set the want value
+            config->Wants[want_index].value = parse_item(value_name);
+            config->Wants[want_index].name = _strdup(value_name); // Allocate memory for name
+            if (!config->Wants[want_index].name) {
+                printf_s("Error: Memory allocation failed for want name\n");
+                free(json_content);
+                return 0;
+            }
             
             // Find desireByAnte
             char* ante_str = strstr(want_start, "\"desireByAnte\"");
@@ -552,6 +323,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                 config->Wants[want_index].desireByAnte = 8; // Default value for wants
             }
             
+            printf_s("  - Want %d: %s by ante %d\n", want_index, config->Wants[want_index].name, config->Wants[want_index].desireByAnte);
             want_index++;
         }
     }
@@ -632,7 +404,7 @@ int main(int argc, char **argv) {
                     printf_s("Invalid seed length! ");
                 } 
                 printf_s("Generating random seed...\n");
-                srand(time(NULL));
+                srand((unsigned int)time(NULL));
                 char seedCharacters[] = {'1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
                 startingSeed.s[0] = seedCharacters[rand() % 25 + 10];
                 startingSeed.s[1] = seedCharacters[rand() % 25 + 10];
@@ -810,8 +582,8 @@ int main(int argc, char **argv) {
 
     createBinaryPath(executable_dir, filter, binary_path, MAX_PATH);
 
-    fp = fopen(binary_path, "rb");
-    if (fp) {
+    err = fopen_s(&fp, binary_path, "rb");
+    if (err == 0 && fp != NULL) {
         printf_s("Found pre-compiled kernel binary: %s\n", binary_path);
         fseek(fp, 0, SEEK_END);
         size_t binary_size = ftell(fp);
@@ -851,11 +623,11 @@ int main(int argc, char **argv) {
         strcat_s(kernel_path, sizeof kernel_path, PATH_SEPARATOR);
         strcat_s(kernel_path, sizeof kernel_path, "ouiji_search.cl");
 
-        fp = fopen(kernel_path, "r");
+        err = fopen_s(&fp, kernel_path, "r");
         if (!fp) {
             printf_s("Warning: Kernel source not found at %s, attempting working directory...\n", kernel_path);
-            fp = fopen("ouiji_search.cl","r");
-            if (!fp) {
+            err = fopen_s(&fp, "ouiji_search.cl", "r");
+            if (err != 0 || !fp) {
                 fprintf_s(stderr, "Failed to load kernel source.\n");
                 free(devices);
                 free(platforms);
@@ -960,9 +732,9 @@ int main(int argc, char **argv) {
                 err = clGetProgramInfo(ssKernelProgram, CL_PROGRAM_BINARIES, sizeof(unsigned char*), &p_binary, NULL);
                 clErrCheck(err, "clGetProgramInfo - Getting program binary");
 
-                fp = fopen(binary_path, "wb");
-                if (!fp) {
-                    fprintf_s(stderr, "Failed to open binary file for writing: %s\n", binary_path);
+                errno_t fopen_err = fopen_s(&fp, binary_path, "wb");
+                if (fopen_err != 0) {
+                    fprintf_s(stderr, "Failed to open binary file for writing: %s (error code: %d)\n", binary_path, fopen_err);
                 } else {
                     if (fwrite(program_binary, 1, binary_size, fp) != binary_size) {
                         fprintf_s(stderr, "Failed to write kernel binary to file.\n");

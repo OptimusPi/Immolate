@@ -1,0 +1,24 @@
+{
+    "name": "Want8Ball",
+    "description": "Filter configuration created by Ouiji GUI on 2025-05-04",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 0,
+        "numWants": 1,
+        "Needs": [],
+        "Wants": [
+            {
+                "type": "Desire_Joker",
+                "value": "_8_Ball",
+                "joker": {
+                    "joker": "_8_Ball",
+                    "edition": "No_Edition"
+                },
+                "desireByAnte": 0
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Red_Deck",
+        "stake": "Black_Stake"
+    }
+}

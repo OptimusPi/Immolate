@@ -1,6 +1,5 @@
 // Searches for seeds with Observatory in ante 2 and Perkeo in ante 1 or 2
 #include "lib/ouiji.cl"
-#include "lib/edition_mapping.cl" // Include the new mapping header
 #define CACHE_SIZE 256
 #define FIXED_FILTER_CUTOFF 1
 #define _debugPrints 1
@@ -179,22 +178,24 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
           // Check for Joker value match
           if (config->Needs[x].value == shit.value) {
 #ifdef _debugPrints
-            printf("Found Need Joker: %d in ante %d", shit.value, ante);
+            printf("Found Need Joker: %d in ante %d, will check Edition if necessary.\n", shit.value, ante);
 #endif
             // Check for edition match if specified - USE MAPPING FUNCTION
-            int configEditionHostID = config->Needs[x].joker.edition; // This is the host ID (e.g., 397, 398)
-            item kernelEdition = map_host_edition_to_kernel(configEditionHostID); // FIX: Use 'item' type
+            item edition = config->Needs[x].joker.edition; // This is the host ID (e.g., 397, 398)
 
-            if (kernelEdition == No_Edition || kernelEdition == shit.joker.edition) {
+            if (edition == No_Edition || edition == shit.joker.edition) {
               ScoreNeeds[x] = true;
 #ifdef _debugPrints
-              printf(" - MATCHED! (config host ID=%d, mapped to kernel enum=%d, found=%d)\n",
-                     configEditionHostID, kernelEdition, shit.joker.edition);
+              printf("  - Found Need and edition matches\n");
+
 #endif
             } else {
 #ifdef _debugPrints
-              printf(" but edition doesn't match (config host ID=%d, mapped to kernel enum=%d, found=%d)\n",
-                     configEditionHostID, kernelEdition, shit.joker.edition);
+              printf(" - Found Need, but not scoring because edition doesn't match.\n  - Host Edition:");
+              print_item(edition);
+              printf("\n  - found Edition: ");
+              print_item(shit.joker.edition);
+              printf("\n\n");
 #endif
             }
           }
@@ -217,20 +218,20 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
 #ifdef _debugPrints
             printf("Found Want Joker: %d in ante %d", shit.value, ante);
 #endif
-            // Check for edition match if specified - USE MAPPING FUNCTION
-            int configEditionHostID = config->Wants[x].joker.edition; // This is the host ID
-            item kernelEdition = map_host_edition_to_kernel(configEditionHostID); // FIX: Use 'item' type
+            item edition = config->Wants[x].joker.edition; // FIX: Use 'item' type
 
-            if (kernelEdition == No_Edition || kernelEdition == shit.joker.edition) {
-              ScoreWants[x]++;
+           if (edition == No_Edition || edition == shit.joker.edition) {
+              ScoreWants[x] += ScoreWants[x] < 1 || inst->params.showman == true ? 1 : 0;
 #ifdef _debugPrints
-              printf(" - MATCHED! (config host ID=%d, mapped to kernel enum=%d, found=%d)\n",
-                     configEditionHostID, kernelEdition, shit.joker.edition);
+              printf("  - Found Want and edition matches\n");
 #endif
             } else {
 #ifdef _debugPrints
-              printf(" but edition doesn't match (config host ID=%d, mapped to kernel enum=%d, found=%d)\n",
-                     configEditionHostID, kernelEdition, shit.joker.edition);
+              printf(" - Found Want, but not scoring because edition doesn't match.\n  - Host Edition:");
+              print_item(edition);
+              printf("\n  - found Edition: ");
+              print_item(shit.joker.edition);
+              printf("\n\n");
 #endif
             }
           }
@@ -265,7 +266,7 @@ OuijiResult ouiji_filter(instance* inst, __global OuijiConfig* config) {
   // Calculate final score
   int totalNeeds = 0;
   for (int n = 0; n < config->numNeeds; n++) {
-    if (ScoreNeeds[n]) {
+    if (ScoreNeeds[n] == true) {
       totalNeeds++;
 #ifdef _debugPrints
       printf("Need %d was satisfied\n", n);
