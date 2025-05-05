@@ -5,14 +5,14 @@
 cd "x:\Immolate"
 
 # Run CMake to configure the project
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="x:\Immolate\vcpkg\scripts\buildsystems\vcpkg.cmake"
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=".\vcpkg\scripts\buildsystems\vcpkg.cmake"
 
 # Build the project
 cmake --build build --config Release
 
 # Copy the output executable to Ouiji.exe
-$source = "x:\Immolate\build\Release\Ouiji.exe"
-$destination = "x:\Immolate\Ouiji.exe"
+$source = ".\build\Release\Ouiji.exe"
+$destination = ".\Ouiji.exe"
 if (Test-Path $source) {
     Copy-Item -Path $source -Destination $destination -Force
     Write-Host "Copied output to Ouiji.exe" -ForegroundColor Green

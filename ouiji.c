@@ -9,13 +9,21 @@
 // C-compatible version of structures defined in ouiji_config.cl
 #define MAX_DESIRES_HOST 10
 
-// Per-item desire structure
 typedef struct {
-    cl_int type;          // 0 = JOKER, 1 = ITEM
-    cl_int value;         // Item or joker ID
-    char *name;         // Item name
-    jokerdata joker; // Joker and edition details
-    cl_int desireByAnte; // Ante by which this item should be found
+    item joker;
+    item edition;
+} jokerdata;
+
+typedef enum {
+    DesireType_Joker = 0,
+    DesireType_Value = 1,
+} desiretype;
+
+typedef struct {
+    desiretype type;          // 0 = DesireType_Joker, 1 = DesireType_Value
+    item value;         // Item or joker ID
+    jokerdata joker;      // Joker and edition details
+    cl_int desireByAnte;  // Ante by which this item should be found
 } HostDesire;
 
 // Simple version of the config - we're only passing basic values for now
@@ -25,7 +33,9 @@ typedef struct {
     HostDesire Needs[MAX_DESIRES_HOST];
     HostDesire Wants[MAX_DESIRES_HOST];
     cl_int maxSearchAnte;  // Maximum ante to search through
-    cl_long cutoff;        // Cutoff value from command line
+    item deck;
+    item stake;
+    cl_long cutoff; // Cutoff value from command line
 } OuijiConfig;
 
 // Helper function to create binary path
@@ -42,6 +52,7 @@ void createBinaryPath(const char* executable_dir, const char* filter_name, char*
 
     snprintf(binary_path, max_len, "%s%sfilters%s%s.bin", executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, filter_name);
 }
+
 
 // Load configuration from JSON file
 int load_config_from_json(const char* config_filename, OuijiConfig* config) {
@@ -118,45 +129,16 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
         }
     }
     printf_s("loaded numWants: %d\n", config->numWants);
-    
-    // Extract maxSearchAnte
-    char* max_search_ante_str = strstr(filter_config, "\"maxSearchAnte\"");
-    if (max_search_ante_str) {
-        max_search_ante_str = strstr(max_search_ante_str, ":");
-        if (max_search_ante_str) {
-            config->maxSearchAnte = atoi(max_search_ante_str + 1);
-            if (config->maxSearchAnte < 1) {
-                printf_s("Warning: maxSearchAnte is set to %d, which is less than 1.\n", config->maxSearchAnte);
-                config->maxSearchAnte = 8; // Reset to default
-            }
-        }
-    } else {
-        config->maxSearchAnte = 8; // Default value
-    }
 
-    if (config->maxSearchAnte > 8) {
-        printf_s("Warning: maxSearchAnte is set to %d, which is higher than the default of 8.\n", config->maxSearchAnte);
-        printf_s("  - max_search_ante_str is: %s\n", max_search_ante_str);
-        config->maxSearchAnte = 8; // Reset to default
-    } else {
-        printf_s("loaded maxSearchAnte: %d\n", config->maxSearchAnte);
-    }
-    
     // Initialize Needs and Wants arrays
     for (int i = 0; i < MAX_DESIRES_HOST; i++) {
         config->Needs[i].type = 0;
         config->Needs[i].value = RETRY;
-        config->Needs[i].name = "RETRY";
         config->Needs[i].desireByAnte = 8;
-        // Initialize joker data with defaults
-        config->Needs[i].joker.edition = No_Edition;
         
         config->Wants[i].type = 0;
         config->Wants[i].value = RETRY;
-        config->Wants[i].name = "RETRY";
         config->Wants[i].desireByAnte = 8;
-        // Initialize joker data with defaults
-        config->Wants[i].joker.edition = 8;
     }
     
     // Parse Needs section
@@ -190,9 +172,9 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             
             // Set the need type based on the type name
             if (strcmp(type_name, "Desire_Joker") == 0) {
-                config->Needs[need_index].type = 1; // Joker
+                config->Needs[need_index].type = 0; // Joker
             } else {
-                config->Needs[need_index].type = 0; // Item
+                config->Needs[need_index].type = 1; // Item
             }
             
             // Find the start of the value
@@ -218,11 +200,34 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             
             // Set the need value (but not type, as it's already set above)
             config->Needs[need_index].value = parse_item(value_name);
-            config->Needs[need_index].name = _strdup(value_name); // Allocate memory for name
-            if (!config->Needs[need_index].name) {
-                printf_s("Error: Memory allocation failed for need name\n");
-                free(json_content);
-                return 0;
+            
+            // Look for joker details
+            char* joker_section = strstr(need_start, "\"joker\"");
+            if (joker_section) {
+                // Find edition field
+                char* edition_section = strstr(joker_section, "\"edition\"");
+                if (edition_section) {
+                    edition_section = strchr(edition_section, ':');
+                    if (edition_section) {
+                        edition_section++;
+                        // Skip whitespace and quotes
+                        while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
+                        
+                        // Find end of edition value
+                        char* edition_end = strchr(edition_section, '"');
+                        if (edition_end) {
+                            char edition_name[50];
+                            size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
+                            strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
+                            edition_name[edition_len] = '\0';
+                            
+                            // Set the edition value
+                            config->Needs[need_index].joker.edition = parse_item(edition_name);
+                            printf_s("  - Need %d: %s (edition: %s) by ante %d\n", 
+                                    need_index, value_name, edition_name, config->Needs[need_index].desireByAnte);
+                        }
+                    }
+                }
             }
             
             // Find desireByAnte
@@ -232,13 +237,11 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                 if (ante_str) {
                     config->Needs[need_index].desireByAnte = atoi(ante_str + 1);
                 } else {
-                    config->Needs[need_index].desireByAnte = 4; // Default value
+                    config->Needs[need_index].desireByAnte = 8;
                 }
             } else {
-                config->Needs[need_index].desireByAnte = 4; // Default value
+                config->Needs[need_index].desireByAnte = 8;
             }
-            
-            printf_s("  - Need %d: %s by ante %d\n", need_index, config->Needs[need_index].name, config->Needs[need_index].desireByAnte);
             need_index++;
             
             // Move to the next Need item if there are more
@@ -247,16 +250,19 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             need_start += 2;
         }
     }
-    
-    // Parse Wants section - similar to Needs section
+
+    // Parse Wants section
     char* wants_section = strstr(filter_config, "\"Wants\"");
     if (wants_section) {
         int want_index = 0;
+        
+        // Find the start of each Want item
         char* want_start = wants_section;
-
-        // This Need/Want is looking for a Joker if the "type": value in json is "Desire_Joker"
-        // Otherwise, it's just looking for an item and does not need to fill out the jokerdata.
-        while ((want_start = strstr(want_start, "\"type\"")) && want_index < MAX_DESIRES_HOST && want_index < config->numWants) {
+        while (want_index < MAX_DESIRES_HOST && want_index < config->numWants) {
+            // Find the "type" field within the current Want
+            want_start = strstr(want_start, "\"type\"");
+            if (!want_start) break;
+            
             want_start = strchr(want_start, ':');
             if (!want_start) break;
             want_start++;
@@ -264,27 +270,26 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             // Skip whitespace and quotes
             while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
             
-            // Find the end of the value
+            // Extract and copy the type name
             char* want_end = strchr(want_start, '"');
             if (!want_end) break;
             
-            // Extract and copy the value name
-            char value_name[50];
-            size_t value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
-            strncpy_s(value_name, sizeof(value_name), want_start, value_len);
-            value_name[value_len] = '\0';
+            char type_name[50];
+            size_t type_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
+            strncpy_s(type_name, sizeof(type_name), want_start, type_len);
+            type_name[type_len] = '\0';
             
-            // Set the want type and value
-            if (strcmp(value_name, "Desire_Joker") == 0) {
-                config->Wants[want_index].type = 1; // Joker
+            // Set the Want's type based on the type name
+            if (strcmp(type_name, "Desire_Joker") == 0) {
+                config->Wants[want_index].type = 0; // DesireType_Joker = 0 in ouiji_config.cl
             } else {
-                config->Wants[want_index].type = 0; // Item
+                config->Wants[want_index].type = 1; // DesireType_Value = 1 in ouiji_config.cl
             }
             
-            // Find the start of the value
+            // Now find the "value" field
             want_start = strstr(want_start, "\"value\"");
             if (!want_start) break;
-
+            
             want_start = strchr(want_start, ':');
             if (!want_start) break;
             want_start++;
@@ -297,17 +302,41 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             if (!want_end) break;
             
             // Extract and copy the value name
-            value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
+            char value_name[50];
+            size_t value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
             strncpy_s(value_name, sizeof(value_name), want_start, value_len);
             value_name[value_len] = '\0';
             
-            // Set the want value
+            // Set the Want's value based on the parsed name
             config->Wants[want_index].value = parse_item(value_name);
-            config->Wants[want_index].name = _strdup(value_name); // Allocate memory for name
-            if (!config->Wants[want_index].name) {
-                printf_s("Error: Memory allocation failed for want name\n");
-                free(json_content);
-                return 0;
+            
+            // Look for joker details
+            char* joker_section = strstr(want_start, "\"joker\"");
+            if (joker_section) {
+                // Find edition field
+                char* edition_section = strstr(joker_section, "\"edition\"");
+                if (edition_section) {
+                    edition_section = strchr(edition_section, ':');
+                    if (edition_section) {
+                        edition_section++;
+                        // Skip whitespace and quotes
+                        while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
+                        
+                        // Find end of edition value
+                        char* edition_end = strchr(edition_section, '"');
+                        if (edition_end) {
+                            char edition_name[50];
+                            size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
+                            strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
+                            edition_name[edition_len] = '\0';
+                            
+                            // Set the edition value
+                            config->Wants[want_index].joker.edition = parse_item(edition_name);
+                            printf_s("  - Want %d: %s (edition: %s) by ante %d\n", 
+                                    want_index, value_name, edition_name, config->Wants[want_index].desireByAnte);
+                        }
+                    }
+                }
             }
             
             // Find desireByAnte
@@ -317,17 +346,89 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                 if (ante_str) {
                     config->Wants[want_index].desireByAnte = atoi(ante_str + 1);
                 } else {
-                    config->Wants[want_index].desireByAnte = 8; // Default value for wants
+                    config->Wants[want_index].desireByAnte = 8; // Default value
                 }
             } else {
-                config->Wants[want_index].desireByAnte = 8; // Default value for wants
+                config->Wants[want_index].desireByAnte = 8; // Default value
             }
-            
-            printf_s("  - Want %d: %s by ante %d\n", want_index, config->Wants[want_index].name, config->Wants[want_index].desireByAnte);
             want_index++;
+            
+            // Move to the next Want item if there are more
+            want_start = strstr(want_start, "},");
+            if (!want_start) break;
+            want_start += 2;
         }
+
+    // Extract maxSearchAnte
+    char* max_search_ante_str = strstr(filter_config, "\"maxSearchAnte\"");
+    if (max_search_ante_str) {
+        max_search_ante_str = strstr(max_search_ante_str, ":");
+        if (max_search_ante_str) {
+            config->maxSearchAnte = atoi(max_search_ante_str + 1);
+            if (config->maxSearchAnte < 1) {
+                printf_s("Warning: maxSearchAnte is set to %d, which is less than 1.\n", config->maxSearchAnte);
+                config->maxSearchAnte = 8; // Reset to default
+            }
+        }
+    } else {
+        config->maxSearchAnte = 8; // Default value
+    }
+
+    if (config->maxSearchAnte > 8) {
+        printf_s("Warning: maxSearchAnte is set to %d, which is higher than the default of 8.\n", config->maxSearchAnte);
+        printf_s("  - max_search_ante_str is: %s\n", max_search_ante_str);
+        config->maxSearchAnte = 8; // Reset to default
+    } else {
+        printf_s("loaded maxSearchAnte: %d\n", config->maxSearchAnte);
+    }
+
+    // Extract deck    // Extract deck
+    char* deck_str = strstr(filter_config, "\"deck\"");
+    if (deck_str) {
+        deck_str = strstr(deck_str, ":");
+        if (deck_str) {
+            deck_str++;
+            while (*deck_str && (*deck_str == ' ' || *deck_str == '"')) deck_str++;
+            char deck_name[50];
+            char* end = strchr(deck_str, '"');
+            if (end) {
+                size_t len = (end - deck_str < 49) ? (end - deck_str) : 49;
+                strncpy_s(deck_name, sizeof(deck_name), deck_str, len);
+                deck_name[len] = '\0';
+                config->deck = parse_item(deck_name);
+            }
+        }
+    } else {
+        config->deck = RETRY; // Default value
+    }
+
+    //Extract stake
+    char* stake_str = strstr(filter_config, "\"stake\"");
+    if (stake_str) {
+        stake_str = strstr(stake_str, ":");
+        if (stake_str) {
+            stake_str++;
+            while (*stake_str && (*stake_str == ' ' || *stake_str == '"')) stake_str++;
+            char stake_name[50];
+            char* end = strchr(stake_str, '"');
+            if (end) {
+                size_t len = (end - stake_str < 49) ? (end - stake_str) : 49;
+                strncpy_s(stake_name, sizeof(stake_name), stake_str, len);
+                stake_name[len] = '\0';
+                config->stake = parse_item(stake_name);
+            }
+        }
+    } else {
+        config->stake = RETRY; // Default value
+    }
+    printf_s("loaded deck: %d\n", config->deck);
+    printf_s("loaded stake: %d\n", config->stake);
+    
+    
+    
     }
     
+
     free(json_content);
     printf_s("Successfully loaded configuration from %s\n", config_path);
     return 1;
@@ -346,7 +447,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
     };
-    cl_long numSeeds = 2318107019761;
+    cl_long numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
     // Default config values
     OuijiConfig config;
     config.cutoff = 0;           // Default cutoff
@@ -502,8 +603,8 @@ int main(int argc, char **argv) {
             if (config.numNeeds > 0) {
                 printf_s("Needs:\n");
                 for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item %s by ante %d\n", 
-                            config.Needs[i].name, config.Needs[i].desireByAnte);
+                    printf_s("  - Item %i by ante %d\n", 
+                            config.Needs[i].value, config.Needs[i].desireByAnte);
                 }
             }
             
@@ -511,7 +612,7 @@ int main(int argc, char **argv) {
             if (config.numWants > 0) {
                 printf_s("Wants:\n");
                 for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item %s\n", config.Wants[i].name);
+                    printf_s("  - Item %i\n", config.Wants[i].value);
                 }
             }
         }
@@ -773,7 +874,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < MAX_DESIRES_HOST; i++) {
         //print the name and another comma
         if (i < config.numNeeds) {
-            printf_s("%s", config.Needs[i].name);
+            print_item(config.Needs[i].value);
         } else if (i < config.numNeeds + config.numWants) {
             printf_s("");
         }

@@ -13,7 +13,7 @@ __kernel void ouiji_search(char8 starting_seed, long num_seeds,
   // Make a local copy of cutoff to reduce global memory access
   long current_cutoff = config->cutoff;
 
-  for (long long i = get_global_id(0); i < num_seeds; i += get_global_size(0)) {
+  for (long i = get_global_id(0); i < num_seeds; i += get_global_size(0)) {
     instance inst = i_new(_seed);
 
     // Call ouiji_filter with the correct parameter types
