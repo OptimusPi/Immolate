@@ -524,7 +524,14 @@ int main(int argc, char **argv) {
                     startingSeed.s[j] = '\0';
                 }
             }
-            printf_s("Starting seed set to %s\n", startingSeed.s);
+            // Create a proper null-terminated string for printing
+            char seedStr[9];
+            for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) {
+                seedStr[j] = startingSeed.s[j];
+                seedStr[j+1] = '\0';  // Ensure null termination
+            }
+            printf_s("Starting seed set to %s\n", seedStr);
+            fflush(stdout);
             i++;
         }
         if (strcmp(argv[i],  "--list_devices")==0) {
