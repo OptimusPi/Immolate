@@ -3,12 +3,11 @@ cmake_minimum_required(VERSION 3.10) # 3.1 << C_STANDARD 11
 project(Ouiji LANGUAGES C)
 
 find_package(OpenCL REQUIRED)
-find_package(cJSON CONFIG REQUIRED) # Add this line to find cJSON
 
 add_executable(${PROJECT_NAME} ouiji.c)
 
-# Link both OpenCL and cJSON
-target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL::OpenCL cjson)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL::OpenCL)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES C_STANDARD 11
                                                  C_STANDARD_REQUIRED ON

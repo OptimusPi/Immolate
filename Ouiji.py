@@ -1,6 +1,6 @@
 # Import additional modules for process management and JSON handling
 import tkinter as tk
-from tkinter import ttk, messagebox, font, filedialog
+from tkinter import ttk, messagebox, font, filedialog, VERTICAL, HORIZONTAL
 import subprocess
 import threading
 import json
@@ -473,8 +473,13 @@ thread_group_map = {
     "Single": "1",
     "Default (16)": "16",
     "32": "32",
+    "48": "48",
+    "56": "56",
     "64": "64",
+    "96": "96",
+    "112": "112",
     "128": "128",
+    "224": "224",
     "256": "256"
 }
 
@@ -488,6 +493,13 @@ seed_count_map = {
     "1B": "1000000000"
 }
 
+def get_duckdb_path_from_config(config_path):
+    base = os.path.basename(config_path)
+    name, _ = os.path.splitext(base)
+    db_dir = "ouiji_database"
+    os.makedirs(db_dir, exist_ok=True)
+    return os.path.join(db_dir, f"{name}.duckdb")
+
 def run_ouiji_cmd():
     # If the button is in "STOP SEARCH" mode, terminate the process
     if run_button.cget("text") == "STOP SEARCH":
@@ -497,13 +509,7 @@ def run_ouiji_cmd():
         output_text.see(tk.END)
         return
 
-    # Check if we have criteria without having exported
-    if (needs_list or wants_list) and not config_name_entry.get().strip():
-        # Ask user if they want to export the configuration first
-        if messagebox.askyesno("Export Configuration", 
-                              "You have selected criteria but haven't named/exported your configuration.\n\n" +
-                              "Would you like to export it before running?"):
-            export_configuration()
+    export_configuration()
     
     starting_seed = starting_seed_entry.get()
     number_of_seeds_label = number_of_seeds_var.get()
@@ -526,6 +532,11 @@ def run_ouiji_cmd():
     # Add thread groups argument
     command_parts.extend(["-g", thread_groups_value])
     
+    duckdb_conn = None
+    duckdb_table_created = False
+    duckdb_path = None
+    config_path_for_db = None
+
     # If we have criteria, generate a temporary config file to use
     if needs_list or wants_list:
         config_name = config_name_entry.get().strip()
@@ -559,6 +570,15 @@ def run_ouiji_cmd():
         
         # Add config flag to command
         command_parts.extend(["--config", temp_config_path])
+        config_path_for_db = temp_config_path
+    else:
+        config_path_for_db = None
+
+    # If a config is being used, determine DuckDB path and open connection
+    if config_path_for_db:
+        duckdb_path = get_duckdb_path_from_config(config_path_for_db)
+        duckdb_conn = duckdb.connect(duckdb_path)
+        # We'll create the table on first result insert
     
     # Join parts into the final command string
     command = " ".join(command_parts)
@@ -574,6 +594,7 @@ def run_ouiji_cmd():
 
         # Function to read stdout and parse results in real-time
         def read_output():
+            nonlocal duckdb_conn, duckdb_table_created
             try:
                 while True:
                     # Check if process is still running
@@ -584,20 +605,26 @@ def run_ouiji_cmd():
                     if not line:
                         break
                     
-                    # Process GUI result format
+                    # Only process lines that start with '|' as scored result rows
                     if line.startswith("|"):
-                        parts = line.strip().split("|")
-                        if len(parts) >= 4:
-                            seed = parts[1]
-                            score = parts[2]
-                            wants_mask = parts[3]
-                            formatted_result = f"SEED: {seed} | SCORE: {score} | WANTS: {wants_mask}\n"
-                            output_text.insert(tk.END, formatted_result)
+                        parts = line[1:].strip().split(",")
+                        if len(parts) >= 2:
+                            # On first result, create table if needed
+                            if duckdb_conn and not duckdb_table_created:
+                                columns = [f"col{i+1} TEXT" for i in range(len(parts))]
+                                columns[1] = "Score INTEGER"  # Try to type Score as integer
+                                columns[0] = "Seed TEXT"
+                                columns_def = ", ".join(columns)
+                                duckdb_conn.execute(f"CREATE TABLE IF NOT EXISTS results ({columns_def});")
+                                duckdb_table_created = True
+                            # Insert result
+                            if duckdb_conn:
+                                duckdb_conn.execute(f"INSERT INTO results VALUES ({', '.join(['?']*len(parts))});", parts)
+                            update_results_tree(parts)
+                        output_text.insert(tk.END, line[1:].strip())
                     else:
                         # Regular output lines
                         output_text.insert(tk.END, line)
-                    
-                    output_text.see(tk.END)  # Auto-scroll to the latest output
                 
                 # Process any stderr after stdout is done
                 for line in process.stderr:
@@ -618,6 +645,9 @@ def run_ouiji_cmd():
                 output_text.see(tk.END)
                 # Reset button on error
                 run_button.config(text="Let Jimbo Cook!", bg=RED)
+            finally:
+                if duckdb_conn:
+                    duckdb_conn.close()
 
         # Change button to "STOP SEARCH" mode instead of disabling
         run_button.config(text="STOP SEARCH", bg="#FF0000")  # Bright red for stop
@@ -754,17 +784,13 @@ class ItemSelectorDialog(tk.Toplevel):
         internal_value = joker_mapping.get(selected_item, selected_item.replace(" ", "_"))
         
         result = {
-            "type": category_to_item_type(self.category),  # Convert category name to type
             "value": internal_value
         }
         
         # Add edition info for jokers
         if self.category == "Jokers":
             edition = self.edition_var.get()
-            result["joker"] = {
-                "joker": internal_value,
-                "edition": edition
-            }
+            result["jokeredition"] = edition
         
         # Add ante requirement for needs
         result["desireByAnte"] = self.ante_var.get()
@@ -791,24 +817,6 @@ class ItemSelectorDialog(tk.Toplevel):
         selected_criteria_list.insert(tk.END, display_text)
         
         self.destroy()
-
-# Helper function to convert category name to item type
-def category_to_item_type(category):
-    print("Converting category to item type: %s\n", category)
-    # Remove the trailing 's' from the category name to get the item type
-    # Special case for some plurals
-    if category == "Jokers":
-        return "Desire_Joker"
-    elif category == "Tarots":
-        return "Desire_Tarot"
-    elif category == "Spectrals":
-        return "Desire_Spectral"
-    elif category == "Tags":
-        return "Desire_Tag"
-    elif category == "Vouchers":
-        return "Desire_Voucher"
-    else:
-        return f"Desire_{category[:-1]}"
     
 
 # Add buttons to trigger the item selector dialogs for different categories
@@ -893,7 +901,6 @@ def randomize_all_criteria():
         internal_value = joker_mapping.get(selected_item, selected_item.replace(" ", "_"))
         
         result = {
-            "type": category_to_item_type(category),
             "value": internal_value,
             "desireByAnte": random.randint(1, 8)  # Random ante requirement
         }
@@ -902,10 +909,7 @@ def randomize_all_criteria():
         if category == "Jokers" and random.random() < 0.3:
             editions = ["Foil", "Holographic", "Polychrome", "Negative"]
             edition = random.choice(editions)
-            result["joker"] = {
-                "joker": internal_value,
-                "edition": edition
-            }
+            result["jokeredition"] = edition
             needs_list.append(result)
             selected_criteria_list.insert(tk.END, f"NEED: {selected_item} by Ante {result['desireByAnte']} ({edition})")
         else:
@@ -919,7 +923,6 @@ def randomize_all_criteria():
         internal_value = joker_mapping.get(selected_item, selected_item.replace(" ", "_"))
         
         result = {
-            "type": category_to_item_type(category),
             "value": internal_value,
             "desireByAnte": 8  # Default to searching all antes
         }
@@ -928,10 +931,7 @@ def randomize_all_criteria():
         if category == "Jokers" and random.random() < 0.3:
             editions = ["Foil", "Holographic", "Polychrome", "Negative"]
             edition = random.choice(editions)
-            result["joker"] = {
-                "joker": internal_value,
-                "edition": edition
-            }
+            result["jokeredition"] = edition
             wants_list.append(result)
             selected_criteria_list.insert(tk.END, f"WANT: {selected_item} ({edition})")
         else:
@@ -991,7 +991,6 @@ def export_configuration():
     if file_path:
         with open(file_path, 'w') as file:
             json.dump(config, file, indent=4)
-        messagebox.showinfo("Success", f"Configuration exported to {file_path}")
         
         # Also generate a --config parameter example
         config_param = f"--config \"{os.path.basename(file_path)}\""
@@ -1082,8 +1081,6 @@ def load_configuration():
                     if internal_name == filter_config["stake"] and display_name in available_items["Stakes"]:
                         stake_var.set(display_name)
                         break
-        
-        messagebox.showinfo("Success", f"Configuration loaded from {os.path.basename(file_path)}")
         
     except Exception as e:
         messagebox.showerror("Error", f"Failed to load configuration: {str(e)}")
@@ -1229,9 +1226,9 @@ thread_group_label = tk.Label(run_settings_frame, text="GPU Thread Groups:")
 thread_group_label.pack(anchor="w", pady=5)
 add_tooltip_to_label(thread_group_label, "Select the number of GPU thread groups to use. Use 'Single' for analyzing one seed. Optimal value differs per system. Experimenting/Benchmarking Recommended!")
 
-default_thread_group = tk.StringVar(value="Default (16)")
+default_thread_group = tk.StringVar(value="112")
 thread_group_dropdown = ttk.Combobox(run_settings_frame, textvariable=default_thread_group, state="readonly")
-thread_group_dropdown['values'] = ["Single", "Default (16)", "32", "64", "128", "256"]
+thread_group_dropdown['values'] = ["Single", "Default (16)", "32", "48", "64", "96", "112", "128", "196", "224", "256"]
 thread_group_dropdown.pack(pady=(5, 10))  # Add more space below the dropdown
 
 # Add Starting Seed and Number of Seeds to Search settings
@@ -1264,10 +1261,36 @@ number_of_seeds_dropdown.pack(pady=5)
 run_button = tk.Button(run_settings_frame, text="Let Jimbo Cook!", command=run_ouiji_cmd, bg=BLUE, fg="white", font=("m6x11", 18, "bold"), height=2, width=20)
 run_button.pack(pady=(20,5))
 
-# Add a Text widget to display output
-output_text = tk.Text(root, wrap=tk.WORD, height=15)
-output_text.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=True, padx=5, pady=5)
+# Add a horizontal frame at the bottom for output and results table
+bottom_frame = tk.Frame(root)
+bottom_frame.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=True, padx=5, pady=5)
+bottom_frame.configure(bg="#394D53")
+
+# Left: Text output (console)
+output_text = tk.Text(bottom_frame, wrap=tk.WORD, height=15)
+output_text.pack(fill=tk.BOTH, side=tk.LEFT, expand=True, padx=(0,5), pady=0)
 output_text.configure(bg="#394D53", fg="white", font=("m6x11", 12), insertbackground='white')
+
+# Right: Treeview for results
+results_frame = tk.Frame(bottom_frame)
+results_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
+results_frame.configure(bg="#394D53")
+
+results_tree = ttk.Treeview(results_frame, columns=("Seed", "Score"), show="headings")
+results_tree.heading("Seed", text="Seed")
+results_tree.heading("Score", text="Score")
+results_tree.pack(fill=tk.BOTH, expand=True)
+
+# Add vertical scrollbar to the treeview
+results_scrollbar = ttk.Scrollbar(results_frame, orient=VERTICAL, command=results_tree.yview)
+results_tree.configure(yscrollcommand=results_scrollbar.set)
+results_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+# Function to update Treeview
+def update_results_tree(parts):
+    # Only add if at least Seed and Score are present
+    if len(parts) >= 2:
+        root.after(0, lambda: results_tree.insert("", "end", values=(parts[0], parts[1])))
 
 # Bind window close event to cleanup function
 def on_closing():

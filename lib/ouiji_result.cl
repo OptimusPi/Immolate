@@ -3,16 +3,17 @@
  * @brief Definition of the OuijiResult structure returned from device to host
  */
 
-#ifndef OUIJI_RESULT_H
-#define OUIJI_RESULT_H
+#ifndef OUIJI_RESULT_CL
+#define OUIJI_RESULT_CL
 
 #include "lib/ouiji.cl" // Include the necessary headers for item and jokerdata types
 
 typedef struct {
+    char seed[9]; // 8 bytes for the seed + 1 byte for null terminator
     int TotalScore;
     int NegativeJokers;
     int ScoreWants[MAX_DESIRES_KERNEL];
-    bool valid;
+    int valid;
 } OuijiResult;
 
 #endif

@@ -1,42 +1,9 @@
 #include "lib/ouiji.h"
 #include "lib/host_items.h"
+#include "lib/ouiji_config_loader.h"
+#include "lib/ouiji_host_result.h"
 
 #include <time.h>
-#include <io.h> // For _access on Windows
-#define F_OK 0  // File exists flag
-
-// --- Define Structs matching OpenCL ---
-// C-compatible version of structures defined in ouiji_config.cl
-#define MAX_DESIRES_HOST 10
-
-typedef struct {
-    item joker;
-    item edition;
-} jokerdata;
-
-typedef enum {
-    DesireType_Joker = 0,
-    DesireType_Value = 1,
-} desiretype;
-
-typedef struct {
-    desiretype type;          // 0 = DesireType_Joker, 1 = DesireType_Value
-    item value;         // Item or joker ID
-    jokerdata joker;      // Joker and edition details
-    cl_int desireByAnte;  // Ante by which this item should be found
-} HostDesire;
-
-// Simple version of the config - we're only passing basic values for now
-typedef struct {
-    cl_int numNeeds;
-    cl_int numWants;
-    HostDesire Needs[MAX_DESIRES_HOST];
-    HostDesire Wants[MAX_DESIRES_HOST];
-    cl_int maxSearchAnte;  // Maximum ante to search through
-    item deck;
-    item stake;
-    cl_long cutoff; // Cutoff value from command line
-} OuijiConfig;
 
 // Helper function to create binary path
 void createBinaryPath(const char* executable_dir, const char* filter_name, char* binary_path, size_t max_len) {
@@ -53,383 +20,112 @@ void createBinaryPath(const char* executable_dir, const char* filter_name, char*
     snprintf(binary_path, max_len, "%s%sfilters%s%s.bin", executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, filter_name);
 }
 
+// Convert a cl_long index to a variable-length base-35 seed string
+void index_to_seed_string(long long index, char* seed_out) {
+    const char charset[] = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    int base = 35;
+    char buf[9];
+    int i = 0;
+    if (index == 0) {
+        seed_out[0] = charset[0];
+        seed_out[1] = '\0';
+        return;
+    }
+    while (index > 0 && i < 8) {
+        buf[i++] = charset[index % base];
+        index /= base;
+    }
+    // Reverse to get correct order
+    for (int j = 0; j < i; j++) {
+        seed_out[j] = buf[i - 1 - j];
+    }
+    seed_out[i] = '\0';
+}
 
-// Load configuration from JSON file
-int load_config_from_json(const char* config_filename, OuijiConfig* config) {
-    char config_path[MAX_PATH];
-    char executable_dir[MAX_PATH];
-    
-    getExecutableDir(executable_dir);
-    
-    // First try to load from ouiji_configs directory
-    snprintf(config_path, MAX_PATH, "%s%souiji_configs%s%s", 
-             executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
-             
-    // If file doesn't exist with extension, try adding it
-    if (_access(config_path, F_OK) != 0) {
-        if (strstr(config_filename, ".ouiji.json") == NULL) {
-            snprintf(config_path, MAX_PATH, "%s%souiji_configs%s%s.ouiji.json", 
-                     executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
-        }
+// Advances a cl_char8 seed by n steps in base-35, little-endian, matching device s_skip
+void s_skip_host(cl_char8* seed, size_t n) {
+    const char charset[] = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    int base = 35;
+    int data[8] = {0};
+    int len = 0;
+    // Convert seed string to digit array (little-endian)
+    for (int i = 0; i < 8 && seed->s[i] != '\0'; i++) {
+        char* p = strchr(charset, seed->s[i]);
+        if (p) data[i] = (int)(p - charset);
+        len++;
     }
-    
-    // If still doesn't exist, try as absolute path
-    if (_access(config_path, F_OK) != 0) {
-        strncpy_s(config_path, MAX_PATH, config_filename, MAX_PATH);
+    if (len == 0) len = 1;
+    size_t carry = n;
+    for (int i = len - 1; i >= 0 && carry > 0; i--) {
+        size_t val = data[i] + carry;
+        data[i] = val % base;
+        carry = val / base;
     }
-    
-    printf_s("Attempting to load config from: %s\n", config_path);
-    
-    FILE* file = fopen(config_path, "r");
-    if (!file) {
-        printf_s("Error: Could not open configuration file: %s\n", config_path);
-        return 0;
+    // If carry remains and seed is not max length, grow the seed
+    while (carry > 0 && len < 8) {
+        data[len] = carry % base;
+        carry = carry / base;
+        len++;
     }
-    
-    // Read file contents
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    rewind(file);
-    
-    char* json_content = malloc(file_size + 1);
-    if (!json_content) {
-        printf_s("Error: Memory allocation failed when reading config file\n");
-        fclose(file);
-        return 0;
+    // If carry remains and seed is max length, wrap around (optional: zero out)
+    if (carry > 0 && len == 8) {
+        len = 0;
     }
-    
-    fread(json_content, 1, file_size, file);
-    json_content[file_size] = '\0';
-    fclose(file);
-    
-    // Simple JSON parsing - find "filter_config" section 
-    char* filter_config = strstr(json_content, "\"filter_config\"");
-    if (!filter_config) {
-        printf_s("Error: No filter_config section found in JSON\n");
-        free(json_content);
-        return 0;
-    }
-    
-    // Extract numNeeds
-    char* num_needs_str = strstr(filter_config, "\"numNeeds\"");
-    if (num_needs_str) {
-        num_needs_str = strstr(num_needs_str, ":");
-        if (num_needs_str) {
-            config->numNeeds = atoi(num_needs_str + 1);
-        }
-    }
-    printf_s("loaded numNeeds: %d\n", config->numNeeds);
-    
-    // Extract numWants
-    char* num_wants_str = strstr(filter_config, "\"numWants\"");
-    if (num_wants_str) {
-        num_wants_str = strstr(num_wants_str, ":");
-        if (num_wants_str) {
-            config->numWants = atoi(num_wants_str + 1);
-        }
-    }
-    printf_s("loaded numWants: %d\n", config->numWants);
+    // Convert back to string (little-endian)
+    for (int i = 0; i < len; i++) seed->s[i] = charset[data[i]];
+    for (int i = len; i < 8; i++) seed->s[i] = '\0';
+}
 
-    // Initialize Needs and Wants arrays
-    for (int i = 0; i < MAX_DESIRES_HOST; i++) {
-        config->Needs[i].type = 0;
-        config->Needs[i].value = RETRY;
-        config->Needs[i].desireByAnte = 8;
-        
-        config->Wants[i].type = 0;
-        config->Wants[i].value = RETRY;
-        config->Wants[i].desireByAnte = 8;
+// Host-side seed struct and helpers matching device logic
+// Digits are stored little-endian: data[0] is least significant digit
+// (matches device-side seed.cl)
+typedef struct {
+    int data[8];
+    int len;
+} host_seed;
+
+const char charset[] = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+// Convert string to host_seed (little-endian)
+void string_to_host_seed(const char* str, host_seed* s) {
+    int len = (int)strlen(str);
+    s->len = len;
+    for (int i = 0; i < len; i++) {
+        char* p = strchr(charset, str[len - 1 - i]); // reverse order
+        s->data[i] = (p ? (int)(p - charset) : 0);
     }
-    
-    // Parse Needs section
-    char* needs_section = strstr(filter_config, "\"Needs\"");
-    if (needs_section) {
-        int need_index = 0;
-        
-        // Find the start of each Need item
-        char* need_start = needs_section;
-        while (need_index < MAX_DESIRES_HOST && need_index < config->numNeeds) {
-            // Find the "type" field within the current Need
-            need_start = strstr(need_start, "\"type\"");
-            if (!need_start) break;
-            
-            need_start = strchr(need_start, ':');
-            if (!need_start) break;
-            need_start++;
-            
-            // Skip whitespace and quotes
-            while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
-            
-            // Find the end of the type value
-            char* need_end = strchr(need_start, '"');
-            if (!need_end) break;
-            
-            // Extract and copy the type name
-            char type_name[50];
-            size_t type_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
-            strncpy_s(type_name, sizeof(type_name), need_start, type_len);
-            type_name[type_len] = '\0';
-            
-            // Set the need type based on the type name
-            if (strcmp(type_name, "Desire_Joker") == 0) {
-                config->Needs[need_index].type = 0; // Joker
-            } else {
-                config->Needs[need_index].type = 1; // Item
-            }
-            
-            // Find the start of the value
-            need_start = strstr(need_start, "\"value\"");
-            if (!need_start) break;
+}
 
-            need_start = strchr(need_start, ':');
-            if (!need_start) break;
-            need_start++;
-            
-            // Skip whitespace and quotes
-            while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
-            
-            // Find the end of the value
-            need_end = strchr(need_start, '"');
-            if (!need_end) break;
-            
-            // Extract and copy the value name
-            char value_name[50];
-            size_t value_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
-            strncpy_s(value_name, sizeof(value_name), need_start, value_len);
-            value_name[value_len] = '\0';
-            
-            // Set the need value (but not type, as it's already set above)
-            config->Needs[need_index].value = parse_item(value_name);
-            
-            // Look for joker details
-            char* joker_section = strstr(need_start, "\"joker\"");
-            if (joker_section) {
-                // Find edition field
-                char* edition_section = strstr(joker_section, "\"edition\"");
-                if (edition_section) {
-                    edition_section = strchr(edition_section, ':');
-                    if (edition_section) {
-                        edition_section++;
-                        // Skip whitespace and quotes
-                        while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
-                        
-                        // Find end of edition value
-                        char* edition_end = strchr(edition_section, '"');
-                        if (edition_end) {
-                            char edition_name[50];
-                            size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
-                            strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
-                            edition_name[edition_len] = '\0';
-                            
-                            // Set the edition value
-                            config->Needs[need_index].joker.edition = parse_item(edition_name);
-                            printf_s("  - Need %d: %s (edition: %s) by ante %d\n", 
-                                    need_index, value_name, edition_name, config->Needs[need_index].desireByAnte);
-                        }
-                    }
-                }
-            }
-            
-            // Find desireByAnte
-            char* ante_str = strstr(need_start, "\"desireByAnte\"");
-            if (ante_str) {
-                ante_str = strchr(ante_str, ':');
-                if (ante_str) {
-                    config->Needs[need_index].desireByAnte = atoi(ante_str + 1);
-                } else {
-                    config->Needs[need_index].desireByAnte = 8;
-                }
-            } else {
-                config->Needs[need_index].desireByAnte = 8;
-            }
-            need_index++;
-            
-            // Move to the next Need item if there are more
-            need_start = strstr(need_start, "},");
-            if (!need_start) break;
-            need_start += 2;
-        }
+// Convert host_seed to string (big-endian)
+void host_seed_to_string(const host_seed* s, char* out) {
+    for (int i = 0; i < s->len; i++) {
+        out[i] = charset[s->data[s->len - 1 - i]];
     }
+    out[s->len] = '\0';
+}
 
-    // Parse Wants section
-    char* wants_section = strstr(filter_config, "\"Wants\"");
-    if (wants_section) {
-        int want_index = 0;
-        
-        // Find the start of each Want item
-        char* want_start = wants_section;
-        while (want_index < MAX_DESIRES_HOST && want_index < config->numWants) {
-            // Find the "type" field within the current Want
-            want_start = strstr(want_start, "\"type\"");
-            if (!want_start) break;
-            
-            want_start = strchr(want_start, ':');
-            if (!want_start) break;
-            want_start++;
-            
-            // Skip whitespace and quotes
-            while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
-            
-            // Extract and copy the type name
-            char* want_end = strchr(want_start, '"');
-            if (!want_end) break;
-            
-            char type_name[50];
-            size_t type_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
-            strncpy_s(type_name, sizeof(type_name), want_start, type_len);
-            type_name[type_len] = '\0';
-            
-            // Set the Want's type based on the type name
-            if (strcmp(type_name, "Desire_Joker") == 0) {
-                config->Wants[want_index].type = 0; // DesireType_Joker = 0 in ouiji_config.cl
-            } else {
-                config->Wants[want_index].type = 1; // DesireType_Value = 1 in ouiji_config.cl
-            }
-            
-            // Now find the "value" field
-            want_start = strstr(want_start, "\"value\"");
-            if (!want_start) break;
-            
-            want_start = strchr(want_start, ':');
-            if (!want_start) break;
-            want_start++;
-            
-            // Skip whitespace and quotes
-            while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
-            
-            // Find the end of the value
-            want_end = strchr(want_start, '"');
-            if (!want_end) break;
-            
-            // Extract and copy the value name
-            char value_name[50];
-            size_t value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
-            strncpy_s(value_name, sizeof(value_name), want_start, value_len);
-            value_name[value_len] = '\0';
-            
-            // Set the Want's value based on the parsed name
-            config->Wants[want_index].value = parse_item(value_name);
-            
-            // Look for joker details
-            char* joker_section = strstr(want_start, "\"joker\"");
-            if (joker_section) {
-                // Find edition field
-                char* edition_section = strstr(joker_section, "\"edition\"");
-                if (edition_section) {
-                    edition_section = strchr(edition_section, ':');
-                    if (edition_section) {
-                        edition_section++;
-                        // Skip whitespace and quotes
-                        while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
-                        
-                        // Find end of edition value
-                        char* edition_end = strchr(edition_section, '"');
-                        if (edition_end) {
-                            char edition_name[50];
-                            size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
-                            strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
-                            edition_name[edition_len] = '\0';
-                            
-                            // Set the edition value
-                            config->Wants[want_index].joker.edition = parse_item(edition_name);
-                            printf_s("  - Want %d: %s (edition: %s) by ante %d\n", 
-                                    want_index, value_name, edition_name, config->Wants[want_index].desireByAnte);
-                        }
-                    }
-                }
-            }
-            
-            // Find desireByAnte
-            char* ante_str = strstr(want_start, "\"desireByAnte\"");
-            if (ante_str) {
-                ante_str = strchr(ante_str, ':');
-                if (ante_str) {
-                    config->Wants[want_index].desireByAnte = atoi(ante_str + 1);
-                } else {
-                    config->Wants[want_index].desireByAnte = 8; // Default value
-                }
-            } else {
-                config->Wants[want_index].desireByAnte = 8; // Default value
-            }
-            want_index++;
-            
-            // Move to the next Want item if there are more
-            want_start = strstr(want_start, "},");
-            if (!want_start) break;
-            want_start += 2;
-        }
-
-    // Extract maxSearchAnte
-    char* max_search_ante_str = strstr(filter_config, "\"maxSearchAnte\"");
-    if (max_search_ante_str) {
-        max_search_ante_str = strstr(max_search_ante_str, ":");
-        if (max_search_ante_str) {
-            config->maxSearchAnte = atoi(max_search_ante_str + 1);
-            if (config->maxSearchAnte < 1) {
-                printf_s("Warning: maxSearchAnte is set to %d, which is less than 1.\n", config->maxSearchAnte);
-                config->maxSearchAnte = 8; // Reset to default
-            }
-        }
-    } else {
-        config->maxSearchAnte = 8; // Default value
+// Skip n seeds (matches device s_skip: little-endian, carry from 0 up)
+void host_seed_skip(host_seed* s, cl_long n) {
+    int base = 35;
+    cl_long carry = n;
+    for (int i = 0; i < s->len && carry > 0; i++) {
+        cl_long val = s->data[i] + carry;
+        s->data[i] = (int)(val % base);
+        carry = val / base;
     }
-
-    if (config->maxSearchAnte > 8) {
-        printf_s("Warning: maxSearchAnte is set to %d, which is higher than the default of 8.\n", config->maxSearchAnte);
-        printf_s("  - max_search_ante_str is: %s\n", max_search_ante_str);
-        config->maxSearchAnte = 8; // Reset to default
-    } else {
-        printf_s("loaded maxSearchAnte: %d\n", config->maxSearchAnte);
+    while (carry > 0 && s->len < 8) {
+        s->data[s->len] = (int)(carry % base);
+        carry = carry / base;
+        s->len++;
     }
-
-    // Extract deck    // Extract deck
-    char* deck_str = strstr(filter_config, "\"deck\"");
-    if (deck_str) {
-        deck_str = strstr(deck_str, ":");
-        if (deck_str) {
-            deck_str++;
-            while (*deck_str && (*deck_str == ' ' || *deck_str == '"')) deck_str++;
-            char deck_name[50];
-            char* end = strchr(deck_str, '"');
-            if (end) {
-                size_t len = (end - deck_str < 49) ? (end - deck_str) : 49;
-                strncpy_s(deck_name, sizeof(deck_name), deck_str, len);
-                deck_name[len] = '\0';
-                config->deck = parse_item(deck_name);
-            }
-        }
-    } else {
-        config->deck = RETRY; // Default value
+    if (carry > 0 && s->len == 8) {
+        s->len = 0;
     }
+}
 
-    //Extract stake
-    char* stake_str = strstr(filter_config, "\"stake\"");
-    if (stake_str) {
-        stake_str = strstr(stake_str, ":");
-        if (stake_str) {
-            stake_str++;
-            while (*stake_str && (*stake_str == ' ' || *stake_str == '"')) stake_str++;
-            char stake_name[50];
-            char* end = strchr(stake_str, '"');
-            if (end) {
-                size_t len = (end - stake_str < 49) ? (end - stake_str) : 49;
-                strncpy_s(stake_name, sizeof(stake_name), stake_str, len);
-                stake_name[len] = '\0';
-                config->stake = parse_item(stake_name);
-            }
-        }
-    } else {
-        config->stake = RETRY; // Default value
-    }
-    printf_s("loaded deck: %d\n", config->deck);
-    printf_s("loaded stake: %d\n", config->stake);
-    }
-
-
-    free(json_content);
-    printf_s("Successfully loaded configuration from %s\n", config_path);
-    fflush(stdout);
-    return 1;
+void host_seed_to_cl_char8(const host_seed* s, cl_char8* out) {
+    for (int i = 0; i < s->len; i++) out->s[i] = charset[s->data[s->len - 1 - i]];
+    for (int i = s->len; i < 8; i++) out->s[i] = '\0';
 }
 
 int main(int argc, char **argv) {
@@ -441,12 +137,12 @@ int main(int argc, char **argv) {
     // Handle CLI arguments
     unsigned int platformID = 0;
     unsigned int deviceID = 0;
-    unsigned int numGroups = 16;
+    size_t numGroups = 16;
     cl_char8 startingSeed; // Keep as cl_char8
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
     };
-    cl_long numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
+    size_t numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
     // Default config values
     OuijiConfig config;
     config.cutoff = 0;           // Default cutoff
@@ -455,7 +151,6 @@ int main(int argc, char **argv) {
     config.maxSearchAnte = 8;    // Default maximum ante to search through
 
     char* filter = "ouiji_template"; // Default filter
-    int gui_mode = 0;          // GUI mode flag
     char* config_file = NULL;  // Configuration file path
 
     // --- Argument Parsing Loop ---
@@ -463,10 +158,6 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "-h")==0) {
             printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouiji to F. Defaults to ouiji_template\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for a seed to be printed to C. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Ouiji run faster.\n--config <JSON>  Load configuration from a JSON file.\n--list_devices   Lists information about the detected CL devices.\n--gui    Enables GUI streaming mode.");
             return 0;
-        }
-        if (strcmp(argv[i], "--gui")==0) {
-            gui_mode = 1;
-            printf_s("GUI mode enabled. Results will be formatted for GUI parsing.\n");
         }
         if (strcmp(argv[i], "--config")==0 && i + 1 < argc) {
             config_file = argv[i+1];
@@ -506,14 +197,14 @@ int main(int argc, char **argv) {
                 printf_s("Generating random seed...\n");
                 srand((unsigned int)time(NULL));
                 char seedCharacters[] = {'1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
-                startingSeed.s[0] = seedCharacters[rand() % 25 + 10];
-                startingSeed.s[1] = seedCharacters[rand() % 25 + 10];
-                startingSeed.s[2] = seedCharacters[9];
-                startingSeed.s[3] = seedCharacters[9];
-                startingSeed.s[4] = seedCharacters[9];
-                startingSeed.s[5] = seedCharacters[10];
-                startingSeed.s[6] = seedCharacters[11];
-                startingSeed.s[7] = seedCharacters[11];
+                startingSeed.s[0] = seedCharacters[rand() % 35];
+                startingSeed.s[1] = seedCharacters[rand() % 35];
+                startingSeed.s[2] = seedCharacters[rand() % 35];
+                startingSeed.s[3] = 'P';
+                startingSeed.s[4] = 'I';
+                startingSeed.s[5] = seedCharacters[rand() % 35];
+                startingSeed.s[6] = seedCharacters[rand() % 35];
+                startingSeed.s[7] = seedCharacters[rand() % 35];
             } else {
                 for (int j = 0; j < seedLength; j++) {
                     startingSeed.s[j] = argv[i+1][j];
@@ -598,6 +289,7 @@ int main(int argc, char **argv) {
     cl_int err;
 
     // Handle loading configuration from file if specified
+    printf_s("HOST Loading configuration if it exists...\n");
     if (config_file != NULL) {
         if (!load_config_from_json(config_file, &config)) {
             printf_s("Failed to load configuration from %s. Using default configuration.\n", config_file);
@@ -778,7 +470,10 @@ int main(int argc, char **argv) {
     }
     printf_s("Kernel Binary is ready. Building OpenCL ...\n");
 
-    err = clBuildProgram(ssKernelProgram, 1, &device, include_path, NULL, NULL);
+    // Add -cl-mad-enable to build options
+    char build_options[1024];
+    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
+    err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t logLength = 0;
         err = clGetProgramBuildInfo(ssKernelProgram, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logLength);
@@ -864,36 +559,91 @@ int main(int argc, char **argv) {
     cl_mem configBuf = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(OuijiConfig), &config, &err);
     clErrCheck(err, "clCreateBuffer - Creating config buffer");
 
-    err = clSetKernelArg(ssKernel, 0, sizeof(startingSeed), &startingSeed);
-    clErrCheck(err, "clSetKernelArg - Adding starting seed argument");
-    err = clSetKernelArg(ssKernel, 1, sizeof(numSeeds), &numSeeds);
-    clErrCheck(err, "clSetKernelArg - Adding number of seeds argument");
-    err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
-    clErrCheck(err, "clSetKernelArg - Adding config struct argument");
-
-    size_t globalSize = numGroups * numGroups;
-    size_t localSize = numGroups;
     printf_s("Starting OpenCL Search search with filter %s\n", filter);
     printf_s("--- CSV RESULTS ---\n");
     // Print header for CSV output
-    printf_s("Seed,Score,");
-    for (int i = 0; i < MAX_DESIRES_HOST; i++) {
-        //print the name and another comma
-        if (i < config.numNeeds) {
-            print_item(config.Needs[i].value);
-        } else if (i < config.numNeeds + config.numWants) {
-            printf_s("");
-        }
-        if (i < MAX_DESIRES_HOST - 1) {
+    printf_s("Seed,Score,NegativeJokers,");
+    for (int i = 0; i < MAX_DESIRES_HOST && i < config.numWants; i++) {
+        print_item(config.Wants[i].value);
+        if (i < MAX_DESIRES_HOST - 1 || i < config.numWants - 1) {
             printf_s(",");
         }
     }
     printf_s("\n");
     fflush(stdout);  // Force flush the CSV header line
-    err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
-    clErrCheck(err, "clEnqueueNDRangeKernel - Executing OpenCL kernel");
 
-    // Clean up
+    // --- Batch Processing ---
+    size_t batchSize = numGroups * numGroups;
+    OuijiHostResult* hostResults = (OuijiHostResult*)malloc(sizeof(OuijiHostResult) * (size_t)batchSize);
+    cl_mem resultsBuf = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY, sizeof(OuijiHostResult) * (size_t)batchSize, NULL, &err);
+    clErrCheck(err, "clCreateBuffer - Creating results buffer");
+    cl_mem resultCountBuf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, sizeof(cl_int), NULL, &err);
+    clErrCheck(err, "clCreateBuffer - Creating result count buffer");
+    size_t seedsLeft = numSeeds;
+    host_seed batchSeedHost;
+    // Convert startingSeed (cl_char8) to host_seed
+    char startSeedStr[9];
+    for (int i = 0; i < 8; i++) startSeedStr[i] = startingSeed.s[i];
+    startSeedStr[8] = '\0';
+    string_to_host_seed(startSeedStr, &batchSeedHost);
+    while (seedsLeft > 0) {
+        cl_long thisBatch = (seedsLeft < batchSize) ? seedsLeft : batchSize;
+        size_t localSize = numGroups;
+        size_t globalSize = ((size_t)thisBatch + localSize - 1) / localSize * localSize; // round up to next multiple
+        cl_int zero = 0;
+        err = clEnqueueWriteBuffer(queue, resultCountBuf, CL_TRUE, 0, sizeof(cl_int), &zero, 0, NULL, NULL);
+        clErrCheck(err, "clEnqueueWriteBuffer - Zeroing result count buffer");
+        // Convert host_seed to cl_char8 for kernel
+        cl_char8 batchSeed;
+        host_seed_to_cl_char8(&batchSeedHost, &batchSeed);
+        // Debug print: show starting seed for this batch
+        char debugSeed[9];
+        host_seed_to_string(&batchSeedHost, debugSeed);
+        printf_s("[DEBUG] Batch start seed: %s\n", debugSeed);
+        // Set kernel arguments for this run
+        err = clSetKernelArg(ssKernel, 0, sizeof(batchSeed), &batchSeed);
+        clErrCheck(err, "clSetKernelArg - Adding starting seed argument");
+        err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &thisBatch);
+        clErrCheck(err, "clSetKernelArg - Adding number of seeds argument");
+        err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
+        clErrCheck(err, "clSetKernelArg - Adding config struct argument");
+        err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultsBuf);
+        clErrCheck(err, "clSetKernelArg - Adding results buffer argument");
+        err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &resultCountBuf);
+        clErrCheck(err, "clSetKernelArg - Adding result count buffer argument");
+        // Launch kernel
+        cl_int kernelErr = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+        clErrCheck(kernelErr, "clEnqueueNDRangeKernel - Executing OpenCL kernel");
+        err = clFinish(queue);
+        clErrCheck(err, "clFinish - Waiting for kernel to finish");
+        // Read the number of valid results written
+        cl_int numResults = 0;
+        err = clEnqueueReadBuffer(queue, resultCountBuf, CL_TRUE, 0, sizeof(cl_int), &numResults, 0, NULL, NULL);
+        clErrCheck(err, "clEnqueueReadBuffer - Reading result count");
+        // Read only numResults results from the results buffer
+        err = clEnqueueReadBuffer(queue, resultsBuf, CL_TRUE, 0, sizeof(OuijiHostResult) * numResults, hostResults, 0, NULL, NULL);
+        clErrCheck(err, "clEnqueueReadBuffer - Reading results buffer");
+        // Print valid results
+        for (int i = 0; i < numResults; i++) {
+            if (hostResults[i].valid) {
+                printf_s("|%s,%d,%d,", &hostResults[i].seed, hostResults[i].TotalScore, hostResults[i].NegativeJokers);
+                for (int j = 0; j < config.numWants && j < MAX_DESIRES_HOST; j++) {
+                    printf_s("%d", hostResults[i].ScoreWants[j]);
+                    if (j < config.numWants - 1 || j < MAX_DESIRES_HOST - 1) printf_s(",");
+                }
+                printf_s("\n");
+            }
+        }
+        fflush(stdout);
+        // Advance seed and update seedsLeft
+        host_seed_skip(&batchSeedHost, thisBatch);
+        
+        seedsLeft -= thisBatch;
+    }
+    free(hostResults);
+    clReleaseMemObject(resultsBuf);
+    clReleaseMemObject(resultCountBuf);
+
     err = clReleaseMemObject(configBuf);
     err = clReleaseKernel(ssKernel);
     err = clReleaseProgram(ssKernelProgram);

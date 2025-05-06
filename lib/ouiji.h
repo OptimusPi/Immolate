@@ -1,3 +1,5 @@
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -28,7 +30,11 @@
 #include <limits.h>
 #include <string.h>
 #include <CL/cl.h>
-#define MAX_CODE_SIZE (2000000)
+#define MAX_CODE_SIZE (1000000)
+
+
+#ifndef __OUIJI_H
+#define __OUIJI_H
 
 void clErrCheck(cl_int err, char* msg) {
     if (err != CL_SUCCESS) {
@@ -65,3 +71,5 @@ void getExecutableDir(char *dir) {
         #error Platform not supported
     #endif
 }
+
+#endif

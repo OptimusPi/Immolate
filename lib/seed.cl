@@ -101,7 +101,24 @@ void s_next(seed* s) {
     }
 }
 void s_skip(seed* s, long n) {
-    for (int i = 0; i < n; i++) s_next(s);
+    // Fast base-35 addition to skip n seeds in O(1) time
+    long carry = n;
+    for (int i = s->len - 1; i >= 0 && carry > 0; i--) {
+        long val = s->data[i] + carry;
+        s->data[i] = val % NUM_CHARS;
+        carry = val / NUM_CHARS;
+    }
+    // If carry remains and seed is not max length, grow the seed
+    while (carry > 0 && s->len < 8) {
+        s->len++;
+        s->data[s->len - 1] = carry % NUM_CHARS;
+        carry = carry / NUM_CHARS;
+    }
+    // If carry remains and seed is max length, wrap around (optional)
+    if (carry > 0 && s->len == 8) {
+        // Optionally zero out or handle overflow
+        s->len = 0;
+    }
 }
 
 #endif // SEED_H

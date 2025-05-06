@@ -8,8 +8,9 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
 #ifdef _debugPrints
   printf("Starting filter\n");
 #endif
-  set_deck(inst, Anaglyph_Deck);
-  set_stake(inst, White_Stake);
+
+  set_deck(inst, config->deck);
+  set_stake(inst, config->stake);
   init_locks(inst, 1, false, true);
 
   // Default max search ante if config doesn't specify individual antes
@@ -35,7 +36,6 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
     ScoreWants[i] = 0;
   }
 
-
   shopitem cards[128]; // Declare the array
   // Initialize all elements to RETRY
   for (int i = 0; i < 128; i++) {
@@ -49,7 +49,10 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
   bool firstLeg = true;
   bool firstBlue = true;
   OuijiResult result = {0}; // Initialize all members to 0/false
-  result.valid = true;
+  result.valid = 1;
+
+  result.TotalScore = 1;
+  return result;
 
   // Search through all antes up to maxSearchAnte
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
@@ -170,15 +173,10 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
       // Score check for Needs
       for (int x = 0; x < config->numNeeds; x++) {
         // First handle Jokers
-        if (config->Needs[x].type == DesireType_Joker &&
-            shit.type == ItemType_Joker) {
+        if (config->Needs[x].jokeredition != RETRY && shit.type == ItemType_Joker) {
           // Check for Joker value match
           if (config->Needs[x].value == shit.value) {
-            // Check for edition match if specified - USE MAPPING FUNCTION
-            item edition =
-                config->Needs[x]
-                    .joker.edition; // This is the host ID (e.g., 397, 398)
-
+            item edition = config->Needs[x].jokeredition;
             if (edition == No_Edition || edition == shit.joker.edition) {
               ScoreNeeds[x] = true;
             }
@@ -192,15 +190,17 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
       // Score check for Wants
       for (int x = 0; x < config->numWants; x++) {
         // First handle Jokers
-        if (config->Wants[x].type == DesireType_Joker && shit.type == ItemType_Joker) {
+        if (config->Wants[x].jokeredition != RETRY && shit.type == ItemType_Joker) {
           // Check for Joker value match
           if (config->Wants[x].value == shit.value) {
-            item edition = config->Wants[x].joker.edition;
+            item edition = config->Wants[x].jokeredition;
 
             if (edition == No_Edition || edition == shit.joker.edition) {
               // Add an increment only if this is the first time we've seen this
               // want OR if we have showman which allows duplicates to be useful
-              ScoreWants[x] += ((ScoreWants[x] < 1) || (inst->params.showman == true)) ? 1 : 0;
+              ScoreWants[x] +=
+                  ((ScoreWants[x] < 1) || (inst->params.showman == true)) ? 1
+                                                                          : 0;
             }
           }
         } else if (config->Wants[x].value == shit.value) {
@@ -229,7 +229,7 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
         print_item(config->Needs[n].value);
         printf("\n");
 #endif
-        result.valid = false;
+        result.valid = 0;
         return result;
       }
     }
@@ -248,7 +248,11 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
   // Add bonus points for negative jokers
   result.NegativeJokers = negativeJokers;
   result.TotalScore += negativeJokers * 1;
-  result.valid = true;
+
+  // Copy the seed to the result
+  text s_str = s_to_string(&inst->seed);
+  for (int i = 0; i < 9; i++)
+    result.seed[i] = s_str.str[i];
 
   return result;
 }
