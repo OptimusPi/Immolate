@@ -116,82 +116,47 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     char* needs_section = strstr(filter_config, "\"Needs\"");
     if (needs_section) {
         int need_index = 0;
-        
-        // Find the start of each Need item
         char* need_start = needs_section;
         while (need_index < MAX_DESIRES_HOST && need_index < config->numNeeds) {
-            // Find the "type" field within the current Need
-            need_start = strstr(need_start, "\"type\"");
-            if (!need_start) break;
-            
-            need_start = strchr(need_start, ':');
-            if (!need_start) break;
-            need_start++;
-            
-            // Skip whitespace and quotes
-            while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
-            
-            // Find the end of the type value
-            char* need_end = strchr(need_start, '"');
-            if (!need_end) break;
-            
-            // Extract and copy the type name
-            char type_name[50];
-            size_t type_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
-            strncpy_s(type_name, sizeof(type_name), need_start, type_len);
-            type_name[type_len] = '\0';
-            
-            // Find the start of the value
+            // Find the "value" field
             need_start = strstr(need_start, "\"value\"");
             if (!need_start) break;
-
             need_start = strchr(need_start, ':');
             if (!need_start) break;
             need_start++;
-            
-            // Skip whitespace and quotes
             while (*need_start && (*need_start == ' ' || *need_start == '"')) need_start++;
-            
-            // Find the end of the value
-            need_end = strchr(need_start, '"');
+            char* need_end = strchr(need_start, '"');
             if (!need_end) break;
-            
-            // Extract and copy the value name
             char value_name[50];
             size_t value_len = (need_end - need_start < 49) ? (need_end - need_start) : 49;
             strncpy_s(value_name, sizeof(value_name), need_start, value_len);
             value_name[value_len] = '\0';
-            
-            // Set the need value (but not type, as it's already set above)
             config->Needs[need_index].value = parse_item(value_name);
-            
-            // Look for joker details
-            char* joker_section = strstr(need_start, "\"joker\"");
-            if (joker_section) {
-                // Find edition field
-                char* edition_section = strstr(joker_section, "\"edition\"");
+
+            // Find the "jokeredition" field (flat, not nested)
+            char* edition_section = strstr(need_start, "\"jokeredition\"");
+            if (edition_section) {
+                edition_section = strchr(edition_section, ':');
                 if (edition_section) {
-                    edition_section = strchr(edition_section, ':');
-                    if (edition_section) {
-                        edition_section++;
-                        // Skip whitespace and quotes
-                        while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
-                        
-                        // Find end of edition value
-                        char* edition_end = strchr(edition_section, '"');
-                        if (edition_end) {
-                            char edition_name[50];
-                            size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
-                            strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
-                            edition_name[edition_len] = '\0';
-                            
-                            // Set the edition value
-                            config->Needs[need_index].jokeredition = parse_item(edition_name);
-                        }
+                    edition_section++;
+                    while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
+                    char* edition_end = strchr(edition_section, '"');
+                    if (edition_end) {
+                        char edition_name[50];
+                        size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
+                        strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
+                        edition_name[edition_len] = '\0';
+                        config->Needs[need_index].jokeredition = parse_item(edition_name);
+                    } else {
+                        config->Needs[need_index].jokeredition = RETRY;
                     }
+                } else {
+                    config->Needs[need_index].jokeredition = RETRY;
                 }
+            } else {
+                config->Needs[need_index].jokeredition = RETRY;
             }
-            
+
             // Find desireByAnte
             char* ante_str = strstr(need_start, "\"desireByAnte\"");
             if (ante_str) {
@@ -205,7 +170,6 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                 config->Needs[need_index].desireByAnte = 8;
             }
             need_index++;
-            
             // Move to the next Need item if there are more
             need_start = strstr(need_start, "},");
             if (!need_start) break;
@@ -217,81 +181,47 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     char* wants_section = strstr(filter_config, "\"Wants\"");
     if (wants_section) {
         int want_index = 0;
-        
-        // Find the start of each Want item
         char* want_start = wants_section;
         while (want_index < MAX_DESIRES_HOST && want_index < config->numWants) {
-            // Find the "type" field within the current Want
-            want_start = strstr(want_start, "\"type\"");
-            if (!want_start) break;
-            
-            want_start = strchr(want_start, ':');
-            if (!want_start) break;
-            want_start++;
-            
-            // Skip whitespace and quotes
-            while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
-            
-            // Extract and copy the type name
-            char* want_end = strchr(want_start, '"');
-            if (!want_end) break;
-            
-            char type_name[50];
-            size_t type_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
-            strncpy_s(type_name, sizeof(type_name), want_start, type_len);
-            type_name[type_len] = '\0';
-            
-            // Now find the "value" field
+            // Find the "value" field
             want_start = strstr(want_start, "\"value\"");
             if (!want_start) break;
-            
             want_start = strchr(want_start, ':');
             if (!want_start) break;
             want_start++;
-            
-            // Skip whitespace and quotes
             while (*want_start && (*want_start == ' ' || *want_start == '"')) want_start++;
-            
-            // Find the end of the value
-            want_end = strchr(want_start, '"');
+            char* want_end = strchr(want_start, '"');
             if (!want_end) break;
-            
-            // Extract and copy the value name
             char value_name[50];
             size_t value_len = (want_end - want_start < 49) ? (want_end - want_start) : 49;
             strncpy_s(value_name, sizeof(value_name), want_start, value_len);
             value_name[value_len] = '\0';
-            
-            // Set the Want's value based on the parsed name
             config->Wants[want_index].value = parse_item(value_name);
-            
-            // Look for joker details
-            char* joker_section = strstr(want_start, "\"joker\"");
-            if (joker_section) {
-                // Find edition field
-                char* edition_section = strstr(joker_section, "\"edition\"");
+
+            // Find the "jokeredition" field (flat, not nested)
+            char* edition_section = strstr(want_start, "\"jokeredition\"");
+            if (edition_section) {
+                edition_section = strchr(edition_section, ':');
                 if (edition_section) {
-                    edition_section = strchr(edition_section, ':');
-                    if (edition_section) {
-                        edition_section++;
-                        // Skip whitespace and quotes
-                        while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
-                        
-                        // Find end of edition value
-                        char* edition_end = strchr(edition_section, '"');
-                        if (edition_end) {
-                            char edition_name[50];
-                            size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
-                            strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
-                            edition_name[edition_len] = '\0';
-                            
-                            // Set the edition value
-                            config->Wants[want_index].jokeredition = parse_item(edition_name);
-                        }
+                    edition_section++;
+                    while (*edition_section && (*edition_section == ' ' || *edition_section == '"')) edition_section++;
+                    char* edition_end = strchr(edition_section, '"');
+                    if (edition_end) {
+                        char edition_name[50];
+                        size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
+                        strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
+                        edition_name[edition_len] = '\0';
+                        config->Wants[want_index].jokeredition = parse_item(edition_name);
+                    } else {
+                        config->Wants[want_index].jokeredition = RETRY;
                     }
+                } else {
+                    config->Wants[want_index].jokeredition = RETRY;
                 }
+            } else {
+                config->Wants[want_index].jokeredition = RETRY;
             }
-            
+
             // Find desireByAnte
             char* ante_str = strstr(want_start, "\"desireByAnte\"");
             if (ante_str) {
@@ -299,18 +229,18 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                 if (ante_str) {
                     config->Wants[want_index].desireByAnte = atoi(ante_str + 1);
                 } else {
-                    config->Wants[want_index].desireByAnte = 8; // Default value
+                    config->Wants[want_index].desireByAnte = 8;
                 }
             } else {
-                config->Wants[want_index].desireByAnte = 8; // Default value
+                config->Wants[want_index].desireByAnte = 8;
             }
             want_index++;
-            
             // Move to the next Want item if there are more
             want_start = strstr(want_start, "},");
             if (!want_start) break;
             want_start += 2;
         }
+    }
 
     // Extract maxSearchAnte
     char* max_search_ante_str = strstr(filter_config, "\"maxSearchAnte\"");
@@ -358,46 +288,37 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     //Extract stake
     char* stake_str = strstr(filter_config, "\"stake\"");
     if (stake_str) {
-        stake_str = strstr(stake_str, ":");
+        stake_str = strchr(stake_str, ':');
         if (stake_str) {
             stake_str++;
             while (*stake_str && (*stake_str == ' ' || *stake_str == '"')) stake_str++;
-            char stake_name[50];
-            char* end = strchr(stake_str, '"');
-            if (end) {
-                size_t len = (end - stake_str < 49) ? (end - stake_str) : 49;
-                strncpy_s(stake_name, sizeof(stake_name), stake_str, len);
-                stake_name[len] = '\0';
-                config->stake = parse_item(stake_name);
-            }
+            char stake_name[50] = {0};
+            char* end = stake_str;
+            // Find the end of the value (either quote or comma or end of line)
+            while (*end && *end != '"' && *end != ',' && *end != '\n' && *end != '}') end++;
+            size_t len = (end - stake_str < 49) ? (end - stake_str) : 49;
+            strncpy_s(stake_name, sizeof(stake_name), stake_str, len);
+            stake_name[len] = '\0';
+            printf_s("raw stake string: '%s'\n", stake_name);
+            config->stake = parse_item(stake_name);
+            printf_s("parsed stake: %d\n", config->stake);
+            printf_s("stake name: '%s'\n", stake_name);
+            print_item(config->stake);
+            printf_s("\n");
         }
     } else {
         config->stake = RETRY; // Default value
     }
-    printf_s("loaded deck: %d\n", config->deck);
-    printf_s("loaded stake: %d\n", config->stake);
-    }
-
+    printf_s("loaded deck: ");
+    print_item(config->deck);
+    printf_s("\n");
+    printf_s("loaded stake: ");
+    print_item(config->stake);
+    printf_s("\n");
 
     free(json_content);
     printf_s("Successfully loaded configuration from %s\n", config_path);
     fflush(stdout);
-
-
-    printf_s("config loader on HOST: sizeof(OuijiConfig) = %zu\n", sizeof(OuijiConfig));
-    printf_s("config loader on HOST: sizeof(HostDesire) = %zu\n", sizeof(HostDesire));
-    printf_s("config loader on HOST: sizeof(OuijiConfig) = %zu\n", sizeof(OuijiConfig));
-    printf_s("config loader on HOST: sizeof(HostDesire) = %zu\n", sizeof(HostDesire));
-    printf("sizeof(OuijiConfig) = %zu\n", sizeof(OuijiConfig));
-    printf("sizeof(HostDesire) = %zu\n", sizeof(HostDesire));
-    printf("offsetof(OuijiConfig, cutoff) = %zu\n", offsetof(OuijiConfig, cutoff));
-    printf("offsetof(OuijiConfig, deck) = %zu\n", offsetof(OuijiConfig, deck));
-    printf("offsetof(OuijiConfig, stake) = %zu\n", offsetof(OuijiConfig, stake));
-    printf("offsetof(OuijiConfig, Needs) = %zu\n", offsetof(OuijiConfig, Needs));
-    printf("offsetof(OuijiConfig, Wants) = %zu\n", offsetof(OuijiConfig, Wants));
-    printf("sizeof(item) = %zu\n", sizeof(item));
-    fflush(stdout);
-    
     return 1;
 }
 #endif

@@ -560,18 +560,34 @@ int main(int argc, char **argv) {
 
     printf_s("Starting OpenCL Search search with filter %s\n", filter);
     printf_s("--- CSV RESULTS ---\n");
+    fflush(stdout);
     // Print header for CSV output
-    printf_s("Seed,Score,NegativeJokers,");
+    printf("Seed,Score,NegativeJokers,");
+    for (int i = 0; i < MAX_DESIRES_HOST && i < config.numNeeds; i++) {
+        printf("Need(");
+        if (config.Needs[i].jokeredition != RETRY && config.Needs[i].jokeredition != No_Edition) {
+            print_item(config.Needs[i].jokeredition);
+            printf("");
+        }
+        if (config.Needs[i].value != RETRY) {
+            print_item(config.Needs[i].value);
+        }
+        printf("),");
+    }
     for (int i = 0; i < MAX_DESIRES_HOST && i < config.numWants; i++) {
-        if (config.Wants[i].jokeredition != RETRY) {
+        printf("Want(");
+        if (config.Wants[i].jokeredition != RETRY && config.Wants[i].jokeredition != No_Edition) {
             print_item(config.Wants[i].jokeredition);
         }
-        print_item(config.Wants[i].value);
-        if (i < MAX_DESIRES_HOST - 1 && i < config.numWants - 1) {
-            printf_s(",");
+        if (config.Wants[i].value != RETRY) {
+            print_item(config.Wants[i].value);
+        }
+        printf(")");
+        if (i < config.numWants - 1 && i < MAX_DESIRES_HOST - 1) {
+            printf(",");
         }
     }
-    printf_s("\n");
+    printf("\n");
     fflush(stdout);  // Force flush the CSV header line
 
     // --- Batch Processing ---
@@ -628,6 +644,10 @@ int main(int argc, char **argv) {
         for (int i = 0; i < numResults; i++) {
             if (hostResults[i].valid) {
                 printf_s("|%s,%d,%d,", &hostResults[i].seed, hostResults[i].TotalScore, hostResults[i].NegativeJokers);
+                for (int j = 0; j < config.numNeeds && j < MAX_DESIRES_HOST; j++) {
+                    printf_s("1");
+                    if (j < config.numWants - 1 && j < MAX_DESIRES_HOST - 1) printf_s(",");
+                }
                 for (int j = 0; j < config.numWants && j < MAX_DESIRES_HOST; j++) {
                     printf_s("%d", hostResults[i].ScoreWants[j]);
                     if (j < config.numWants - 1 && j < MAX_DESIRES_HOST - 1) printf_s(",");

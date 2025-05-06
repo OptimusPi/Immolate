@@ -2,15 +2,31 @@
 #include "lib/ouiji.cl"
 #define CACHE_SIZE 256
 // #define FIXED_FILTER_CUTOFF 1
-// #define _debugPrints 1
+#define _debugPrints 1
 
 OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
 #ifdef _debugPrints
   printf("Starting filter\n");
+  printf("Deck id: %d\n", config->deck);
+  printf("Stake id: %d\n", config->stake);
+  printf("Deck: ");
+  print_item(config->deck);
+  printf("\n");
+  printf("Stake: ");
+  print_item(config->stake);
+  printf("\n");
+
+  printf("Cutoff: %ld\n", config->cutoff);
+  printf("Num Needs: %d\n", config->numNeeds);
+  printf("Num Wants: %d\n", config->numWants);
+  printf("Max Search Ante: %d\n", config->maxSearchAnte);
 #endif
 
-  set_deck(inst, config->deck);
-  set_stake(inst, config->stake);
+  
+  //set_deck(inst, config->deck);
+  //set_stake(inst, config->stake);
+  set_deck(inst, Anaglyph_Deck);
+  set_stake(inst, White_Stake);
   init_locks(inst, 1, false, true);
 
   // Default max search ante if config doesn't specify individual antes
@@ -57,7 +73,7 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
 
     item voucher = next_voucher(inst, ante);
 #ifdef _debugPrints
-    printf("Ante %d Voucher: \r\n", ante);
+    printf("Ante %d Voucher: ", ante);
     print_item(voucher);
     printf("\n");
 #endif

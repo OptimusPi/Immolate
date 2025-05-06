@@ -2,7 +2,7 @@
 // Searches for seeds with Observatory in ante 2 and Perkeo in ante 1 or 2
 #include "lib/immolate.cl"
 #define CACHE_SIZE 128
-//#define _debugPrints 1
+#define _debugPrints 1
 
 #define _DFirst 100000000
 #define _D1 10000000

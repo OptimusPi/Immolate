@@ -7,7 +7,6 @@
         "numWants": 2,
         "Needs": [
             {
-                "type": "Desire_Joker",
                 "value": "Egg",
                 "jokeredition": "No_Edition",
                 "desireByAnte": 1

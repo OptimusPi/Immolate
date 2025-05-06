@@ -20,7 +20,6 @@ __kernel void ouiji_search(char8 starting_seed, long num_seeds,
   buf[8] = '\0';
 
   if (get_global_id(0) >= num_seeds) {
-    printf("Kernel code exiting because global ID is greater than num_seeds\n");  
     return;
   }
   seed _seed = s_new_c8(starting_seed);

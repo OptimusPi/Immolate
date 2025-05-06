@@ -1646,7 +1646,15 @@ void print_item(item i) {
         case Cruelty: printf("Cruelty"); break;
         case Jokerless: printf("Jokerless"); break;
         case CHAL_END: printf("CHAL END"); break;
-        default: break;
+        case White_Stake: printf("White Stake"); break;
+        case Green_Stake: printf("Green Stake"); break;
+        case Black_Stake: printf("Black Stake"); break;
+        case Red_Stake: printf("Red Stake"); break;
+        case Blue_Stake: printf("Blue Stake"); break;
+        case Purple_Stake: printf("Purple Stake"); break;
+        case Orange_Stake: printf("Orange Stake"); break;
+        case Gold_Stake: printf("Gold Stake"); break;
+        default: printf("RETRY"); break;
     }
 }
 #endif // ITEMS_H
