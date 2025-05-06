@@ -289,7 +289,6 @@ int main(int argc, char **argv) {
     cl_int err;
 
     // Handle loading configuration from file if specified
-    printf_s("HOST Loading configuration if it exists...\n");
     if (config_file != NULL) {
         if (!load_config_from_json(config_file, &config)) {
             printf_s("Failed to load configuration from %s. Using default configuration.\n", config_file);
@@ -468,7 +467,7 @@ int main(int argc, char **argv) {
     } else {
         printf_s("Using pre-compiled kernel binary.\n");
     }
-    printf_s("Kernel Binary is ready. Building OpenCL ...\n");
+    printf_s("Building OpenCL Program...\n");
 
     // Add -cl-mad-enable to build options
     char build_options[1024];
@@ -564,8 +563,11 @@ int main(int argc, char **argv) {
     // Print header for CSV output
     printf_s("Seed,Score,NegativeJokers,");
     for (int i = 0; i < MAX_DESIRES_HOST && i < config.numWants; i++) {
+        if (config.Wants[i].jokeredition != RETRY) {
+            print_item(config.Wants[i].jokeredition);
+        }
         print_item(config.Wants[i].value);
-        if (i < MAX_DESIRES_HOST - 1 || i < config.numWants - 1) {
+        if (i < MAX_DESIRES_HOST - 1 && i < config.numWants - 1) {
             printf_s(",");
         }
     }
@@ -599,7 +601,6 @@ int main(int argc, char **argv) {
         // Debug print: show starting seed for this batch
         char debugSeed[9];
         host_seed_to_string(&batchSeedHost, debugSeed);
-        printf_s("[DEBUG] Batch start seed: %s\n", debugSeed);
         // Set kernel arguments for this run
         err = clSetKernelArg(ssKernel, 0, sizeof(batchSeed), &batchSeed);
         clErrCheck(err, "clSetKernelArg - Adding starting seed argument");
@@ -629,7 +630,7 @@ int main(int argc, char **argv) {
                 printf_s("|%s,%d,%d,", &hostResults[i].seed, hostResults[i].TotalScore, hostResults[i].NegativeJokers);
                 for (int j = 0; j < config.numWants && j < MAX_DESIRES_HOST; j++) {
                     printf_s("%d", hostResults[i].ScoreWants[j]);
-                    if (j < config.numWants - 1 || j < MAX_DESIRES_HOST - 1) printf_s(",");
+                    if (j < config.numWants - 1 && j < MAX_DESIRES_HOST - 1) printf_s(",");
                 }
                 printf_s("\n");
             }

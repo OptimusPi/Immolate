@@ -141,13 +141,6 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             strncpy_s(type_name, sizeof(type_name), need_start, type_len);
             type_name[type_len] = '\0';
             
-            // Set the need type based on the type name
-            if (strcmp(type_name, "Desire_Joker") == 0) {
-                config->Needs[need_index].type = 0; // Joker
-            } else {
-                config->Needs[need_index].type = 1; // Item
-            }
-            
             // Find the start of the value
             need_start = strstr(need_start, "\"value\"");
             if (!need_start) break;
@@ -193,7 +186,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                             edition_name[edition_len] = '\0';
                             
                             // Set the edition value
-                            config->Needs[need_index].joker.edition = parse_item(edition_name);
+                            config->Needs[need_index].jokeredition = parse_item(edition_name);
                         }
                     }
                 }
@@ -248,13 +241,6 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
             strncpy_s(type_name, sizeof(type_name), want_start, type_len);
             type_name[type_len] = '\0';
             
-            // Set the Want's type based on the type name
-            if (strcmp(type_name, "Desire_Joker") == 0) {
-                config->Wants[want_index].type = 0; // DesireType_Joker = 0 in ouiji_config.cl
-            } else {
-                config->Wants[want_index].type = 1; // DesireType_Value = 1 in ouiji_config.cl
-            }
-            
             // Now find the "value" field
             want_start = strstr(want_start, "\"value\"");
             if (!want_start) break;
@@ -300,7 +286,7 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
                             edition_name[edition_len] = '\0';
                             
                             // Set the edition value
-                            config->Wants[want_index].joker.edition = parse_item(edition_name);
+                            config->Wants[want_index].jokeredition = parse_item(edition_name);
                         }
                     }
                 }
@@ -410,7 +396,6 @@ int load_config_from_json(const char* config_filename, OuijiConfig* config) {
     printf("offsetof(OuijiConfig, Needs) = %zu\n", offsetof(OuijiConfig, Needs));
     printf("offsetof(OuijiConfig, Wants) = %zu\n", offsetof(OuijiConfig, Wants));
     printf("sizeof(item) = %zu\n", sizeof(item));
-    printf("sizeof(jokerdata) = %zu\n", sizeof(jokerdata));
     fflush(stdout);
     
     return 1;

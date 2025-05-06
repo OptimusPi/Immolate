@@ -51,9 +51,6 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
   OuijiResult result = {0}; // Initialize all members to 0/false
   result.valid = 1;
 
-  result.TotalScore = 1;
-  return result;
-
   // Search through all antes up to maxSearchAnte
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
     init_unlocks(inst, ante, false);
