@@ -4,8 +4,8 @@
 # Configuration
 $seed = "5XFVLI"
 $config = "egg"
-$seedCounts = @(10000, 100000, 1000000, 10000000)  # Different seed counts to test
-$groupSizes = @(16, 32, 64, 96, 128, 224, 256)
+$seedCounts = @(10000, 100000, 600000)  # Different seed counts to test
+$groupSizes = @(32, 48, 56, 64, 112, 128, 224)
 $iterations = 3  # Number of runs for each group size to average results
 
 # Create results array
