@@ -45,10 +45,7 @@ __kernel void ouiji_search(char8 starting_seed, long num_seeds,
       result.seed[8] = '\0'; // Null-terminate the string
       int idx = atomic_inc(result_count);
       results[idx] = result;
-      // Update the filter cutoff if necessary
-#ifndef FIXED_FILTER_CUTOFF
-      atomic_max(&config->cutoff, result.TotalScore);
-#endif
+      // No kernel-side cutoff update; host will update cutoff between batches
     }
   }
 }

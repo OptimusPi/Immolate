@@ -1,8 +1,8 @@
 // Searches for seeds with Observatory in ante 2 and Perkeo in ante 1 or 2
 #include "lib/ouiji.cl"
 #define CACHE_SIZE 256
-// #define FIXED_FILTER_CUTOFF 1
-#define _debugPrints 1
+//#define FIXED_FILTER_CUTOFF 1
+//#define _debugPrints 1
 
 OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
 #ifdef _debugPrints
@@ -20,24 +20,17 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
   printf("Num Needs: %d\n", config->numNeeds);
   printf("Num Wants: %d\n", config->numWants);
   printf("Max Search Ante: %d\n", config->maxSearchAnte);
+  text debug_Seed = s_to_string(&inst->seed);
+  printf("my seed is [%s]\n", debug_Seed.str);
 #endif
 
   
-  //set_deck(inst, config->deck);
-  //set_stake(inst, config->stake);
-  set_deck(inst, Anaglyph_Deck);
-  set_stake(inst, White_Stake);
+  set_deck(inst, config->deck);
+  set_stake(inst, config->stake);
   init_locks(inst, 1, false, true);
 
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
-#ifdef _debugPrints
-  printf("Max search ante: %d\n", maxSearchAnte);
-#endif
-
-  if (config->maxSearchAnte > 8) {
-    config->maxSearchAnte = 8;
-  }
 
   // Initialize score arrays
   bool ScoreNeeds[MAX_DESIRES_KERNEL];
@@ -98,7 +91,7 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
 
     for (int x = 0; x < config->numWants; x++) {
       // Check the tags
-      if (config->Wants[x].value == smallBlindTag ||
+    if (config->Wants[x].value == smallBlindTag ||
           config->Wants[x].value == bigBlindTag) {
         ScoreWants[x]++;
       }

@@ -1,0 +1,41 @@
+{
+    "name": "RarePerkeo",
+    "description": "Filter configuration created by Ouiji GUI on 2025-05-06",
+    "author": "Ouiji GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 4,
+        "Needs": [
+            {
+                "value": "Perkeo",
+                "jokeredition": "Negative",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 4
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Death",
+                "desireByAnte": 0
+            },
+            {
+                "value": "Observatory",
+                "desireByAnte": 0
+            },
+            {
+                "value": "The_Magician",
+                "desireByAnte": 0
+            },
+            {
+                "value": "Rare_Tag",
+                "desireByAnte": 0
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Red_Deck",
+        "stake": "Black_Stake"
+    }
+}

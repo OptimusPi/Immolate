@@ -30,7 +30,7 @@
 #include <limits.h>
 #include <string.h>
 #include <CL/cl.h>
-#define MAX_CODE_SIZE (1000000)
+#define MAX_CODE_SIZE (2100000)
 
 
 #ifndef __OUIJI_H

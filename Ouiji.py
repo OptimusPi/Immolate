@@ -15,12 +15,119 @@ import time
 # Import Sun Valley theme
 import sv_ttk
 
+USER_CONF_PATH = "ouiji_user.conf"
+
+def save_user_conf():
+    conf = {
+        "last_config_path": loaded_config_path if 'loaded_config_path' in globals() else None,
+        "gpu_thread_groups": default_thread_group.get(),
+        "last_seed": starting_seed_entry.get(),
+        "last_deck": deck_var.get(),
+        "last_stake": stake_var.get(),
+        "last_number_of_seeds": number_of_seeds_var.get()
+    }
+    with open(USER_CONF_PATH, "w") as f:
+        json.dump(conf, f, indent=2)
+
+def load_configuration_from_path(file_path):
+    global config_loaded_from_file, config_modified, loaded_config_path
+    if not file_path:
+        return
+    try:
+        with open(file_path, 'r') as file:
+            config = json.load(file)
+        # Clear current configuration
+        clear_criteria()
+        # Set configuration name
+        config_name = config.get("name", os.path.basename(file_path).replace('.ouiji.json', ''))
+        config_name_entry.delete(0, tk.END)
+        config_name_entry.insert(0, config_name)
+        # Load needs
+        needs_list.clear()
+        for need in config.get("filter_config", {}).get("Needs", []):
+            needs_list.append(need)
+            display_text = f"NEED: {need['value'].replace('_', ' ')}"
+            if "desireByAnte" in need:
+                display_text += f" by Ante {need['desireByAnte']}"
+            if "joker" in need and "edition" in need["joker"] and need["joker"]["edition"] != "No_Edition":
+                display_text += f" ({need['joker']['edition']})"
+            selected_criteria_list.insert(tk.END, display_text)
+        # Load wants
+        wants_list.clear()
+        for want in config.get("filter_config", {}).get("Wants", []):
+            wants_list.append(want)
+            display_text = f"WANT: {want['value'].replace('_', ' ')}"
+            if "desireByAnte" in want:
+                display_text += f" by Ante {want['desireByAnte']}"
+            if "joker" in want and "edition" in want["joker"] and want["joker"]["edition"] != "No_Edition":
+                display_text += f" ({want['joker']['edition']})"
+            selected_criteria_list.insert(tk.END, display_text)
+        # Load deck if specified in config
+        filter_config = config.get("filter_config", {})
+        if "deck" in filter_config:
+            deck_name = filter_config["deck"].replace('_', ' ')
+            if deck_name in available_items["Decks"]:
+                deck_var.set(deck_name)
+            else:
+                for display_name, internal_name in joker_mapping.items():
+                    if internal_name == filter_config["deck"] and display_name in available_items["Decks"]:
+                        deck_var.set(display_name)
+                        break
+        # Load stake if specified in config
+        if "stake" in filter_config:
+            stake_name = filter_config["stake"].replace('_', ' ')
+            if stake_name in available_items["Stakes"]:
+                stake_var.set(stake_name)
+            else:
+                for display_name, internal_name in joker_mapping.items():
+                    if internal_name == filter_config["stake"] and display_name in available_items["Stakes"]:
+                        stake_var.set(display_name)
+                        break
+        # Load DuckDB if exists
+        duckdb_path = get_duckdb_path_from_config(file_path)
+        if os.path.exists(duckdb_path):
+            global duckdb_conn
+            if duckdb_conn:
+                duckdb_conn.close()
+            duckdb_conn = duckdb.connect(duckdb_path)
+            refresh_results_from_duckdb()
+        loaded_config_path = file_path
+        config_loaded_from_file = True
+        config_modified = False
+        save_user_conf()
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to load configuration: {str(e)}")
+
+def load_user_conf():
+    if os.path.exists(USER_CONF_PATH):
+        with open(USER_CONF_PATH, "r") as f:
+            conf = json.load(f)
+        if conf.get("gpu_thread_groups"):
+            default_thread_group.set(conf["gpu_thread_groups"])
+        if conf.get("last_seed"):
+            starting_seed_entry.delete(0, 'end')
+            starting_seed_entry.insert(0, conf["last_seed"])
+        if conf.get("last_deck"):
+            deck_var.set(conf["last_deck"])
+        if conf.get("last_stake"):
+            stake_var.set(conf["last_stake"])
+        if conf.get("last_number_of_seeds"):
+            number_of_seeds_var.set(conf["last_number_of_seeds"])
+        # Actually load last config file if present
+        if conf.get("last_config_path") and os.path.exists(conf["last_config_path"]):
+            load_configuration_from_path(conf["last_config_path"])
+
 # Global variable to track active processes
 active_processes = []
 
 # Global variables to store selected needs and wants
 needs_list = []
 wants_list = []
+
+# Track if config was loaded from file and if it was modified
+config_loaded_from_file = False
+config_modified = False
+loaded_config_path = None
 
 # Joker mapping to display names and internal values
 joker_mapping = {
@@ -500,7 +607,32 @@ def get_duckdb_path_from_config(config_path):
     os.makedirs(db_dir, exist_ok=True)
     return os.path.join(db_dir, f"{name}.duckdb")
 
+def refresh_results_from_duckdb():
+    global duckdb_conn
+    try:
+        if duckdb_conn:
+            # Check if the results table exists before querying
+            table_exists = duckdb_conn.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'results'").fetchone()[0]
+            if not table_exists:
+                return
+            # Query all results, sorted by Score descending (quote Score in case of special chars)
+            rows = duckdb_conn.execute('SELECT * FROM results ORDER BY "Score" DESC').fetchall()
+            # Clear the tree
+            for row in results_tree.get_children():
+                results_tree.delete(row)
+            # Insert new rows
+            for row in rows:
+                results_tree.insert('', 'end', values=row)
+    except Exception as e:
+        print(f"Error refreshing results from DuckDB: {e}")
+    root.after(1000, refresh_results_from_duckdb)
+
+def mark_config_modified(*args, **kwargs):
+    global config_modified
+    config_modified = True
+
 def run_ouiji_cmd():
+    global loaded_config_path
     # If the button is in "STOP SEARCH" mode, terminate the process
     if run_button.cget("text") == "STOP SEARCH":
         cleanup_processes()  # Use our existing cleanup function
@@ -509,7 +641,12 @@ def run_ouiji_cmd():
         output_text.see(tk.END)
         return
 
-    export_configuration()
+    # Check if configuration has been modified since last save/load
+    if config_loaded_from_file and not config_modified:
+        # If not modified, use the loaded config path directly
+        config_path_for_db = loaded_config_path
+    else:
+        export_configuration()
     
     starting_seed = starting_seed_entry.get()
     number_of_seeds_label = number_of_seeds_var.get()
@@ -559,18 +696,16 @@ def run_ouiji_cmd():
             }
         }
         
-        # Make sure the ouiji_configs directory exists
-        os.makedirs("ouiji_configs", exist_ok=True)
-        
-        # Create a temporary configuration file
-        temp_config_path = f"{config_name}"
-        
-        with open(temp_config_path, "w") as file:
-            json.dump(config, file, indent=4)
-        
-        # Add config flag to command
-        command_parts.extend(["--config", temp_config_path])
-        config_path_for_db = temp_config_path
+        if config_loaded_from_file and not config_modified:
+            config_path_for_db = loaded_config_path
+        else:
+            # Save to a new temp file (never overwrite originals)
+            temp_config_path = f"ouiji_configs/{config_name}_{int(time.time())}.ouiji.json"
+            with open(temp_config_path, "w") as file:
+                json.dump(config, file, indent=4)
+            config_path_for_db = temp_config_path
+            loaded_config_path = temp_config_path
+            save_user_conf()
     else:
         config_path_for_db = None
 
@@ -580,6 +715,9 @@ def run_ouiji_cmd():
         duckdb_conn = duckdb.connect(duckdb_path)
         # We'll create the table on first result insert
     
+    if loaded_config_path:
+        command_parts.extend(["--config", f'"{loaded_config_path}"'])
+
     # Join parts into the final command string
     command = " ".join(command_parts)
 
@@ -596,6 +734,8 @@ def run_ouiji_cmd():
         def read_output():
             nonlocal duckdb_conn, duckdb_table_created
             try:
+                header_columns = None
+                header_found = False
                 while True:
                     # Check if process is still running
                     if process.poll() is not None:
@@ -604,28 +744,72 @@ def run_ouiji_cmd():
                     line = process.stdout.readline()
                     if not line:
                         break
-                    
-                    # Only process lines that start with '|' as scored result rows
+
+                    # Parse the CSV header line
+                    if not header_found and line.strip().startswith("Seed,"):
+                        header_columns = [col.strip() for col in line.strip().split(",") if col.strip() != ""]
+                        header_found = True
+                        # Set up Treeview columns
+                        display_columns = []
+                        for col in header_columns:
+                            if col.startswith("Need(") and col.endswith(")"):
+                                # Extract item name
+                                item_name = col[5:-1]
+                                display_columns.append(f"❗{item_name}")
+                            elif col.startswith("Want(") and col.endswith(")"):
+                                item_name = col[5:-1]
+                                display_columns.append(item_name)
+                            else:
+                                display_columns.append(col)
+                        results_tree["columns"] = display_columns
+                        results_tree["show"] = "headings"
+                        # Set all headings bold for now (Tkinter limitation)
+                        import tkinter.font as tkfont
+                        style = ttk.Style()
+                        bold_font = tkfont.Font(family="m6x11", size=12, weight="bold")
+                        style.configure("Treeview.Heading", font=bold_font)
+                        for col in display_columns:
+                            results_tree.heading(col, text=col)
+                            results_tree.column(col, width=100, anchor="center")
+                        # Set up DuckDB table
+                        if duckdb_conn and not duckdb_table_created:
+                            columns_def = []
+                            for col in header_columns:
+                                if col == "Score" or col == "NegativeJokers" or col.startswith("Need(") or col.startswith("Want("):
+                                    columns_def.append(f'"{col}" INTEGER')
+                                else:
+                                    columns_def.append(f'"{col}" TEXT')
+                            duckdb_conn.execute(f"CREATE TABLE IF NOT EXISTS results ({', '.join(columns_def)});")
+                            duckdb_table_created = True
+                        output_text.insert(tk.END, line)
+                        continue
+
+                    # Only process result lines that start with '|'
                     if line.startswith("|"):
-                        parts = line[1:].strip().split(",")
-                        if len(parts) >= 2:
-                            # On first result, create table if needed
+                        if not header_columns:
+                            # Fallback: generic columns if header not found
+                            parts = line[1:].strip().split(",")
+                            header_columns = [f"col{i+1}" for i in range(len(parts))]
+                            results_tree["columns"] = header_columns
+                            results_tree["show"] = "headings"
+                            for col in header_columns:
+                                results_tree.heading(col, text=col)
+                                results_tree.column(col, width=100, anchor="center")
                             if duckdb_conn and not duckdb_table_created:
-                                columns = [f"col{i+1} TEXT" for i in range(len(parts))]
-                                columns[1] = "Score INTEGER"  # Try to type Score as integer
-                                columns[0] = "Seed TEXT"
-                                columns_def = ", ".join(columns)
-                                duckdb_conn.execute(f"CREATE TABLE IF NOT EXISTS results ({columns_def});")
+                                duckdb_conn.execute(f"CREATE TABLE IF NOT EXISTS results ({', '.join([f'{col} TEXT' for col in header_columns])});")
                                 duckdb_table_created = True
-                            # Insert result
-                            if duckdb_conn:
-                                duckdb_conn.execute(f"INSERT INTO results VALUES ({', '.join(['?']*len(parts))});", parts)
-                            update_results_tree(parts)
-                        output_text.insert(tk.END, line[1:].strip())
+                        parts = line[1:].strip().split(",")
+                        # Insert into DuckDB
+                        if duckdb_conn:
+                            quoted_cols = ', '.join([f'"{col}"' for col in header_columns])
+                            placeholders = ', '.join(['?']*len(parts))
+                            duckdb_conn.execute(f"INSERT INTO results VALUES ({placeholders});", parts)
+                        # Insert into Treeview
+                        results_tree.insert('', 'end', values=parts)
+                        output_text.insert(tk.END, line[1:].strip() + "\n")
                     else:
                         # Regular output lines
                         output_text.insert(tk.END, line)
-                
                 # Process any stderr after stdout is done
                 for line in process.stderr:
                     output_text.insert(tk.END, f"ERROR: {line}\n")
@@ -654,6 +838,9 @@ def run_ouiji_cmd():
         
         # Start reading output in a background thread
         threading.Thread(target=read_output, daemon=True).start()
+
+        # Save user configuration
+        save_user_conf()
 
     except FileNotFoundError:
         messagebox.showerror("Error", "Ouiji.exe not found in the current directory.")
@@ -816,58 +1003,71 @@ class ItemSelectorDialog(tk.Toplevel):
             
         selected_criteria_list.insert(tk.END, display_text)
         
+        mark_config_modified()
         self.destroy()
     
 
 # Add buttons to trigger the item selector dialogs for different categories
 def add_need_joker():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Need Joker", "Jokers", True)
     dialog.wait_window()
 
 def add_need_tarot():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Need Tarot", "Tarots", True)
     dialog.wait_window()
 
 def add_need_spectral():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Need Spectral", "Spectrals", True)
     dialog.wait_window()
 
 def add_need_tag():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Need Tag", "Tags", True)
     dialog.wait_window()
 
 def add_need_voucher():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Need Voucher", "Vouchers", True)
     dialog.wait_window()
 
 def add_want_joker():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Want Joker", "Jokers", False)
     dialog.wait_window()
 
 def add_want_tarot():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Want Tarot", "Tarots", False)
     dialog.wait_window()
 
 def add_want_spectral():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Want Spectral", "Spectrals", False)
     dialog.wait_window()
 
 def add_want_tag():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Want Tag", "Tags", False)
     dialog.wait_window()
 
 def add_want_voucher():
+    mark_config_modified()
     dialog = ItemSelectorDialog(root, "Select Want Voucher", "Vouchers", False)
     dialog.wait_window()
 
 # Clear all selected criteria
 def clear_all_criteria():
+    mark_config_modified()
     selected_criteria_list.delete(0, tk.END)
     needs_list.clear()
     wants_list.clear()
 
 # Clear only the single currently selected criteria
 def clear_criteria():
+    mark_config_modified()
     selected_indices = selected_criteria_list.curselection()
     if selected_indices:
         for index in reversed(selected_indices):
@@ -879,6 +1079,7 @@ def clear_criteria():
 
 # Make randomized configuration for fun!
 def randomize_all_criteria():
+    mark_config_modified()
     # Clear existing criteria before randomizing
     clear_all_criteria()
     import random
@@ -950,6 +1151,7 @@ def randomize_all_criteria():
 
 # Enhanced export function to create proper JSON structure
 def export_configuration():
+    global loaded_config_path
     config_name = config_name_entry.get().strip()
     if not config_name:
         messagebox.showerror("Error", "Please enter a configuration name before exporting.")
@@ -991,6 +1193,9 @@ def export_configuration():
     if file_path:
         with open(file_path, 'w') as file:
             json.dump(config, file, indent=4)
+        # Update loaded_config_path and save user conf
+        loaded_config_path = file_path
+        save_user_conf()
         
         # Also generate a --config parameter example
         config_param = f"--config \"{os.path.basename(file_path)}\""
@@ -1001,6 +1206,7 @@ def export_configuration():
 
 # Function to load a saved configuration
 def load_configuration():
+    global config_loaded_from_file, config_modified, loaded_config_path
     # Make sure the ouiji_configs directory exists
     os.makedirs("ouiji_configs", exist_ok=True)
     
@@ -1081,6 +1287,20 @@ def load_configuration():
                     if internal_name == filter_config["stake"] and display_name in available_items["Stakes"]:
                         stake_var.set(display_name)
                         break
+
+        # Load DuckDB if exists
+        duckdb_path = get_duckdb_path_from_config(file_path)
+        if os.path.exists(duckdb_path):
+            global duckdb_conn
+            if duckdb_conn:
+                duckdb_conn.close()
+            duckdb_conn = duckdb.connect(duckdb_path)
+            refresh_results_from_duckdb()
+
+        loaded_config_path = file_path
+        config_loaded_from_file = True
+        config_modified = False
+        save_user_conf()
         
     except Exception as e:
         messagebox.showerror("Error", f"Failed to load configuration: {str(e)}")
@@ -1228,7 +1448,7 @@ add_tooltip_to_label(thread_group_label, "Select the number of GPU thread groups
 
 default_thread_group = tk.StringVar(value="112")
 thread_group_dropdown = ttk.Combobox(run_settings_frame, textvariable=default_thread_group, state="readonly")
-thread_group_dropdown['values'] = ["Single", "Default (16)", "32", "48", "64", "96", "112", "128", "196", "224", "256"]
+thread_group_dropdown['values'] = ["Single", "32", "48", "64", "96", "112", "128", "196", "224", "256"]
 thread_group_dropdown.pack(pady=(5, 10))  # Add more space below the dropdown
 
 # Add Starting Seed and Number of Seeds to Search settings
@@ -1286,19 +1506,24 @@ results_scrollbar = ttk.Scrollbar(results_frame, orient=VERTICAL, command=result
 results_tree.configure(yscrollcommand=results_scrollbar.set)
 results_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-# Function to update Treeview
-def update_results_tree(parts):
-    # Only add if at least Seed and Score are present
-    if len(parts) >= 2:
-        root.after(0, lambda: results_tree.insert("", "end", values=(parts[0], parts[1])))
+# Add DuckDB connection global variable
+duckdb_conn = None
 
 # Bind window close event to cleanup function
 def on_closing():
     print("Window closing, cleaning up processes...")
     cleanup_processes()
+    if duckdb_conn:
+        duckdb_conn.close()
     root.destroy()
 
 root.protocol("WM_DELETE_WINDOW", on_closing)
+
+# Start the periodic update (now powered by DuckDB)
+refresh_results_from_duckdb()
+
+# Load user configuration on startup
+load_user_conf()
 
 # Ensure mainloop is present and reachable
 root.mainloop()

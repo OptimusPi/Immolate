@@ -15,6 +15,12 @@ set_target_properties(${PROJECT_NAME} PROPERTIES C_STANDARD 11
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE CL_TARGET_OPENCL_VERSION=100)
 
+# Enable strong optimizations for Release builds (MSVC)
+if(MSVC)
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /GL /arch:AVX2 /fp:fast /DNDEBUG")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF")
+endif()
+
 # Add include directories for vcpkg-installed libraries
 # Check if CMAKE_TOOLCHAIN_FILE is defined before using it
 if(DEFINED CMAKE_TOOLCHAIN_FILE)

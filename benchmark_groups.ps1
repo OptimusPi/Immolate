@@ -4,16 +4,20 @@
 # Configuration
 $seed = "5XFVLI"
 $config = "egg"
-$seedCounts = @(10000, 100000, 600000)  # Different seed counts to test
-$groupSizes = @(32, 48, 56, 64, 112, 128, 224)
-$iterations = 3  # Number of runs for each group size to average results
+$seedCounts = @(1, 65536, 2100000, 100000000)  # Different seed counts to test
+$groupSizes = @(256)
+$iterations = 1  # Number of runs for each group size to average results
 
 # Create results array
 $allResults = @()
 
 # Run Ouiji once at the beginning to ensure OpenCL code is compiled
 Write-Host "Performing initial compilation run..." -NoNewline
-& .\Ouiji.exe -s $seed -g 64 -n 10000 --config $config | Out-Null
+& .\Ouiji.exe -s $seed -g 1 -n 1 --config $config | Out-Null
+Write-Host " Done!"
+
+Write-Host "Force simulate end-of-batch partial processing..." -NoNewline
+& .\Ouiji.exe -s $seed -g 16 -n 2  --config $config | Out-Null
 Write-Host " Done!"
 
 # Loop through each seed count

@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
     };
-    size_t numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
+    cl_long numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
     // Default config values
     OuijiConfig config;
     config.cutoff = 0;           // Default cutoff
@@ -152,7 +152,8 @@ int main(int argc, char **argv) {
 
     char* filter = "ouiji_template"; // Default filter
     char* config_file = NULL;  // Configuration file path
-
+    int fixedCutoffMode = 0; // Flag for fixed cutoff mode
+    
     // --- Argument Parsing Loop ---
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-h")==0) {
@@ -186,6 +187,7 @@ int main(int argc, char **argv) {
         }
         if (strcmp(argv[i],  "-c")==0) {
             config.cutoff = (int)strtoll(argv[i+1], NULL, 10); // Parse cutoff into config
+            fixedCutoffMode = 1;
             i++;
         }
         if (strcmp(argv[i],  "-s")==0) {
@@ -469,7 +471,7 @@ int main(int argc, char **argv) {
     }
     printf_s("Building OpenCL Program...\n");
 
-    // Add -cl-mad-enable to build options
+    // Add -cl-mad-enable to build options, and also testing out fast relaxed math right now!
     char build_options[1024];
     snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
@@ -614,9 +616,7 @@ int main(int argc, char **argv) {
         // Convert host_seed to cl_char8 for kernel
         cl_char8 batchSeed;
         host_seed_to_cl_char8(&batchSeedHost, &batchSeed);
-        // Debug print: show starting seed for this batch
-        char debugSeed[9];
-        host_seed_to_string(&batchSeedHost, debugSeed);
+
         // Set kernel arguments for this run
         err = clSetKernelArg(ssKernel, 0, sizeof(batchSeed), &batchSeed);
         clErrCheck(err, "clSetKernelArg - Adding starting seed argument");
@@ -641,18 +641,24 @@ int main(int argc, char **argv) {
         err = clEnqueueReadBuffer(queue, resultsBuf, CL_TRUE, 0, sizeof(OuijiHostResult) * numResults, hostResults, 0, NULL, NULL);
         clErrCheck(err, "clEnqueueReadBuffer - Reading results buffer");
         // Print valid results
-        for (int i = 0; i < numResults; i++) {
-            if (hostResults[i].valid) {
-                printf_s("|%s,%d,%d,", &hostResults[i].seed, hostResults[i].TotalScore, hostResults[i].NegativeJokers);
-                for (int j = 0; j < config.numNeeds && j < MAX_DESIRES_HOST; j++) {
-                    printf_s("1");
-                    if (j < config.numWants - 1 && j < MAX_DESIRES_HOST - 1) printf_s(",");
+        for (int i = 0; i < numResults; i++)
+        {
+            if (hostResults[i].valid && hostResults[i].TotalScore >= config.cutoff) {
+                printf_s("|%s,%d,%d", &hostResults[i].seed, hostResults[i].TotalScore, hostResults[i].NegativeJokers);
+                int total_cols = config.numNeeds + config.numWants;
+                int col_idx = 0;
+                // Print needs (always 1)
+                for (int j = 0; j < config.numNeeds && j < MAX_DESIRES_HOST; j++, col_idx++) {
+                    printf_s(",1");
                 }
-                for (int j = 0; j < config.numWants && j < MAX_DESIRES_HOST; j++) {
-                    printf_s("%d", hostResults[i].ScoreWants[j]);
-                    if (j < config.numWants - 1 && j < MAX_DESIRES_HOST - 1) printf_s(",");
+                // Print wants
+                for (int j = 0; j < config.numWants && j < MAX_DESIRES_HOST; j++, col_idx++) {
+                    printf_s(",%d", hostResults[i].ScoreWants[j]);
                 }
                 printf_s("\n");
+                if (!fixedCutoffMode && hostResults[i].TotalScore > config.cutoff) {
+                    config.cutoff = hostResults[i].TotalScore;
+                }
             }
         }
         fflush(stdout);
