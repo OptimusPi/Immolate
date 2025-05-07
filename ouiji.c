@@ -564,7 +564,7 @@ int main(int argc, char **argv) {
     printf_s("--- CSV RESULTS ---\n");
     fflush(stdout);
     // Print header for CSV output
-    printf("Seed,Score,NegativeJokers,");
+    printf("Seed,Score,Negatives,");
     for (int i = 0; i < MAX_DESIRES_HOST && i < config.numNeeds; i++) {
         printf("Need(");
         if (config.Needs[i].jokeredition != RETRY && config.Needs[i].jokeredition != No_Edition) {
