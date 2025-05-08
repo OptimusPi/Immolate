@@ -1,0 +1,6 @@
+"SeedCount","Display","AverageTimeSeconds","SeedsPerSecond"
+"1","1 seed","0.24","4"
+"10000","10K seeds","0.32","30926"
+"100000","100K seeds","1.06","94696"
+"1000000","1M seeds","8.25","121273"
+"5000000","5M seeds","40.72","122854"

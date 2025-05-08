@@ -26,7 +26,6 @@ typedef struct {
     int maxSearchAnte;                 // Maximum Ante to search through
     int deck;                          // Deck to use
     int stake;                         // Stake to use
-    long cutoff;                       // Minimum score to report
 } OuijiConfig;
 
 #endif
