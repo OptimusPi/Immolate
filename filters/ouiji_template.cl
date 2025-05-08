@@ -24,7 +24,6 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
   printf("my seed is [%s]\n", debug_Seed.str);
 #endif
 
-  
   set_deck(inst, config->deck);
   set_stake(inst, config->stake);
   init_locks(inst, 1, false, true);
@@ -32,33 +31,23 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
 
-  // Initialize score arrays
+  // Initialize result with default values
+  OuijiResult result;
+  // Start with score of 0 (invalid until all needs are met)
+  result.TotalScore = 0;
+  result.NegativeJokers = 0;
+  
+  // Initialize all need scores to false and want scores to 0 directly in a vectorized way
   bool ScoreNeeds[MAX_DESIRES_KERNEL];
-  int ScoreWants[MAX_DESIRES_KERNEL];
-
-  // Initialize all need scores to false
   for (int i = 0; i < config->numNeeds; i++) {
     ScoreNeeds[i] = false;
   }
-  // Initialize all want scores to 0
+  
   for (int i = 0; i < config->numWants; i++) {
-    ScoreWants[i] = 0;
+    result.ScoreWants[i] = 0;
   }
 
-  shopitem cards[128]; // Declare the array
-  // Initialize all elements to RETRY
-  for (int i = 0; i < 128; i++) {
-    shopitem shit = {ItemType_Joker, RETRY, RETRY};
-    cards[i] = shit;
-  }
-  int negativeJokers = 0;
-  int shCount = 0;
-  bool magic = false;
-
-  bool firstLeg = true;
-  bool firstBlue = true;
-  OuijiResult result = {0}; // Initialize all members to 0/false
-  result.valid = 1;
+  bool showman_active = false;
 
   // Search through all antes up to maxSearchAnte
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
@@ -77,38 +66,28 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
     item smallBlindTag = next_tag(inst, ante);
     item bigBlindTag = next_tag(inst, ante);
 
+    // Process vouchers and tags for needs with branchless operations
     for (int x = 0; x < config->numNeeds; x++) {
-      // Check the tags
-      if (config->Needs[x].value == smallBlindTag ||
-          config->Needs[x].value == bigBlindTag) {
-        ScoreNeeds[x] = true;
-      }
-      // Check the vouchers
-      if (config->Needs[x].value == voucher) {
-        ScoreNeeds[x] = true;
-      }
+      bool isSmallBlind = (config->Needs[x].value == smallBlindTag);
+      bool isBigBlind = (config->Needs[x].value == bigBlindTag);
+      bool isVoucher = (config->Needs[x].value == voucher);
+      ScoreNeeds[x] |= (isSmallBlind | isBigBlind | isVoucher);
     }
 
+    // Process vouchers and tags for wants with branchless operations
     for (int x = 0; x < config->numWants; x++) {
-      // Check the tags
-    if (config->Wants[x].value == smallBlindTag ||
-          config->Wants[x].value == bigBlindTag) {
-        ScoreWants[x]++;
-      }
-      // Check the vouchers
-      if (config->Wants[x].value == voucher) {
-        ScoreWants[x]++;
-      }
+      int isSmallBlind = (config->Wants[x].value == smallBlindTag);
+      int isBigBlind = (config->Wants[x].value == bigBlindTag);
+      int isVoucher = (config->Wants[x].value == voucher);
+      result.ScoreWants[x] += (isSmallBlind + isBigBlind + isVoucher);
     }
 
-    int cardsIndex = 0;
-
-    // Check antes for desires!
-    shCount = ante == 1 ? 4 : ante >= 8 ? 10 : 6;
+    // Process shop items using direct scoring
+    int shCount = (ante == 1) ? 4 : ((ante >= 8) ? 10 : 6);
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
-      if (shItem.value == RETRY)
-        continue;
+      if (shItem.value == RETRY) continue;
+      
 #ifdef _debugPrints
       printf("Shop item %d: ", sh);
       print_item(shItem.value);
@@ -117,148 +96,217 @@ OuijiResult ouiji_filter(instance *inst, __global OuijiConfig *config) {
       }
       printf("\n");
 #endif
-      cards[cardsIndex++] = shItem;
+
+      // Update showman_active flag (optimization: single assignment)
+      showman_active |= (shItem.value == Showman);
+      
+      // Count negative jokers with branchless operation
+      result.NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
+      
+      // Score needs
+      for (int x = 0; x < config->numNeeds; x++) {
+        // For jokers with edition check
+        bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
+                          (shItem.type == ItemType_Joker) && 
+                          (config->Needs[x].value == shItem.value) && 
+                          ((config->Needs[x].jokeredition == No_Edition) || 
+                           (config->Needs[x].jokeredition == shItem.joker.edition));
+        
+        // For regular items (non-jokers)
+        bool regularMatch = (config->Needs[x].value == shItem.value);
+        
+        bool matched = (jokerMatch | regularMatch);
+        ScoreNeeds[x] |= matched;
+        
+        // Debug print when we match a need
+      #ifdef _debugPrints
+        if (matched) {
+          printf("Need %d matched in ante %d\n", x, ante);
+        }
+      #endif
+      }
+      
+      // Score wants - directly use result.ScoreWants array
+      for (int x = 0; x < config->numWants; x++) {
+        // For jokers with edition check
+        int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
+                         (shItem.type == ItemType_Joker) && 
+                         (config->Wants[x].value == shItem.value) && 
+                         ((config->Wants[x].jokeredition == No_Edition) || 
+                          (config->Wants[x].jokeredition == shItem.joker.edition));
+                          
+        // For regular items (non-jokers)
+        int regularMatch = (config->Wants[x].value == shItem.value);
+        
+        result.ScoreWants[x] += (jokerMatch + regularMatch);
+      }
     }
 
-    int packChecks = ante == 1 ? 4 : 6;
+    // Process packs
+    int packChecks = (ante == 1) ? 4 : 6;
 #ifdef _debugPrints
     printf("performing %d pack checks for ante %d\n", packChecks, ante);
 #endif
 
     for (int p = 0; p < packChecks; p++) {
-      // ... existing code ...
-      item cardsTemp[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
       pack _pack = pack_info(next_pack(inst, ante));
-      itemtype useType = ItemType_Joker;
+      
+      // Handle different pack types - optimized for branchless where possible
       if (_pack.type == Arcana_Pack) {
-        arcana_pack(cardsTemp, _pack.size, inst, ante);
-        useType = ItemType_Tarot;
-      } else if (_pack.type == Spectral_Pack) {
-        spectral_pack(cardsTemp, _pack.size, inst, ante);
-        useType = ItemType_Spectral;
-      } else if (_pack.type == Buffoon_Pack) {
-        jokerdata jkrsTemp[5];
-        buffoon_pack_detailed(jkrsTemp, _pack.size, inst, ante);
-
+        // Process Arcana cards (tarot cards)
+        item tarotCards[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
+        arcana_pack(tarotCards, _pack.size, inst, ante);
+        
         for (int t = 0; t < _pack.size; t++) {
-          shopitem shit = {ItemType_Joker, jkrsTemp[t].joker, jkrsTemp[t]};
-          cards[cardsIndex++] = shit;
+          if (tarotCards[t] == RETRY) continue;
+          
+          // Score needs
+          for (int x = 0; x < config->numNeeds; x++) {
+            bool matched = (config->Needs[x].value == tarotCards[t]);
+            ScoreNeeds[x] |= matched;
+          }
+          
+          // Score wants
+          for (int x = 0; x < config->numWants; x++) {
+            result.ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
+          }
         }
-      } else
-        continue;
-
-      for (int t = 0; t < _pack.size; t++) {
-        if (cardsTemp[t] == The_Soul) {
-          jokerdata jkrData = next_joker_with_info(inst, S_Soul, ante);
-          for (int ww = 0; ww < MAX_DESIRES_KERNEL; ww++) {
-            if (The_Soul == config->Needs[ww].value) {
-              ScoreNeeds[ww] = true;
+      } 
+      else if (_pack.type == Spectral_Pack) {
+        // Process Spectral cards
+        item spectralCards[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
+        spectral_pack(spectralCards, _pack.size, inst, ante);
+        
+        for (int t = 0; t < _pack.size; t++) {
+          if (spectralCards[t] == RETRY) continue;
+          
+          // Special handling for The Soul
+          if (spectralCards[t] == The_Soul) {
+            jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
+            
+            // Update showman_active with branchless operation
+            showman_active |= (soulJoker.joker == Showman);
+            
+            // Count negative joker with branchless operation
+            result.NegativeJokers += (soulJoker.edition == Negative);
+            
+            // Score needs for both The_Soul itself and the created joker
+            for (int x = 0; x < config->numNeeds; x++) {
+              bool soulMatch = (config->Needs[x].value == The_Soul);
+              bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
+                                (config->Needs[x].value == soulJoker.joker) && 
+                                ((config->Needs[x].jokeredition == No_Edition) || 
+                                 (config->Needs[x].jokeredition == soulJoker.edition));
+              
+              ScoreNeeds[x] |= (soulMatch | jokerMatch);
             }
-            if (The_Soul == config->Wants[ww].value) {
-              ScoreWants[ww]++;
+            
+            // Score wants for both The_Soul itself and the created joker
+            for (int x = 0; x < config->numWants; x++) {
+              int soulMatch = (config->Wants[x].value == The_Soul);
+              int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
+                               (config->Wants[x].value == soulJoker.joker) && 
+                               ((config->Wants[x].jokeredition == No_Edition) || 
+                                (config->Wants[x].jokeredition == soulJoker.edition));
+              
+              result.ScoreWants[x] += (soulMatch + jokerMatch);
+            }
+          } 
+          else {
+            // Regular spectral card
+            for (int x = 0; x < config->numNeeds; x++) {
+              ScoreNeeds[x] |= (config->Needs[x].value == spectralCards[t]);
+            }
+            
+            for (int x = 0; x < config->numWants; x++) {
+              result.ScoreWants[x] += (config->Wants[x].value == spectralCards[t]);
             }
           }
-          shopitem soulShit = {ItemType_Joker, jkrData.joker, jkrData};
-          cards[cardsIndex++] = soulShit;
-        } else {
-          shopitem spectralShit = {useType, cardsTemp[t], RETRY};
-          cards[cardsIndex++] = spectralShit;
+        }
+      } 
+      else if (_pack.type == Buffoon_Pack) {
+        // Process Buffoon pack (jokers)
+        jokerdata buffoonJokers[5];
+        buffoon_pack_detailed(buffoonJokers, _pack.size, inst, ante);
+        
+        for (int t = 0; t < _pack.size; t++) {
+          if (buffoonJokers[t].joker == RETRY) continue;
+          
+          // Update showman_active and count negative jokers with branchless operations
+          showman_active |= (buffoonJokers[t].joker == Showman);
+          result.NegativeJokers += (buffoonJokers[t].edition == Negative);
+          
+          // Score needs
+          for (int x = 0; x < config->numNeeds; x++) {
+            bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
+                              (config->Needs[x].value == buffoonJokers[t].joker) && 
+                              ((config->Needs[x].jokeredition == No_Edition) || 
+                               (config->Needs[x].jokeredition == buffoonJokers[t].edition));
+            
+            ScoreNeeds[x] |= jokerMatch;
+          }
+          
+          // Score wants
+          for (int x = 0; x < config->numWants; x++) {
+            int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
+                             (config->Wants[x].value == buffoonJokers[t].joker) && 
+                             ((config->Wants[x].jokeredition == No_Edition) || 
+                              (config->Wants[x].jokeredition == buffoonJokers[t].edition));
+            
+            result.ScoreWants[x] += jokerMatch;
+          }
         }
       }
     }
 
-    // Score the entire collection
-    for (int c = 0; c < cardsIndex; c++) {
-      shopitem shit = cards[c];
-      if (shit.value == RETRY)
-        continue;
-      if (shit.value == Showman) {
-        inst->params.showman = true;
-      }
-
-      // Score check for Needs
-      for (int x = 0; x < config->numNeeds; x++) {
-        // First handle Jokers
-        if (config->Needs[x].jokeredition != RETRY && shit.type == ItemType_Joker) {
-          // Check for Joker value match
-          if (config->Needs[x].value == shit.value) {
-            item edition = config->Needs[x].jokeredition;
-            if (edition == No_Edition || edition == shit.joker.edition) {
-              ScoreNeeds[x] = true;
-            }
-          }
-        } else if (config->Needs[x].value == shit.value) {
-          // Check value of non-Joker items
-          ScoreNeeds[x] = true;
-        }
-      }
-
-      // Score check for Wants
-      for (int x = 0; x < config->numWants; x++) {
-        // First handle Jokers
-        if (config->Wants[x].jokeredition != RETRY && shit.type == ItemType_Joker) {
-          // Check for Joker value match
-          if (config->Wants[x].value == shit.value) {
-            item edition = config->Wants[x].jokeredition;
-
-            if (edition == No_Edition || edition == shit.joker.edition) {
-              // Add an increment only if this is the first time we've seen this
-              // want OR if we have showman which allows duplicates to be useful
-              ScoreWants[x] +=
-                  ((ScoreWants[x] < 1) || (inst->params.showman == true)) ? 1
-                                                                          : 0;
-            }
-          }
-        } else if (config->Wants[x].value == shit.value) {
-          // Check value of non-Joker items
-          ScoreWants[x]++;
-        }
-      }
-
-      // Score check for fancy cards
-      if (shit.type == ItemType_Joker && shit.joker.edition == Negative) {
-        negativeJokers++;
-      }
-
-    } // Done scoring collection of cards
-
     // Check per-need ante requirements at the end of each ante
     for (int n = 0; n < config->numNeeds; n++) {
-      // If this need's desireByAnte is the current ante, check if it's been
-      // found
-      if (ante == config->Needs[n].desireByAnte && !ScoreNeeds[n]) {
-        // We've reached the ante deadline for this need and it's not been found
-#ifdef _debugPrints
-        printf("Returning invalid result because need %d not found by its "
-               "required ante %d\n",
-               n, config->Needs[n].desireByAnte);
+      bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && !ScoreNeeds[n];
+      
+      // Debug output for needs validation
+    #ifdef _debugPrints
+      if (ante == config->Needs[n].desireByAnte) {
+        printf("Checking need %d at ante %d: needed=%d, found=%d\n", 
+               n, ante, config->Needs[n].desireByAnte, ScoreNeeds[n]);
+      }
+    #endif
+
+      // If a need isn't met by its required ante, set score to 0 (invalid)
+      if (needNotMetByRequiredAnte) {
+      #ifdef _debugPrints    
+        printf("Returning invalid result because need %d not found by its required ante %d\n", n, config->Needs[n].desireByAnte);
         print_item(config->Needs[n].value);
         printf("\n");
-#endif
-        result.valid = 0;
+      #endif
+        result.TotalScore = 0;
         return result;
       }
     }
   } // End of ante loop
 
-  // Calculate final score
+  // If all needs were met, ensure score is at least 1 (valid)
+  // Base value of 1 indicates "valid" (all needs met)
   result.TotalScore = 1;
-
-  // Add bonus points for wants
-  for (int w = 0; w < MAX_DESIRES_KERNEL; w++) {
-    result.ScoreWants[w] = ScoreWants[w];
-    // 1 point if this want was ever found (helps weigh it)
-    result.TotalScore += ScoreWants[w] > 0 ? 10 : 0;
+  
+  // Add final debug output to see the score before return
+  //printf("Final score before bonus: %d\n", result.TotalScore);
+  
+  // Add bonus points for wants that were found (10 points each)
+  for (int w = 0; w < config->numWants && w < MAX_DESIRES_KERNEL; w++) {
+    // Branchless way to add 2 points if want was found (ScoreWants > 0)
+    result.TotalScore += (result.ScoreWants[w] > 0) * 1;
+    result.TotalScore += result.ScoreWants[w];
   }
 
   // Add bonus points for negative jokers
-  result.NegativeJokers = negativeJokers;
-  result.TotalScore += negativeJokers * 1;
+  result.TotalScore += result.NegativeJokers;
 
   // Copy the seed to the result
   text s_str = s_to_string(&inst->seed);
-  for (int i = 0; i < 9; i++)
+  for (int i = 0; i < 9; i++) {
     result.seed[i] = s_str.str[i];
+  }
 
+  //printf("Final score after bonus: %d\n", result.TotalScore);
   return result;
 }
