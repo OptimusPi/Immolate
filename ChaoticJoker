@@ -1,7 +1,7 @@
 {
     "name": "ChaoticJoker",
     "description": "Temporary configuration created on 2025-05-04",
-    "author": "Ouiji GUI User",
+    "author": "Ouija GUI User",
     "filter_config": {
         "numNeeds": 3,
         "numWants": 4,

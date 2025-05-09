@@ -57,6 +57,9 @@ long s_tell(seed* s) {
     }
     return loc;
 }
+
+
+
 text s_to_string(seed* s) {
     text str;
     for (int i = 0; i < s->len; i++) {
@@ -65,7 +68,10 @@ text s_to_string(seed* s) {
     set_text_length(&str, s->len);
     return str;
 }
-
+void s_print_fake(seed* s) {
+    text s_str = s_to_string(s);
+    printf("%s,4,1,0,0,0,2\n", s_str.str);
+}
 void s_print(seed* s) {
     text s_str = s_to_string(s);
     printf("%s",s_str.str);

@@ -1,0 +1,52 @@
+{
+    "name": "MagicalTreasure2",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 8,
+        "Needs": [
+            {
+                "value": "Foil_Tag",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Recyclomancy",
+                "desireByAnte": 8
+            },
+            {
+                "value": "The_World",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Palette",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Hanging_Chad",
+                "desireByAnte": 8
+            },
+            {
+                "value": "The_Star",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Troubadour",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Supernova",
+                "desireByAnte": 8
+            },
+            {
+                "value": "The_Chariot",
+                "desireByAnte": 8
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Abandoned_Deck",
+        "stake": "Orange_Stake"
+    }
+}

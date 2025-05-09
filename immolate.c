@@ -213,6 +213,23 @@ int main(int argc, char **argv) {
     clErrCheck(err, "clGetDeviceIDs - Getting list of available OpenCL devices");
     cl_device_id device = devices[deviceID];
 
+    // Check if device supports SVM
+    cl_device_svm_capabilities svm_caps;
+    err = clGetDeviceInfo(device, CL_DEVICE_SVM_CAPABILITIES, 
+                          sizeof(cl_device_svm_capabilities), &svm_caps, NULL);
+    if (err != CL_SUCCESS) {
+        printf_s("Warning: Unable to query device for SVM capabilities (%d). Assuming no SVM support.\n", err);
+        svm_caps = 0;
+    }
+
+    // Check for at least coarse-grained SVM support
+    cl_bool svm_supported = (svm_caps & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER) != 0;
+    if (!svm_supported) {
+        printf_s("Device does not support SVM. Falling back to regular buffer.\n");
+    } else {
+        printf_s("Device supports SVM. Using Shared Virtual Memory.\n");
+    }
+
     // Create an OpenCL context
     cl_context ctx = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
     clErrCheck(err, "clCreateContext - Creating OpenCL context");
@@ -256,12 +273,34 @@ int main(int argc, char **argv) {
     err = clSetKernelArg(ssKernel, 1, sizeof(numSeeds), &numSeeds);
     clErrCheck(err, "clSetKernelArg - Adding number of seeds argument");
     
-    // Loading a writable buffer to the kernel
-    cl_mem cutoffBuf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, sizeof(long), NULL, &err);
-    clErrCheck(err, "clCreateBuffer - Creating cutoff buffer");
-    clEnqueueWriteBuffer(queue, cutoffBuf, CL_TRUE, 0, sizeof(long), &cutoff, 0, NULL, NULL);
-    err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &cutoffBuf);
-    clErrCheck(err, "clSetKernelArg - Adding cutoff argument");
+    // Create buffer - either SVM or regular depending on device support
+    cl_long* cutoffPtr = NULL;
+    cl_mem cutoffBuf = NULL;
+    
+    if (svm_supported) {
+        // Use SVM allocation for the cutoff value
+        cutoffPtr = (cl_long*)clSVMAlloc(ctx, CL_MEM_READ_WRITE, sizeof(cl_long), 0);
+        if (cutoffPtr == NULL) {
+            printf_s("Failed to allocate SVM memory. Falling back to regular buffer.\n");
+            svm_supported = CL_FALSE;
+        } else {
+            // Initialize the cutoff value in the SVM buffer
+            *cutoffPtr = cutoff;
+            
+            // Set kernel argument to use SVM pointer
+            err = clSetKernelArgSVMPointer(ssKernel, 2, cutoffPtr);
+            clErrCheck(err, "clSetKernelArgSVMPointer - Adding SVM cutoff argument");
+        }
+    }
+    
+    if (!svm_supported) {
+        // Fallback to regular buffer when SVM is not supported
+        cutoffBuf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, sizeof(long), NULL, &err);
+        clErrCheck(err, "clCreateBuffer - Creating cutoff buffer");
+        clEnqueueWriteBuffer(queue, cutoffBuf, CL_TRUE, 0, sizeof(long), &cutoff, 0, NULL, NULL);
+        err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &cutoffBuf);
+        clErrCheck(err, "clSetKernelArg - Adding cutoff argument");
+    }
 
     // Execute OpenCL kernel
     size_t globalSize = numGroups * numGroups;
@@ -278,9 +317,6 @@ int main(int argc, char **argv) {
     err = clReleaseProgram(ssKernelProgram);
     err = clReleaseCommandQueue(queue);
     err = clReleaseContext(ctx);
-    clock_t end = clock();
-    double time_spent = (double)(end-begin) / CLOCKS_PER_SEC;
-    printf("Done in %fs",time_spent);
-
-    return EXIT_SUCCESS;
-}
+    if (cutoffPtr != NULL) {
+        clSVMFree(ctx, cutoffPtr);
+    }

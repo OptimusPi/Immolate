@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.10) # 3.1 << C_STANDARD 11
 
-project(Ouiji LANGUAGES C)
+project(Ouija LANGUAGES C)
 
 find_package(OpenCL REQUIRED)
 
-add_executable(${PROJECT_NAME} ouiji.c)
-
+add_executable(${PROJECT_NAME} ouija.c)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL::OpenCL)
 
@@ -13,7 +12,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES C_STANDARD 11
                                                  C_STANDARD_REQUIRED ON
                                                  C_EXTENSIONS ON)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE CL_TARGET_OPENCL_VERSION=100)
+# Update from OpenCL 1.0 to 2.0 to enable SVM features
+target_compile_definitions(${PROJECT_NAME} PRIVATE CL_TARGET_OPENCL_VERSION=200)
 
 # Enable strong optimizations for Release builds (MSVC)
 if(MSVC)

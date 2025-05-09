@@ -1,7 +1,7 @@
 {
     "name": "egg",
     "description": "Temporary configuration created on 2025-05-06",
-    "author": "Ouiji GUI User",
+    "author": "Ouija GUI User",
     "filter_config": {
         "numNeeds": 1,
         "numWants": 2,

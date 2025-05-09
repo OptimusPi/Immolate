@@ -13,8 +13,8 @@ if (Test-Path ".\build") {
 }
 
 Write-Host "Checking cached template binary..." -ForegroundColor Yellow
-if (Test-Path ".\filters\ouiji_template.bin") {
-    Remove-Item .\filters\ouiji_template.bin
+if (Test-Path ".\filters\ouija_template.bin") {
+    Remove-Item .\filters\ouija_template.bin
     Write-Host "Template binary removed." -ForegroundColor Green
 } else {
     Write-Host "Template binary already does not exist." -ForegroundColor Green
@@ -43,11 +43,11 @@ if (-not $buildSuccess) {
 }
 
 # Copy the output executable to the root directory
-$source = "x:\Immolate\build\Release\Ouiji.exe" # Changed from Immolate.exe to Ouiji.exe
-$destination = "x:\Immolate\Ouiji.exe" # Changed destination name to match executable name
+$source = "x:\Immolate\build\Release\Ouija.exe" # Changed from Immolate.exe to Ouija.exe
+$destination = "x:\Immolate\Ouija.exe" # Changed destination name to match executable name
 if (Test-Path $source) {
     Copy-Item -Path $source -Destination $destination -Force
-    Write-Host "Copied output to Ouiji.exe" -ForegroundColor Green
+    Write-Host "Copied output to Ouija.exe" -ForegroundColor Green
 } else {
     Write-Host "Build output not found at $source. Ensure the build was successful." -ForegroundColor Red
     Write-Host "Clean rebuild failed!" -ForegroundColor Red
@@ -66,4 +66,4 @@ try {
 
 # Notify the user
 Write-Host "Clean rebuild complete!" -ForegroundColor Green
-Write-Host "You can now run the GUI with: python Ouiji.py" -ForegroundColor Cyan
+Write-Host "You can now run the GUI with: python Ouija.py" -ForegroundColor Cyan

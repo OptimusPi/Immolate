@@ -1,0 +1,36 @@
+{
+    "name": "GoldenVictory",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 2,
+        "Needs": [
+            {
+                "value": "Brainstorm",
+                "desireByAnte": 4
+            },
+            {
+                "value": "DNA",
+                "desireByAnte": 4
+            },
+            {
+                "value": "Hologram",
+                "desireByAnte": 3
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Turtle_Bean",
+                "desireByAnte": 0
+            },
+            {
+                "value": "Coupon_Tag",
+                "desireByAnte": 0
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Checkered_Deck",
+        "stake": "Gold_Stake"
+    }
+}
