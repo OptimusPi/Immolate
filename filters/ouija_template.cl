@@ -35,18 +35,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     result->ScoreWants[i] = 0;
   }
 
-  // TODO TEST CODE ONLY
-  result->TotalScore = 1;
-  result->NegativeJokers = 1;
-  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
-    result->ScoreWants[i] = 1;
-  }
-    text s_str1 = s_to_string(&inst->seed);
-  for (int i = 0; i < 9; i++) {
-    result->seed[i] = s_str1.str[i];
-  }
-  return;
-
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
 

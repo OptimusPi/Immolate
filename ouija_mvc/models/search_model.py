@@ -165,7 +165,10 @@ class SearchModel:
                     # Update the UI if we have a results callback
                     if self.results_callback and header_columns:
                         self.results_callback(header_columns, result_rows)
-            
+                if line.startswith("$"):
+                    # Status Bar message
+                    self.status_bar.set_status(line[1:].strip())
+
             # Process stderr after stdout is done
             for line in process.stderr:
                 if self.console_callback:

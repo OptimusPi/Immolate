@@ -25,8 +25,8 @@ Write-Host ("{0,-10} {1,-15} {2,-18} {3,-15} {4,-15} {5,-20}" -f "NumGroups", "N
 Write-Host "-----------------------------------------------------------------------------------------------------------------" # Adjusted width
 
 $numGroupsList = @(32, 64, 128, 256) # List of -g values to test
-$numSeedsToSearchList = @(10000, 100000, 1000000)
-$batchMultiplierList = @(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
+$numSeedsToSearchList = @(10000, 100000, 1000000, 5000000, 10000000, 25000000, 50000000, 250000000, 1000000000)
+$batchMultiplierList = @(1, 2, 4, 8, 16, 32, 64, 128)
 
 $overallSuccess = $true
 
