@@ -5,7 +5,7 @@
         "time.h": "c",
         "immolate.h": "c",
         "host_items.h": "c",
-        "ouiji.h": "c",
+        "ouija.h": "c",
         "io.h": "c",
         "cl.h": "c",
         "random": "c",

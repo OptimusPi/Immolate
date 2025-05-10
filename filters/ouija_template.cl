@@ -28,31 +28,9 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
 
   // Declare and initialize ante
   int ante = 0; // Default value, update as needed
-
-  // Correctly pass a seed pointer to s_skip
-  seed* seed_ptr = &inst->seed; // Assuming inst contains a seed member
-  s_skip(seed_ptr, ante * config->numNeeds * config->numWants);
-
   // Initialize ScoreNeeds and ScoreWants
   bool ScoreNeeds[MAX_DESIRES_KERNEL] = {false};
-  int ScoreWants[MAX_DESIRES_KERNEL] = {0};
-
-  // Initialize OuijaResult fields properly
-  OuijaResult result = {0};
-  result.TotalScore = 0;
-  result.NegativeJokers = 0;
-  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
-    result.ScoreWants[i] = 0;
-  }
-
-  // Inside the loop, perform minimal skips
-  for (int i = 0; i < config->numNeeds; i++) {
-    // Minimal skip logic here
-  }
-
-  for (int i = 0; i < config->numWants; i++) {
-    // Minimal skip logic here
-  }
+  OuijaResult result = {0}; 
 
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
@@ -70,8 +48,6 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
       }
     }
   }
-
-  bool showman_active = false;
 
   // Search through all antes up to maxSearchAnte
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
@@ -122,7 +98,8 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
 #endif
 
       // Update showman_active flag (optimization: single assignment)
-      showman_active |= (shItem.value == Showman);
+      if (shItem.value == Showman)
+        inst->params.showman = true;
       
       // Count negative jokers with branchless operation
       result.NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
@@ -254,7 +231,9 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
           if (buffoonJokers[t].joker == RETRY) continue;
           
           // Update showman_active and count negative jokers with branchless operations
-          showman_active |= (buffoonJokers[t].joker == Showman);
+          if (buffoonJokers[t].joker == Showman)
+            inst->params.showman = true;
+            
           result.NegativeJokers += (buffoonJokers[t].edition == Negative);
           
           // Score needs
@@ -274,7 +253,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
                              ((config->Wants[x].jokeredition == No_Edition) || 
                               (config->Wants[x].jokeredition == buffoonJokers[t].edition));
             
-            result.ScoreWants[x] += jokerMatch;
+            result.ScoreWants[x] += jokerMatch && (result.ScoreWants[x] == 0 || inst->params.showman == true);
           }
         }
       }

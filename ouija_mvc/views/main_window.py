@@ -73,7 +73,6 @@ class MainWindow:
         self._status_update_interval_ms = 1000
         self._search_start_time = None
         self._search_results_count = 0
-        self.update_status_bar_periodically()
     
     def setup_font(self):
         """Set up custom font for the application"""
@@ -451,18 +450,6 @@ class MainWindow:
         """Handle window closing event"""
         self.controller.cleanup()
         self.root.destroy()
-
-    def update_status_bar_periodically(self):
-        if self.search_running and self._search_start_time is not None:
-            elapsed = int(time.time() - self._search_start_time)
-            hours = elapsed // 3600
-            minutes = (elapsed % 3600) // 60
-            seconds = elapsed % 60
-            msg = f"Searching for {hours}h {minutes}m {seconds}s... Found {self._search_results_count} scored seeds!"
-        else:
-            msg = "Ready"
-        self.status_bar.set_status(msg)
-        self._status_update_id = self.root.after(self._status_update_interval_ms, self.update_status_bar_periodically)
 
     def update_config_display(self):
         """Update the UI with current configuration settings"""

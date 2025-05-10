@@ -52,7 +52,6 @@ int main(int argc, char **argv) {
     char* config_file = NULL;  // Configuration file path
     int fixedCutoffMode = 0; // Flag for fixed cutoff mode
     int cutoff = 1; // Default cutoff
-    int numComputeUnits = 56; // Number of compute devices
 
     // --- Argument Parsing Loop ---
     for (int i = 0; i < argc; i++) {
@@ -181,9 +180,9 @@ int main(int argc, char **argv) {
                     clErrCheck(err, "clGetDeviceInfo - Getting device vendor");
                     printf_s("Vendor: %s\n", buf);
 
-                    err = clGetDeviceInfo(devices[d], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(numComputeUnits), &numComputeUnits, NULL);
+                    err = clGetDeviceInfo(devices[d], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(buf), &buf, NULL);
                     clErrCheck(err, "clGetDeviceInfo - Getting device compute units");
-                    printf_s("Compute Units: %i\n", numComputeUnits);
+                    printf_s("Compute Units: %s\n", buf);
 
                     err = clGetDeviceInfo(devices[d], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(temp_int), &temp_int, NULL);
                     clErrCheck(err, "clGetDeviceInfo - Getting device clock frequency");
@@ -406,7 +405,7 @@ int main(int argc, char **argv) {
 
     // Add -cl-mad-enable to build options, and also testing out fast relaxed math right now!
     char build_options[1024];
-    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
+    snprintf(build_options, sizeof(build_options), "%s", include_path);
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t logLength = 0;
@@ -518,6 +517,7 @@ int main(int argc, char **argv) {
     printf_s("Using local work size of %lld\n", localWorkSize);
 
     cl_event kernel_events[NUM_RESULT_BUFFERS] = {NULL};
+    cl_long dispatched_kernel_seeds[NUM_RESULT_BUFFERS] = {0}; // ADDED: Track seeds per buffer/event
     int current_buffer_idx = 0;
     cl_long seeds_processed_total = 0; // Counts valid, non-empty results from kernel
     cl_long seeds_scored_total = 0;    // Counts results that meet the cutoff score
@@ -542,6 +542,17 @@ int main(int argc, char **argv) {
     cl_long seed_offset_for_kernel = 0;      // Starting seed offset for the current kernel dispatch
     cl_long num_seeds_this_dispatch = 0;     // Number of seeds for the kernel dispatch being prepared
     cl_long num_seeds_last_dispatch = 0;     // Number of seeds processed by the completed kernel whose results are being read
+
+
+    // Print the CSV header for any consuming applications such as the python mvc.
+     printf_s("Seed,Score,NegativeJokers");
+    for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
+        // Assuming item_names is globally available from host_items.h/c
+        // and config.Wants[w].value is an enum item
+        printf_s(",%s", item_names[config.Wants[w].value]);
+    }
+    printf_s("\n");
+    fflush(stdout);
 
     // --- Initial Kernel Launch ---
     if (numSeeds > 0) {
@@ -574,6 +585,7 @@ int main(int argc, char **argv) {
         } else {
             kernel_events[current_buffer_idx] = NULL; // No kernel launched
         }
+        dispatched_kernel_seeds[current_buffer_idx] = num_seeds_this_dispatch; // ADDED: Store seeds for this launch
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
     }
     // --- End of Initial Kernel Launch ---
@@ -590,10 +602,9 @@ int main(int argc, char **argv) {
         if (num_seeds_this_dispatch == 0 && batch_idx ==0) { // Handles -n 0 case or if first dispatch was 0 seeds
             break;
         }
-        num_seeds_last_dispatch = num_seeds_this_dispatch; // Seeds processed by the kernel we are about to get results from
-
-        // Determine which buffer contains the results from the previous dispatch
-        int results_buffer_idx = (batch_idx == 0) ? current_buffer_idx : (current_buffer_idx + NUM_RESULT_BUFFERS -1) % NUM_RESULT_BUFFERS;
+        // MODIFIED: Determine results buffer and seed count for it
+        int results_buffer_idx = current_buffer_idx; 
+        num_seeds_last_dispatch = dispatched_kernel_seeds[results_buffer_idx];
 
         if (kernel_events[results_buffer_idx] != NULL) {
             err = clWaitForEvents(1, &kernel_events[results_buffer_idx]);
@@ -623,7 +634,7 @@ int main(int argc, char **argv) {
                             result->TotalScore,
                             result->NegativeJokers);
                 for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
-                    printf_s(",%d", result->ScoreWants[w]);
+                    printf_s(",%d", (int)result->ScoreWants[w]);
                 }
                 printf_s("\n");
             }
@@ -672,6 +683,7 @@ int main(int argc, char **argv) {
         } else {
             kernel_events[current_buffer_idx] = NULL; // No kernel launched
         }
+        dispatched_kernel_seeds[current_buffer_idx] = num_seeds_this_dispatch; // ADDED: Store seeds for this launch
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
         // --- End of Prepare and Launch Next Kernel ---
         
@@ -681,8 +693,9 @@ int main(int argc, char **argv) {
             double estimated_total_time = (elapsed_time / cumulative_seeds_dispatched) * numSeeds;
             double remaining_time = estimated_total_time - elapsed_time;
 
-            printf_s("$Elapsed time: %.2f seconds, Estimated remaining time: %.2f seconds\n", 
-                     elapsed_time, remaining_time);
+            printf_s("$Elapsed time: %.2f seconds, Estimated remaining time: %.2f seconds$ ⏱️%.1f seeds/second\n", 
+                elapsed_time, remaining_time, (elapsed_time > 0) ? 
+                    ((double)cumulative_seeds_dispatched / elapsed_time) : 0.0);
             fflush(stdout);
         }
     }
