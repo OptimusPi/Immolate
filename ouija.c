@@ -523,7 +523,6 @@ int main(int argc, char **argv) {
     cl_long seeds_scored_total = 0;
 
     // Initial kernel launch for the first buffer
-    // Calculate batch size based on work group size and batch multiplier
     cl_long batch_size = numGroups * compute_units * batchMultiplier;
 
     // If numSeeds is very small, adjust batch_size to match seeds to avoid wasting resources
@@ -532,13 +531,7 @@ int main(int argc, char **argv) {
         printf_s("Small seed count detected. Adjusting batch size to %lld to match seed count.\n", batch_size);
     }
 
-    // Calculate the total number of batches required
-    cl_long total_batches = (numSeeds + batch_size - 1) / batch_size;
-    cl_long current_batch_num_seeds = (numSeeds > batch_size) ? batch_size : numSeeds;
-    cl_long seed_offset = 0; // Track how many seeds we've skipped for each batch
-    
-
-    // Create result buffers for alternating between batches
+    // Create result buffers for alternating between batches - MOVED THIS UP before first kernel launch
     cl_mem* resultBuf_dev = (cl_mem*)malloc(NUM_RESULT_BUFFERS * sizeof(cl_mem));
     OuijaHostResult** resultBuf_host = (OuijaHostResult**)malloc(NUM_RESULT_BUFFERS * sizeof(OuijaHostResult*));
 
@@ -556,24 +549,53 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Calculate the total number of batches required
+    cl_long total_batches = (numSeeds + batch_size - 1) / batch_size;
+    cl_long current_batch_num_seeds = (numSeeds > batch_size) ? batch_size : numSeeds;
+    cl_long seed_offset = 0; // Track how many seeds we've skipped for each batch
+
+    // Ensure the first kernel arguments are set correctly - FIX ORDER TO MATCH KERNEL SIGNATURE
+    err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);
+    clErrCheck(err, "clSetKernelArg - Setting starting seed for initial batch");
+    err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &current_batch_num_seeds);
+    clErrCheck(err, "clSetKernelArg - Setting num_seeds for initial batch");
+    err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
+    clErrCheck(err, "clSetKernelArg - Setting config buffer for initial batch");
+    err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
+    clErrCheck(err, "clSetKernelArg - Setting result buffer for initial batch");
+    err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &seedOffsetBuf);
+    clErrCheck(err, "clSetKernelArg - Setting seed offset for initial batch");
+
+    // Write the initial seed offset to the buffer
+    err = clEnqueueWriteBuffer(queue, seedOffsetBuf, CL_TRUE, 0, sizeof(cl_long), &seed_offset, 0, NULL, NULL);
+    clErrCheck(err, "clEnqueueWriteBuffer - Writing initial seed offset");
+
+    // Launch the kernel for the first batch
+    size_t global_work_size = (size_t)((current_batch_num_seeds + localWorkSize - 1) / localWorkSize) * localWorkSize;
+    size_t local_work_size = (size_t)localWorkSize;
+    err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, &kernel_events[current_buffer_idx]);
+    clErrCheck(err, "clEnqueueNDRangeKernel - Initial kernel execution");
+
     clock_t start_time = clock();
     clock_t ticker = clock();
     printf_s("Starting seed search...\n");
     fflush(stdout);
     
-    // Main processing loop
-    for (cl_long batch = 0; batch <= total_batches; ++batch) {
+    // Main processing loop - Change <= to < to prevent processing an extra batch
+    for (cl_long batch = 0; batch < total_batches; ++batch) {
+        printf_s("Batch %lld/%lld\n", batch, total_batches);
+        fflush(stdout);
 
         int prev_buffer_idx = current_buffer_idx;
         current_buffer_idx = (current_buffer_idx + 1) % NUM_RESULT_BUFFERS;
-
-        cl_long currentBatchSize = batch_size > (numSeeds - seeds_processed_total) ? (numSeeds - seeds_processed_total) : batch_size;
 
         if (kernel_events[prev_buffer_idx] != NULL) {
             err = clWaitForEvents(1, &kernel_events[prev_buffer_idx]);
             clErrCheck(err, "clWaitForEvents - Waiting for previous kernel completion");
             clReleaseEvent(kernel_events[prev_buffer_idx]);
             kernel_events[prev_buffer_idx] = NULL;
+        } else {
+            printf_s("Warning: No event to wait for.\n");
         }
         
         // Instead of reading the result buffer, map it for direct host access
@@ -582,10 +604,11 @@ int main(int argc, char **argv) {
         clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");
         
         // Process all results in the mapped buffer up to currentBatchSize
-        for (int i = 0; i < currentBatchSize; ++i) {
-            seeds_processed_total++;
+        for (int i = 0; i < batch_size; ++i) {
             OuijaHostResult* result = &mapped_results[i];
-            if (result->seed[0] == '\0' || result->TotalScore < 1) continue;
+            if (result->seed[0] == '\0') continue;
+            seeds_processed_total++;
+            if (result->TotalScore < cutoff) continue;
             seeds_scored_total++;
             printf_s("|%s,%d,%d",
                         result->seed,
@@ -618,10 +641,6 @@ int main(int argc, char **argv) {
         if (seeds_for_this_kernel_launch < localWorkSize) {
             current_local_work_size = seeds_for_this_kernel_launch;
         }
-        // Adjust global work size to avoid padding when seeds_for_this_kernel_launch is smaller than local work size
-        size_t current_global_work_size = seeds_for_this_kernel_launch < current_local_work_size
-            ? seeds_for_this_kernel_launch
-            : ((seeds_for_this_kernel_launch + current_local_work_size - 1) / current_local_work_size) * current_local_work_size;
 
         // Create the modified seed with offset for the OpenCL kernel
         // We keep the original seed and pass the offset separately to the kernel
@@ -631,25 +650,23 @@ int main(int argc, char **argv) {
         clErrCheck(err, "clSetKernelArg - Setting num_seeds for current batch");
         err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
         clErrCheck(err, "clSetKernelArg - Setting config buffer");
+
+        // Pass the result buffer to the kernel
         err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
         clErrCheck(err, "clSetKernelArg - Setting result buffer for current launch");
+
         err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &seedOffsetBuf);
         clErrCheck(err, "clSetKernelArg - Setting seed offset for current launch");
 
         // Update seed offset for the next batch
-        seed_offset += currentBatchSize;
+        seed_offset += batch_size;
 
         // Write the updated seed offset to the buffer
         err = clEnqueueWriteBuffer(queue, seedOffsetBuf, CL_TRUE, 0, sizeof(cl_long), &seed_offset, 0, NULL, NULL);
         clErrCheck(err, "clEnqueueWriteBuffer - Updating seed offset for current batch");
 
-        // Adjust global work size to avoid padding
-        current_global_work_size = currentBatchSize < current_local_work_size
-            ? currentBatchSize
-            : ((currentBatchSize + current_local_work_size - 1) / current_local_work_size) * current_local_work_size;
-
-        // Launch the kernel with adjusted local work size
-        size_t global_work_size = (size_t)current_global_work_size;
+        // Launch the kernel
+        size_t global_work_size = (size_t)batch_size;
         size_t local_work_size = (size_t)current_local_work_size;
         err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, &kernel_events[current_buffer_idx]);
         clErrCheck(err, "clEnqueueNDRangeKernel - Subsequent kernel execution");
