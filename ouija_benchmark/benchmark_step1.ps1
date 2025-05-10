@@ -1,7 +1,7 @@
 param (
     [string]$OuijaExePath = ".\Ouija.exe",
     [string]$Seed = "5XFVLI",
-    [string]$Config = "egg",
+    [string]$Config = "unit_test1",
     [int]$NumGroups = 1,
     [int]$NumSeeds = 1
 )
@@ -20,7 +20,7 @@ try {
     $assert1_expected = "Processing results for $NumSeeds seeds"
     $assert2_expected = "`$Search Complete! Found 1 viable out of $NumSeeds total seeds"
     $assert3_expected = "|$Seed" # New assertion
-    $assert4_expected = "|$Seed,11,2,7,0" # New assertion for specific result format
+    $assert4_expected = "|$Seed,4,0,2,0" # New assertion for specific result format
 
     $testPassed = $true
 

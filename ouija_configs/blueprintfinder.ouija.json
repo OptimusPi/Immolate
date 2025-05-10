@@ -1,0 +1,33 @@
+{
+    "name": "BlueprintFinder",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 1,
+        "Needs": [
+            {
+                "value": "Blueprint",
+                "desireByAnte": 1,
+                "jokeredition": "Holographic"
+            },
+            {
+                "value": "Rare_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Turtle_Bean",
+                "desireByAnte": 0
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Anaglyph_Deck",
+        "stake": "White_Stake"
+    }
+}

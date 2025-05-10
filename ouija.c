@@ -405,7 +405,7 @@ int main(int argc, char **argv) {
 
     // Add -cl-mad-enable to build options, and also testing out fast relaxed math right now!
     char build_options[1024];
-    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
+    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-unsafe-math-optimizations -cl-no-signed-zeros", include_path);
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t logLength = 0;
