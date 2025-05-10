@@ -1,5 +1,5 @@
 param (
-    [string]$OuijaExePath = "..\\Ouija.exe",
+    [string]$OuijaExePath = ".\Ouija.exe",
     [string]$Seed = "5XFVLI",
     [string]$Config = "egg",
     [int]$NumGroups = 1,

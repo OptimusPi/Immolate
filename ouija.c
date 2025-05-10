@@ -547,9 +547,10 @@ int main(int argc, char **argv) {
     // Print the CSV header for any consuming applications such as the python mvc.
      printf_s("Seed,Score,NegativeJokers");
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
-        // Assuming item_names is globally available from host_items.h/c
-        // and config.Wants[w].value is an enum item
-        printf_s(",%s", item_names[config.Wants[w].value]);
+        print_item_host(config.Wants[w].value);
+        if (w < config.numWants - 1) {
+            printf_s(",");
+        }
     }
     printf_s("\n");
     fflush(stdout);

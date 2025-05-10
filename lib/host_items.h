@@ -1091,7 +1091,7 @@ item parse_item(const char* name) {
 
     return RETRY;
 }
-void print_item(item i) {
+void print_item_host(item i) {
     switch(i) {
         case RETRY: printf("RETRY"); break;
         case J_BEGIN: printf("J BEGIN"); break;

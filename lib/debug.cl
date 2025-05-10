@@ -1,3 +1,6 @@
+#ifndef DEBUG_CL
+#define DEBUG_CL
+
 void print_item(item i) {
     switch(i) {
         case RETRY: printf("RETRY"); break;
@@ -485,3 +488,5 @@ void print_item(item i) {
         default: break;
     }
 }
+
+#endif

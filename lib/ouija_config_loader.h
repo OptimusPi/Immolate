@@ -304,17 +304,17 @@ int load_config_from_json(const char* config_filename, OuijaConfig* config) {
             config->stake = parse_item(stake_name);
             printf_s("parsed stake: %d\n", config->stake);
             printf_s("stake name: '%s'\n", stake_name);
-            print_item(config->stake);
+            print_item_host(config->stake);
             printf_s("\n");
         }
     } else {
         config->stake = RETRY; // Default value
     }
     printf_s("loaded deck: ");
-    print_item(config->deck);
+    print_item_host(config->deck);
     printf_s("\n");
     printf_s("loaded stake: ");
-    print_item(config->stake);
+    print_item_host(config->stake);
     printf_s("\n");
 
     free(json_content);

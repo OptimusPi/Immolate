@@ -1,5 +1,5 @@
 param (
-    [string]$OuijaExePath = "..\\Ouija.exe", # Assumes script is in ouija_benchmark, Ouija.exe is one level up
+    [string]$OuijaExePath = ".\Ouija.exe", # Assumes script is in ouija_benchmark, Ouija.exe is one level up
     [string]$Seed = "5XFVLI",
     [string]$Config = "egg",
     [int]$NumGroups = 32 # Defaulting to 32 as per your comments
