@@ -5,7 +5,7 @@
 #ifndef __OUIJA_CONFIG_LOADER_H_
 #define __OUIJA_CONFIG_LOADER_H_
 
-#define MAX_DESIRES_HOST 16
+#define MAX_DESIRES_HOST 10
 #define F_OK 0  // File exists flag
 
 
@@ -24,7 +24,6 @@ typedef struct {
     cl_int maxSearchAnte;  // Maximum ante to search through
     item deck;
     item stake;
-    // cutoff field removed - manage cutoffs in the host code directly
 } OuijaConfig;
 
 // Load configuration from JSON file

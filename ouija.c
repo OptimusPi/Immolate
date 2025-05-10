@@ -299,13 +299,9 @@ int main(int argc, char **argv) {
     err = clEnqueueWriteBuffer(queue, configBuf, CL_TRUE, 0, sizeof(OuijaConfig), &config, 0, NULL, NULL);
     clErrCheck(err, "clEnqueueWriteBuffer - Copying config to buffer");
 
-    // Create cutoff buffer (read-only from kernel)
-    cl_mem cutoffBuf = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(cl_int), NULL, &err);
-    clErrCheck(err, "clCreateBuffer - Creating cutoff buffer");
-    
-    // Set cutoff value in buffer
-    err = clEnqueueWriteBuffer(queue, cutoffBuf, CL_TRUE, 0, sizeof(cl_int), &cutoff, 0, NULL, NULL);
-    clErrCheck(err, "clEnqueueWriteBuffer - Setting cutoff value");
+    // --- NEW: Create seed offset buffer ---
+    cl_mem seedOffsetBuf = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(cl_long), NULL, &err);
+    clErrCheck(err, "clCreateBuffer - Creating seed offset buffer");
 
     char executable_dir[MAX_PATH];
     char include_path[MAX_PATH+6];
@@ -496,30 +492,15 @@ int main(int argc, char **argv) {
     cl_kernel ssKernel = clCreateKernel(ssKernelProgram, "ouija_search", &err);
     clErrCheck(err, "clCreateKernel - Creating OpenCL kernel");
 
-    // Create a separate buffer for seed offset (will be updated for each batch)
-    cl_mem seedOffsetBuf = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(cl_long), NULL, &err);
-    clErrCheck(err, "clCreateBuffer - Creating seed offset buffer");
-    
-    // Initial seed offset is 0
-    cl_long initial_seed_offset = 0;
-    err = clEnqueueWriteBuffer(queue, seedOffsetBuf, CL_TRUE, 0, sizeof(cl_long), &initial_seed_offset, 0, NULL, NULL);
-    clErrCheck(err, "clEnqueueWriteBuffer - Setting initial seed offset");
-    
-    // Set common kernel arguments
+    // Common kernel argument setup:
     err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);
     clErrCheck(err, "clSetKernelArg - Setting starting seed");
-    
+
     err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &numSeeds);
     clErrCheck(err, "clSetKernelArg - Setting number of seeds");
 
     err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
     clErrCheck(err, "clSetKernelArg - Setting config buffer");
-    
-    err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &cutoffBuf);
-    clErrCheck(err, "clSetKernelArg - Setting cutoff buffer");
-    
-    err = clSetKernelArg(ssKernel, 5, sizeof(cl_mem), &seedOffsetBuf);
-    clErrCheck(err, "clSetKernelArg - Setting seed offset buffer");
 
     size_t max_work_group_size;
     err = clGetKernelWorkGroupInfo(ssKernel, device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), &max_work_group_size, NULL);
@@ -533,11 +514,10 @@ int main(int argc, char **argv) {
     }
     
     // Set local work size to numGroups
-    size_t localWorkSize = numGroups;
+    cl_long localWorkSize = numGroups;
     printf_s("Using local work size of %lld\n", localWorkSize);
 
     cl_event kernel_events[NUM_RESULT_BUFFERS] = {NULL};
-    cl_event read_events[NUM_RESULT_BUFFERS] = {NULL};
     int current_buffer_idx = 0;
     cl_long seeds_processed_total = 0;
     cl_long seeds_scored_total = 0;
@@ -545,6 +525,12 @@ int main(int argc, char **argv) {
     // Initial kernel launch for the first buffer
     // Calculate batch size based on work group size and batch multiplier
     cl_long batch_size = numGroups * compute_units * batchMultiplier;
+
+    // If numSeeds is very small, adjust batch_size to match seeds to avoid wasting resources
+    if (numSeeds < batch_size) {
+        batch_size = numSeeds;
+        printf_s("Small seed count detected. Adjusting batch size to %lld to match seed count.\n", batch_size);
+    }
 
     // Calculate the total number of batches required
     cl_long total_batches = (numSeeds + batch_size - 1) / batch_size;
@@ -576,62 +562,66 @@ int main(int argc, char **argv) {
     fflush(stdout);
     
     // Main processing loop
-    for (cl_long batch = 0; batch < total_batches; ++batch) {
+    for (cl_long batch = 0; batch <= total_batches; ++batch) {
+
         int prev_buffer_idx = current_buffer_idx;
         current_buffer_idx = (current_buffer_idx + 1) % NUM_RESULT_BUFFERS;
 
-        // Debug for tracking buffer status
-        printf_s("Processing batch: %lld/%lld, Buffer: %d->%d\n", 
-                 batch,
-                 total_batches,
-                 prev_buffer_idx, current_buffer_idx);
-        fflush(stdout);
-
-        // Read result data from device - read the entire result buffer
-        err = clEnqueueReadBuffer(queue, resultBuf_dev[prev_buffer_idx], CL_TRUE, 0, 
-            sizeof(OuijaHostResult) * batch_size, 
-            resultBuf_host[prev_buffer_idx], 0, NULL, NULL);
-        clErrCheck(err, "clEnqueueReadBuffer - Reading results");
+        cl_long currentBatchSize = batch_size > (numSeeds - seeds_processed_total) ? (numSeeds - seeds_processed_total) : batch_size;
 
         if (kernel_events[prev_buffer_idx] != NULL) {
-             err = clWaitForEvents(1, &kernel_events[prev_buffer_idx]);
-             clErrCheck(err, "clWaitForEvents - Waiting for previous kernel completion");
-             clReleaseEvent(kernel_events[prev_buffer_idx]);
-             kernel_events[prev_buffer_idx] = NULL;
+            err = clWaitForEvents(1, &kernel_events[prev_buffer_idx]);
+            clErrCheck(err, "clWaitForEvents - Waiting for previous kernel completion");
+            clReleaseEvent(kernel_events[prev_buffer_idx]);
+            kernel_events[prev_buffer_idx] = NULL;
         }
-
-        // Process all results in the buffer - with stride mechanism, we need to check the entire buffer
-        for (int i = 0; i < batch_size; ++i) {
-            OuijaHostResult* result = &resultBuf_host[prev_buffer_idx][i];
-            // Skip empty results
-            if (result->seed[0] == '\0') continue;
-
-            // Output in CSV format: TotalScore,NegativeJokers,ScoreWants[0],ScoreWants[1],...
-            printf_s("|%s,%d,%d", 
+        
+        // Instead of reading the result buffer, map it for direct host access
+        OuijaHostResult* mapped_results = clEnqueueMapBuffer(queue, resultBuf_dev[prev_buffer_idx], CL_TRUE,
+                                           CL_MAP_READ, 0, sizeof(OuijaHostResult) * batch_size, 0, NULL, NULL, &err);
+        clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");
+        
+        // Process all results in the mapped buffer up to currentBatchSize
+        for (int i = 0; i < currentBatchSize; ++i) {
+            seeds_processed_total++;
+            OuijaHostResult* result = &mapped_results[i];
+            if (result->seed[0] == '\0' || result->TotalScore < 1) continue;
+            seeds_scored_total++;
+            printf_s("|%s,%d,%d",
                         result->seed,
                         result->TotalScore,
                         result->NegativeJokers);
-            
-            // Add ScoreWants values to CSV output
             for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
                 printf_s(",%d", result->ScoreWants[w]);
             }
             printf_s("\n");
         }
         fflush(stdout);
+        
+        // Unmap the buffer when done
+        err = clEnqueueUnmapMemObject(queue, resultBuf_dev[prev_buffer_idx], mapped_results, 0, NULL, NULL);
+        clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer");
+        
+
+        if (seeds_processed_total >= numSeeds) {
+            break; // Exit if all seeds have been processed
+        }
 
         // Calculate the number of seeds for the next batch
         cl_long seeds_for_this_kernel_launch = (numSeeds - seeds_processed_total > batch_size) ?
                                               batch_size : (numSeeds - seeds_processed_total);
                                               
-        // Update seed offset for next batch
-        seed_offset += current_batch_num_seeds;
         current_batch_num_seeds = seeds_for_this_kernel_launch;
         
-        size_t current_global_work_size = ((seeds_for_this_kernel_launch + localWorkSize - 1) / localWorkSize) * localWorkSize;
-        if (current_global_work_size == 0 && seeds_for_this_kernel_launch > 0) {
-            current_global_work_size = localWorkSize;
+        // Adjust local work size if fewer seeds than the specified workgroup size:
+        cl_long current_local_work_size = localWorkSize;
+        if (seeds_for_this_kernel_launch < localWorkSize) {
+            current_local_work_size = seeds_for_this_kernel_launch;
         }
+        // Adjust global work size to avoid padding when seeds_for_this_kernel_launch is smaller than local work size
+        size_t current_global_work_size = seeds_for_this_kernel_launch < current_local_work_size
+            ? seeds_for_this_kernel_launch
+            : ((seeds_for_this_kernel_launch + current_local_work_size - 1) / current_local_work_size) * current_local_work_size;
 
         // Create the modified seed with offset for the OpenCL kernel
         // We keep the original seed and pass the offset separately to the kernel
@@ -639,23 +629,33 @@ int main(int argc, char **argv) {
         clErrCheck(err, "clSetKernelArg - Setting starting seed for current batch");
         err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &seeds_for_this_kernel_launch);
         clErrCheck(err, "clSetKernelArg - Setting num_seeds for current batch");
-        
-        // Update the seed offset for this batch
+        err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
+        clErrCheck(err, "clSetKernelArg - Setting config buffer");
+        err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
+        clErrCheck(err, "clSetKernelArg - Setting result buffer for current launch");
+        err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &seedOffsetBuf);
+        clErrCheck(err, "clSetKernelArg - Setting seed offset for current launch");
+
+        // Update seed offset for the next batch
+        seed_offset += currentBatchSize;
+
+        // Write the updated seed offset to the buffer
         err = clEnqueueWriteBuffer(queue, seedOffsetBuf, CL_TRUE, 0, sizeof(cl_long), &seed_offset, 0, NULL, NULL);
         clErrCheck(err, "clEnqueueWriteBuffer - Updating seed offset for current batch");
 
-        // Set result buffer arguments
-        err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
-        clErrCheck(err, "clSetKernelArg - Setting result buffer for current launch");
-        
-        // Launch the kernel
-        err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &current_global_work_size, &localWorkSize, 0, NULL, &kernel_events[current_buffer_idx]);
+        // Adjust global work size to avoid padding
+        current_global_work_size = currentBatchSize < current_local_work_size
+            ? currentBatchSize
+            : ((currentBatchSize + current_local_work_size - 1) / current_local_work_size) * current_local_work_size;
+
+        // Launch the kernel with adjusted local work size
+        size_t global_work_size = (size_t)current_global_work_size;
+        size_t local_work_size = (size_t)current_local_work_size;
+        err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, &kernel_events[current_buffer_idx]);
         clErrCheck(err, "clEnqueueNDRangeKernel - Subsequent kernel execution");
         
-        seeds_processed_total += seeds_for_this_kernel_launch;
-        
         // Print progress update
-        if (clock() - ticker > 1100) {
+        if (clock() - ticker > 1000 && seeds_processed_total > 0) {
             ticker = clock();
             double elapsed_time = (double)(clock() - start_time) / CLOCKS_PER_SEC;
             double estimated_total_time = (elapsed_time / seeds_processed_total) * numSeeds;
@@ -680,11 +680,10 @@ int main(int argc, char **argv) {
     // Make sure all OpenCL commands are complete
     clFinish(queue);
     
-    clock_t elaps = (clock() - start_time) / (clock_t)1000.0f;
-    printf_s("Seed search complete. Found %lld viable seeds out of %lld total seeds processed.\n", seeds_scored_total, seeds_processed_total);
-    printf_s("Elapsed time: %.2f seconds\n", (double)elaps / CLOCKS_PER_SEC);
-    printf_s("Estimated speed: %.2f seeds/s\n", (double)seeds_processed_total / ((double)elaps / CLOCKS_PER_SEC));
-    printf_s("Total seeds scored: %lld\n", seeds_scored_total);
+    double elaps = (double)(clock() - start_time) / CLOCKS_PER_SEC;
+    printf_s("$Search Complete! Found %lli viable out of %lli total seeds @%.1f seeds/s\n",
+        seeds_scored_total, seeds_processed_total,
+        ((double)seeds_processed_total / (double)elaps));
     fflush(stdout);
 
     // --- Cleanup ---
@@ -697,12 +696,10 @@ int main(int argc, char **argv) {
         clReleaseMemObject(resultBuf_dev[i]);
         free(resultBuf_host[i]);
         if(kernel_events[i] != NULL) clReleaseEvent(kernel_events[i]);
-        if(read_events[i] != NULL) clReleaseEvent(read_events[i]);
     }
     free(resultBuf_dev);
     free(resultBuf_host);
     clReleaseMemObject(configBuf);
-    clReleaseMemObject(cutoffBuf);
     clReleaseMemObject(seedOffsetBuf);
     clReleaseKernel(ssKernel);
     clReleaseProgram(ssKernelProgram);
