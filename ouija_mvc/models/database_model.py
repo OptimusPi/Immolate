@@ -63,10 +63,10 @@ class DatabaseModel:
         try:
             columns_def = []
             for col in columns:
-                if col == "Score" or col == "NegativeJokers" or col.startswith("Need(") or col.startswith("Want("):
-                    columns_def.append(f'"{col}" INTEGER')
+                if col == "Seed":
+                    columns_def.append(f'"{col}" VARCHAR')
                 else:
-                    columns_def.append(f'"{col}" TEXT')
+                    columns_def.append(f'"{col}" INTEGER')
             
             self.conn.execute(f"CREATE TABLE IF NOT EXISTS results ({', '.join(columns_def)});")
             return True

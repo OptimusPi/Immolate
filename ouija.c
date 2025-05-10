@@ -547,10 +547,8 @@ int main(int argc, char **argv) {
     // Print the CSV header for any consuming applications such as the python mvc.
      printf_s("Seed,Score,NegativeJokers");
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
+        printf_s(",");
         print_item_host(config.Wants[w].value);
-        if (w < config.numWants - 1) {
-            printf_s(",");
-        }
     }
     printf_s("\n");
     fflush(stdout);

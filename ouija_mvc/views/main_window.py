@@ -73,6 +73,9 @@ class MainWindow:
         self._status_update_interval_ms = 1000
         self._search_start_time = None
         self._search_results_count = 0
+
+        self.table_font_family = "m6x11"
+        self.table_font_size = 12  # Consistent with other text elements like console
     
     def setup_font(self):
         """Set up custom font for the application"""
@@ -238,10 +241,48 @@ class MainWindow:
         self.results_frame = tk.Frame(self.bottom_frame, bg=BACKGROUND)
         self.results_frame.pack(fill=tk.BOTH, expand=True)
         # Embedded pandastable
-        self.pt = Table(self.results_frame, dataframe=pd.DataFrame(), showtoolbar=False, showstatusbar=False)
+        self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),
+                        showtoolbar=False, showstatusbar=False,
+                        font=self.table_font_family,
+                        fontsize=self.table_font_size,
+                        headerfont=(self.table_font_family, self.table_font_size, 'bold'))
         self.pt.show()
         self.latest_df = None
         self._setup_initial_table()
+
+    def _adjust_table_column_widths(self):
+        """Adjusts column widths, ensuring headers are not truncated."""
+        if not hasattr(self.pt, 'model') or self.pt.model is None or \
+           not hasattr(self.pt.model, 'df') or self.pt.model.df is None:
+            self.pt.redraw()  # Ensure table is drawn if empty
+            return
+
+        self.pt.autoResizeColumns()  # Pandastable's default auto-sizing
+
+        # Define header font based on what was passed to pandastable
+        header_actual_font = tk.font.Font(
+            family=self.table_font_family,
+            size=self.table_font_size,
+            weight='bold'
+        )
+
+        # Padding: (abs(self.pt.renderer.cellwidthpad) * 2 + 4) is typical in pandastable
+        # self.pt.renderer.cellwidthpad is often 1 (from theme style.fontpadx)
+        # So, 1*2 + 4 = 6. Add a little extra for safety with bold fonts.
+        header_padding = 8 
+
+        if self.pt.model.df is not None:  # Check if df exists
+            for col_idx, col_name in enumerate(self.pt.model.df.columns):
+                if col_idx >= self.pt.model.getColumnCount():  # Safety check
+                    continue
+                    
+                current_width = self.pt.getColumnWidth(col_idx)
+                required_header_width = header_actual_font.measure(str(col_name)) + header_padding
+                
+                if required_header_width > current_width:
+                    self.pt.setColumnWidth(col_idx, required_header_width)
+        
+        self.pt.redraw()
 
     def _setup_initial_table(self):
         import json
@@ -256,16 +297,30 @@ class MainWindow:
             db_model = DatabaseModel()
             if config_path and db_model.connect(config_path) and db_model.table_exists():
                 self.latest_df = db_model.get_dataframe()
-                self.pt.model.df = self.latest_df
+                if self.latest_df is not None and not self.latest_df.empty:
+                    self.pt.model.df = self.latest_df
+                    self.pt.redraw()  # Redraw with new data
+                    self._adjust_table_column_widths()  # Adjust widths
+                else:
+                    # Handle case where table exists but is empty or df is None
+                    self.pt.model.df = pd.DataFrame()  # Show empty table
+                    self.pt.redraw()
+            else:
+                # Ensure an empty table is shown if no data
+                self.pt.model.df = pd.DataFrame()
                 self.pt.redraw()
-                self.pt.autoResizeColumns()
+
         self.root.after(100, load_df)
 
     def update_results_table(self, dataframe):
         self.latest_df = dataframe
-        self.pt.model.df = dataframe
-        self.pt.redraw()
-        self.pt.autoResizeColumns()
+        if dataframe is not None:
+            self.pt.model.df = dataframe
+        else:
+            self.pt.model.df = pd.DataFrame()  # Ensure empty df if None
+            
+        self.pt.redraw()  # Redraw with new data (or empty)
+        self._adjust_table_column_widths()  # Adjust widths
         self._search_results_count = len(dataframe) if dataframe is not None else 0
     
     def set_search_running(self, is_running):

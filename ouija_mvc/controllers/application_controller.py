@@ -239,10 +239,6 @@ class ApplicationController:
             import pandas as pd
             from ..utils.game_data import get_display_name
             def clean_col(col):
-                if col.startswith('Need(') and col.endswith(')'):
-                    return get_display_name(col[5:-1])
-                if col.startswith('Want(') and col.endswith(')'):
-                    return get_display_name(col[5:-1])
                 return col
             display_columns = [clean_col(col) for col in header_columns]
             df = pd.DataFrame(result_rows, columns=display_columns)
