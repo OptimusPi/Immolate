@@ -1,8 +1,8 @@
 param (
     [string]$OuijaExePath = ".\Ouija.exe", # Assumes script is in ouija_benchmark, Ouija.exe is one level up
     [string]$Seed = "5XFVLI",
-    [string]$Config = "egg",
-    [int]$NumGroups = 32 # Defaulting to 32 as per your comments
+    [string]$Config = "egg"
+    # Removed $NumGroups from params as we will loop through it
 )
 
 # Helper function to format numbers into K (thousands) or M (millions)
@@ -18,79 +18,74 @@ function Format-NumberKM {
     return $Number.ToString()
 }
 
-Write-Host "Benchmark Step 3: Testing seeds-per-second for various -b (batchMultiplier) values."
-Write-Host "Using: OuijaExePath='$OuijaExePath', Seed='$Seed', Config='$Config', NumGroups='$NumGroups'"
-Write-Host "----------------------------------------------------------------------------------------------------"
-Write-Host ("{0,-15} {1,-18} {2,-15} {3,-15} {4,-20}" -f "NumSeedsTotal", "BatchMultiplier", "TimeTaken(s)", "KSeeds/s (App)", "FullCommand") # Changed header
-Write-Host "----------------------------------------------------------------------------------------------------"
+Write-Host "Benchmark Step 3: Testing seeds-per-second for various -g (NumGroups) and -b (batchMultiplier) values."
+Write-Host "Using: OuijaExePath='$OuijaExePath', Seed='$Seed', Config='$Config'"
+Write-Host "-----------------------------------------------------------------------------------------------------------------" # Adjusted width
+Write-Host ("{0,-10} {1,-15} {2,-18} {3,-15} {4,-15} {5,-20}" -f "NumGroups", "NumSeedsTotal", "BatchMultiplier", "TimeTaken(s)", "KSeeds/s (App)", "FullCommand") # Added NumGroups to header
+Write-Host "-----------------------------------------------------------------------------------------------------------------" # Adjusted width
 
-$numSeedsToSearchList = @(10000, 50000, 75000, 100000, 250000, 1000000, 5000000, 314000000)
-$batchMultiplierList = @(1, 64, 128, 256) # Updated batch multiplier list
+$numGroupsList = @(32, 64, 128, 256) # List of -g values to test
+$numSeedsToSearchList = @(10000, 100000, 1000000)
+$batchMultiplierList = @(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
 
 $overallSuccess = $true
 
-foreach ($numSeedsTotal in $numSeedsToSearchList) {
-    Write-Host # Add a blank line for readability between numSeedsTotal blocks
-    foreach ($batchMultiplier in $batchMultiplierList) {
-        $command = "$OuijaExePath -s $Seed --config $Config -g $NumGroups -n $numSeedsTotal -b $batchMultiplier"
-        $kSeedsPerSecondString = "N/A" # Changed variable name for clarity
-        $timeTakenSeconds = "N/A"
+foreach ($currentNumGroups in $numGroupsList) {
+    Write-Host # Add a blank line for readability between NumGroups blocks
+    Write-Host "Testing with NumGroups (-g): $currentNumGroups"
+    Write-Host "-----------------------------------------------------------------------------------------------------------------" # Adjusted width
 
-        try {
-            # Write-Host ("Running: -n {0,-12} -b {1,-3} ..." -f $numSeedsTotal, $batchMultiplier) -NoNewline
-            
-            $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            $output = Invoke-Expression "$command 2>&1" | Out-String # Capture stdout and stderr
-            $stopwatch.Stop()
-            $timeTakenSeconds = ($stopwatch.Elapsed.TotalSeconds).ToString("F2")
+    foreach ($numSeedsTotal in $numSeedsToSearchList) {
+        Write-Host # Add a blank line for readability between numSeedsTotal blocks
+        foreach ($batchMultiplier in $batchMultiplierList) {
+            $command = "$OuijaExePath -s $Seed --config $Config -g $currentNumGroups -n $numSeedsTotal -b $batchMultiplier"
+            $kSeedsPerSecondString = "N/A"
+            $timeTakenSeconds = "N/A"
 
-            if ($LASTEXITCODE -ne 0) {
-                Write-Warning "Ouija.exe exited with code $LASTEXITCODE for command: $command"
-                # Truncate output if it's too long for a single line warning
-                $errorOutputForDisplay = if ($output.Length -gt 200) { $output.Substring(0, 200) + "..." } else { $output }
-                Write-Warning "Output: $errorOutputForDisplay"
+            try {
+                $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                $output = Invoke-Expression "$command 2>&1" | Out-String # Capture stdout and stderr
+                $stopwatch.Stop()
+                $timeTakenSeconds = ($stopwatch.Elapsed.TotalSeconds).ToString("F2")
+
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "Ouija.exe exited with code $LASTEXITCODE for command: $command"
+                    $errorOutputForDisplay = if ($output.Length -gt 200) { $output.Substring(0, 200) + "..." } else { $output }
+                    Write-Warning "Output: $errorOutputForDisplay"
+                    $overallSuccess = $false
+                }
+
+                $match = $output | Select-String -Pattern "@\s*([\d\.]+)\s*seeds/s"
+                if ($match) {
+                    $seedsPerSecondParsed = $match.Matches[0].Groups[1].Value
+                    try {
+                        $seedsPerSecondNumeric = [double]$seedsPerSecondParsed
+                        $kSeedsPerSecond = $seedsPerSecondNumeric / 1000
+                        $kSeedsPerSecondString = $kSeedsPerSecond.ToString("F2")
+                    } catch {
+                        Write-Warning "Could not convert '$seedsPerSecondParsed' to number for Kseeds/s calculation for command: $command"
+                        $kSeedsPerSecondString = "ParseErr"
+                    }
+                } else {
+                    Write-Warning "Could not parse seeds/s rate for command: $command"
+                    # No overall failure here, as some runs might be too short or not produce the summary line
+                }
+                
+                $formattedNumSeedsTotal = Format-NumberKM $numSeedsTotal
+                Write-Host ("{0,-10} {1,-15} {2,-18} {3,-15} {4,-15} {5,-20}" -f $currentNumGroups, $formattedNumSeedsTotal, $batchMultiplier, $timeTakenSeconds, $kSeedsPerSecondString, $command) -ForegroundColor Cyan
+
+            } catch {
+                Write-Error "Exception during execution for command: $command"
+                Write-Error $_.Exception.Message
                 $overallSuccess = $false
+                $formattedNumSeedsTotalOnError = Format-NumberKM $numSeedsTotal
+                Write-Host ("{0,-10} {1,-15} {2,-18} {3,-15} {4,-15} {5,-20}" -f $currentNumGroups, $formattedNumSeedsTotalOnError, $batchMultiplier, "ERROR", "ERROR", $command) -ForegroundColor Red
             }
-
-            # Try to parse seeds/s
-            $match = $output | Select-String -Pattern "@\s*([\d\.]+)\s*seeds/s"
-            if ($match) {
-                $seedsPerSecondParsed = $match.Matches[0].Groups[1].Value
-                try {
-                    $seedsPerSecondNumeric = [double]$seedsPerSecondParsed
-                    $kSeedsPerSecond = $seedsPerSecondNumeric / 1000
-                    $kSeedsPerSecondString = $kSeedsPerSecond.ToString("F2") # Format to 2 decimal places
-                    # Write-Host (" -> Done ({0}s, {1} Kseeds/s)" -f $timeTakenSeconds, $kSeedsPerSecondString) -ForegroundColor Green
-                } catch {
-                    Write-Warning " -> Done ({$timeTakenSeconds}s) - Could not convert '$seedsPerSecondParsed' to number for Kseeds/s calculation."
-                    $kSeedsPerSecondString = "ParseErr"
-                }
-            } else {
-                Write-Warning " -> Done ({$timeTakenSeconds}s) - Could not parse seeds/s rate."
-                if ($LASTEXITCODE -eq 0) { # Only mark as overall failure if Ouija didn't report an error code itself
-                    # This case might mean the output format changed or the run was too short for the summary line
-                    # For very small -n, the summary line might not appear if no viable seeds are found or if it exits early.
-                    # Consider if this should be a failure or just a note. For now, not failing overallSuccess.
-                }
-            }
-            
-            # Log the result line
-            $formattedNumSeedsTotal = Format-NumberKM $numSeedsTotal
-            Write-Host ("{0,-15} {1,-18} {2,-15} {3,-15} {4,-20}" -f $formattedNumSeedsTotal, $batchMultiplier, $timeTakenSeconds, $kSeedsPerSecondString, $command) -ForegroundColor Cyan
-
-
-        } catch {
-            Write-Error "Exception during execution for command: $command"
-            Write-Error $_.Exception.Message
-            $overallSuccess = $false
-            # Log the failed attempt
-            $formattedNumSeedsTotalOnError = Format-NumberKM $numSeedsTotal
-            Write-Host ("{0,-15} {1,-18} {2,-15} {3,-15} {4,-20}" -f $formattedNumSeedsTotalOnError, $batchMultiplier, "ERROR", "ERROR", $command) -ForegroundColor Red
         }
     }
 }
 
-Write-Host "----------------------------------------------------------------------------------------------------"
+Write-Host "-----------------------------------------------------------------------------------------------------------------" # Adjusted width
 Write-Host "Benchmark Step 3 Complete."
 if (!$overallSuccess) {
     Write-Warning "One or more runs encountered errors or non-zero exit codes."

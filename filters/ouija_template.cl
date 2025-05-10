@@ -1,9 +1,8 @@
 #include "lib/ouija.cl"
 #define CACHE_SIZE 256
-#define FIXED_FILTER_CUTOFF
 //#define _debugPrints 1
 
-OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
+void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
 #ifdef _debugPrints
   printf("Starting filter\n");
   printf("Deck id: %d\n", config->deck);
@@ -30,7 +29,23 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
   int ante = 0; // Default value, update as needed
   // Initialize ScoreNeeds and ScoreWants
   bool ScoreNeeds[MAX_DESIRES_KERNEL] = {false};
-  OuijaResult result = {0}; 
+  result->TotalScore = 0;
+  result->NegativeJokers = 0;
+  for (int i = 1; i < MAX_DESIRES_KERNEL; i++) {
+    result->ScoreWants[i] = 0;
+  }
+
+  // TODO TEST CODE ONLY
+  result->TotalScore = 1;
+  result->NegativeJokers = 1;
+  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
+    result->ScoreWants[i] = 1;
+  }
+    text s_str1 = s_to_string(&inst->seed);
+  for (int i = 0; i < 9; i++) {
+    result->seed[i] = s_str1.str[i];
+  }
+  return;
 
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
@@ -43,7 +58,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
       item s = suit(deck[i]);
       for (int w = 0; w < config->numWants; w++) {
         if (r == config->Wants[w].value || s == config->Wants[w].value) {
-          result.ScoreWants[w] += 1;
+          result->ScoreWants[w] += 1;
         }
       }
     }
@@ -79,7 +94,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
       int isSmallBlind = (config->Wants[x].value == smallBlindTag);
       int isBigBlind = (config->Wants[x].value == bigBlindTag);
       int isVoucher = (config->Wants[x].value == voucher);
-      result.ScoreWants[x] += (isSmallBlind + isBigBlind + isVoucher);
+      result->ScoreWants[x] += (isSmallBlind + isBigBlind + isVoucher);
     }
 
     // Process shop items using direct scoring
@@ -102,7 +117,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
         inst->params.showman = true;
       
       // Count negative jokers with branchless operation
-      result.NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
+      result->NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
       
       // Score needs
       for (int x = 0; x < config->numNeeds; x++) {
@@ -127,7 +142,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
       #endif
       }
       
-      // Score wants - directly use result.ScoreWants array
+      // Score wants - directly use result->ScoreWants array
       for (int x = 0; x < config->numWants; x++) {
         // For jokers with edition check
         int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
@@ -139,7 +154,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
         // For regular items (non-jokers)
         int regularMatch = (config->Wants[x].value == shItem.value);
         
-        result.ScoreWants[x] += (jokerMatch + regularMatch);
+        result->ScoreWants[x] += (jokerMatch + regularMatch);
       }
     }
 
@@ -169,7 +184,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
           
           // Score wants
           for (int x = 0; x < config->numWants; x++) {
-            result.ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
+            result->ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
           }
         }
       } 
@@ -186,7 +201,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
             
             // Count negative joker with branchless operation
-            result.NegativeJokers += (soulJoker.edition == Negative);
+            result->NegativeJokers += (soulJoker.edition == Negative);
             
             // Score needs for both The_Soul itself and the created joker
             for (int x = 0; x < config->numNeeds; x++) {
@@ -207,7 +222,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
                                ((config->Wants[x].jokeredition == No_Edition) || 
                                 (config->Wants[x].jokeredition == soulJoker.edition));
               
-              result.ScoreWants[x] += (soulMatch + jokerMatch);
+              result->ScoreWants[x] += (soulMatch + jokerMatch);
             }
           } 
           else {
@@ -217,7 +232,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
             }
             
             for (int x = 0; x < config->numWants; x++) {
-              result.ScoreWants[x] += (config->Wants[x].value == spectralCards[t]);
+              result->ScoreWants[x] += (config->Wants[x].value == spectralCards[t]);
             }
           }
         }
@@ -234,7 +249,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
           if (buffoonJokers[t].joker == Showman)
             inst->params.showman = true;
             
-          result.NegativeJokers += (buffoonJokers[t].edition == Negative);
+          result->NegativeJokers += (buffoonJokers[t].edition == Negative);
           
           // Score needs
           for (int x = 0; x < config->numNeeds; x++) {
@@ -253,7 +268,7 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
                              ((config->Wants[x].jokeredition == No_Edition) || 
                               (config->Wants[x].jokeredition == buffoonJokers[t].edition));
             
-            result.ScoreWants[x] += jokerMatch && (result.ScoreWants[x] == 0 || inst->params.showman == true);
+            result->ScoreWants[x] += jokerMatch && (result->ScoreWants[x] == 0 || inst->params.showman == true);
           }
         }
       }
@@ -278,34 +293,33 @@ OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config) {
         print_item(config->Needs[n].value);
         printf("\n");
       #endif
-        result.TotalScore = 0;
-        return result;
+        result->TotalScore = 0;
+        return;
       }
     }
   } // End of ante loop
 
   // If all needs were met, ensure score is at least 1 (valid)
   // Base value of 1 indicates "valid" (all needs met)
-  result.TotalScore = 1;
+  result->TotalScore = 1;
   
   // Add final debug output to see the score before return
-  //printf("Final score before bonus: %d\n", result.TotalScore);
+  //printf("Final score before bonus: %d\n", result->TotalScore);
   
   for (int w = 0; w < config->numWants && w < MAX_DESIRES_KERNEL; w++) {
     // Branchless way to add 2 points if want was found (ScoreWants > 0)
-    result.TotalScore += (result.ScoreWants[w] > 0) * 1;
-    result.TotalScore += result.ScoreWants[w];
+    result->TotalScore += (result->ScoreWants[w] > 0) * 1;
+    result->TotalScore += result->ScoreWants[w];
   }
 
   // Add bonus points for negative jokers
-  result.TotalScore += result.NegativeJokers;
+  result->TotalScore += result->NegativeJokers;
 
   // Copy the seed to the result
   text s_str = s_to_string(&inst->seed);
   for (int i = 0; i < 9; i++) {
-    result.seed[i] = s_str.str[i];
+    result->seed[i] = s_str.str[i];
   }
 
-  //printf("Final score after bonus: %d\n", result.TotalScore);
-  return result;
+  return;
 }

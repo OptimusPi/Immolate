@@ -617,8 +617,8 @@ int main(int argc, char **argv) {
         }
         
         if (num_seeds_last_dispatch > 0) { // Only map and process if the last dispatch had seeds
-            printf_s("Batch %lld/%lld (Processing results for %lld seeds)\n", batch_idx, total_potential_batches, num_seeds_last_dispatch);
-            fflush(stdout);
+            //printf_s("Batch %lld/%lld (Processing results for %lld seeds)\n", batch_idx, total_potential_batches, num_seeds_last_dispatch);
+            //fflush(stdout);
 
             OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[results_buffer_idx], CL_TRUE,
                                                CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);

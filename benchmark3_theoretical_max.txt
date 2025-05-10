@@ -1,0 +1,162 @@
+Benchmark Step 3: Testing seeds-per-second for various -g (NumGroups) and -b (batchMultiplier) values.
+Using: OuijaExePath='.\Ouija.exe', Seed='5XFVLI', Config='egg'
+-----------------------------------------------------------------------------------------------------------------
+NumGroups  NumSeedsTotal   BatchMultiplier    TimeTaken(s)    KSeeds/s (App)  FullCommand
+-----------------------------------------------------------------------------------------------------------------
+
+Testing with NumGroups (-g): 32
+-----------------------------------------------------------------------------------------------------------------
+
+32         10 K            1                  0.13            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 1
+32         10 K            2                  0.13            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 2
+32         10 K            4                  0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 4
+32         10 K            8                  0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 8
+32         10 K            16                 0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 16
+32         10 K            32                 0.22            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 32
+32         10 K            64                 0.13            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 64
+32         10 K            128                0.13            1250.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 128
+32         10 K            256                0.13            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 256
+32         10 K            512                0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 512
+32         10 K            1024               0.12            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 10000 -b 1024
+
+32         100 K           1                  0.40            2941.18         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 1
+32         100 K           2                  0.38            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 2
+32         100 K           4                  0.38            3225.81         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 4
+32         100 K           8                  0.38            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 8
+32         100 K           16                 0.42            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 16
+32         100 K           32                 0.41            2857.14         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 32
+32         100 K           64                 0.40            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 64
+32         100 K           128                0.39            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 128
+32         100 K           256                0.40            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 256
+32         100 K           512                0.38            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 512
+32         100 K           1024               0.41            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 100000 -b 1024
+
+32         1 M             1                  2.99            2793.30         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 1
+32         1 M             2                  3.01            3003.00         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 2
+32         1 M             4                  3.00            2932.55         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 4
+32         1 M             8                  3.00            3378.38         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 8
+32         1 M             16                 2.97            2949.85         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 16
+32         1 M             32                 3.07            2949.85         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 32
+32         1 M             64                 3.06            2949.85         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 64
+32         1 M             128                3.02            2777.78         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 128
+32         1 M             256                3.06            2688.17         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 256
+32         1 M             512                3.03            2976.19         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 512
+32         1 M             1024               3.05            2732.24         .\Ouija.exe -s 5XFVLI --config egg -g 32 -n 1000000 -b 1024
+
+Testing with NumGroups (-g): 64
+-----------------------------------------------------------------------------------------------------------------
+
+64         10 K            1                  0.12            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 1
+64         10 K            2                  0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 2
+64         10 K            4                  0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 4
+64         10 K            8                  0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 8
+64         10 K            16                 0.13            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 16
+64         10 K            32                 0.21            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 32
+64         10 K            64                 0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 64
+64         10 K            128                0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 128
+64         10 K            256                0.12            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 256
+64         10 K            512                0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 512
+64         10 K            1024               0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 10000 -b 1024
+
+64         100 K           1                  0.39            2777.78         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 1
+64         100 K           2                  0.38            3333.33         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 2
+64         100 K           4                  0.38            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 4
+64         100 K           8                  0.39            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 8
+64         100 K           16                 0.38            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 16
+64         100 K           32                 0.41            3030.30         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 32
+64         100 K           64                 0.41            3030.30         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 64
+64         100 K           128                0.40            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 128
+64         100 K           256                0.39            3703.70         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 256
+64         100 K           512                0.40            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 512
+64         100 K           1024               0.39            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 100000 -b 1024
+
+64         1 M             1                  3.01            2873.56         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 1
+64         1 M             2                  3.03            2824.86         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 2
+64         1 M             4                  2.98            3236.25         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 4
+64         1 M             8                  2.98            3436.43         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 8
+64         1 M             16                 3.02            2857.14         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 16
+64         1 M             32                 3.01            2754.82         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 32
+64         1 M             64                 3.02            2898.55         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 64
+64         1 M             128                2.99            3257.33         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 128
+64         1 M             256                3.01            2801.12         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 256
+64         1 M             512                2.97            2873.56         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 512
+64         1 M             1024               3.04            2832.86         .\Ouija.exe -s 5XFVLI --config egg -g 64 -n 1000000 -b 1024
+
+Testing with NumGroups (-g): 128
+-----------------------------------------------------------------------------------------------------------------
+
+128        10 K            1                  0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 1
+128        10 K            2                  0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 2
+128        10 K            4                  0.13            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 4
+128        10 K            8                  0.12            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 8
+128        10 K            16                 0.14            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 16
+128        10 K            32                 0.14            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 32
+128        10 K            64                 0.24            909.09          .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 64
+128        10 K            128                0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 128
+128        10 K            256                0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 256
+128        10 K            512                0.12            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 512
+128        10 K            1024               0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 10000 -b 1024
+
+128        100 K           1                  0.39            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 1
+128        100 K           2                  0.39            3571.43         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 2
+128        100 K           4                  0.39            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 4
+128        100 K           8                  0.38            3703.70         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 8
+128        100 K           16                 0.39            2941.18         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 16
+128        100 K           32                 0.43            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 32
+128        100 K           64                 0.40            3030.30         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 64
+128        100 K           128                0.39            3571.43         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 128
+128        100 K           256                0.38            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 256
+128        100 K           512                0.40            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 512
+128        100 K           1024               0.39            2941.18         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 100000 -b 1024
+
+128        1 M             1                  3.00            3164.56         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 1
+128        1 M             2                  3.00            2770.08         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 2
+128        1 M             4                  2.99            2949.85         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 4
+128        1 M             8                  2.99            3115.26         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 8
+128        1 M             16                 3.01            2967.36         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 16
+128        1 M             32                 2.99            3003.00         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 32
+128        1 M             64                 3.04            2881.84         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 64
+128        1 M             128                2.98            2923.98         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 128
+128        1 M             256                3.03            2597.40         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 256
+128        1 M             512                3.05            3048.78         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 512
+128        1 M             1024               3.10            3105.59         .\Ouija.exe -s 5XFVLI --config egg -g 128 -n 1000000 -b 1024
+
+Testing with NumGroups (-g): 256
+-----------------------------------------------------------------------------------------------------------------
+
+256        10 K            1                  0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 1
+256        10 K            2                  0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 2
+256        10 K            4                  0.14            909.09          .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 4
+256        10 K            8                  0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 8
+256        10 K            16                 0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 16
+256        10 K            32                 0.24            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 32
+256        10 K            64                 0.13            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 64
+256        10 K            128                0.12            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 128
+256        10 K            256                0.12            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 256
+256        10 K            512                0.14            1000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 512
+256        10 K            1024               0.14            1111.11         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 10000 -b 1024
+
+256        100 K           1                  0.38            3225.81         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 1
+256        100 K           2                  0.40            3703.70         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 2
+256        100 K           4                  0.39            3571.43         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 4
+256        100 K           8                  0.40            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 8
+256        100 K           16                 0.39            2631.58         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 16
+256        100 K           32                 0.40            3125.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 32
+256        100 K           64                 0.41            3225.81         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 64
+256        100 K           128                0.39            3703.70         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 128
+256        100 K           256                0.40            4000.00         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 256
+256        100 K           512                0.40            3846.15         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 512
+256        100 K           1024               0.40            2941.18         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 100000 -b 1024
+
+256        1 M             1                  3.01            2994.01         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 1
+256        1 M             2                  3.02            2816.90         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 2
+256        1 M             4                  3.02            2816.90         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 4
+256        1 M             8                  2.99            3378.38         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 8
+256        1 M             16                 3.03            2881.84         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 16
+256        1 M             32                 2.98            2906.98         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 32
+256        1 M             64                 3.04            2857.14         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 64
+256        1 M             128                3.03            2949.85         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 128
+256        1 M             256                3.03            2857.14         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 256
+256        1 M             512                3.03            2985.07         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 512
+256        1 M             1024               3.05            3021.15         .\Ouija.exe -s 5XFVLI --config egg -g 256 -n 1000000 -b 1024
+-----------------------------------------------------------------------------------------------------------------

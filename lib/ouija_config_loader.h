@@ -1,6 +1,9 @@
 #include "host_items.h"
 #include "../lib/ouija.h"
 #include <io.h> // For _access on Windows
+#include <windows.h> // For GetModuleFileNameA
+#include <string.h> // For strstr, strrchr
+#include <stdio.h>  // For snprintf
 
 #ifndef __OUIJA_CONFIG_LOADER_H_
 #define __OUIJA_CONFIG_LOADER_H_
@@ -8,6 +11,12 @@
 #define MAX_DESIRES_HOST 16 // Changed from 10 to 16 to match MAX_DESIRES_KERNEL
 #define F_OK 0  // File exists flag
 
+// Define PATH_SEPARATOR based on OS
+#ifdef _WIN32
+    #define PATH_SEPARATOR_STR "\\"
+#else
+    #define PATH_SEPARATOR_STR "/"
+#endif
 
 typedef struct {
     item value;         // Item or joker ID
@@ -29,27 +38,84 @@ typedef struct {
 // Load configuration from JSON file
 int load_config_from_json(const char* config_filename, OuijaConfig* config) {
     char config_path[MAX_PATH];
-    char executable_dir[MAX_PATH];
-    
-    // First try to load from ouija_configs directory
-    snprintf(config_path, MAX_PATH, "%s%souija_configs%s%s", 
-             executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
-             
-    // If file doesn't exist with extension, try adding it
-    if (_access(config_path, F_OK) != 0) {
-        if (strstr(config_filename, ".ouija.json") == NULL) {
-            snprintf(config_path, MAX_PATH, "%s%souija_configs%s%s.ouija.json", 
-                     executable_dir, PATH_SEPARATOR, PATH_SEPARATOR, config_filename);
+    char executable_dir[MAX_PATH] = {0}; // Initialize to empty string
+    char full_exe_path[MAX_PATH];
+
+    // Get the full path of the executable to find its directory
+    if (GetModuleFileNameA(NULL, full_exe_path, MAX_PATH) == 0) {
+        // Could not get executable path, so executable_dir remains empty or "."
+        // This means the first set of attempts might effectively become relative to CWD if executable_dir is "."
+        // Or, if it's empty, snprintf might produce odd paths. Let's default to "."
+        printf_s("Warning: GetModuleFileNameA failed. Trying paths relative to current directory.\n");
+        strncpy_s(executable_dir, MAX_PATH, ".", _TRUNCATE);
+    } else {
+        char* last_slash = strrchr(full_exe_path, PATH_SEPARATOR_STR[0]); // Use the char for strrchr
+        if (last_slash != NULL) {
+            size_t dir_len = last_slash - full_exe_path;
+            if (dir_len < MAX_PATH) {
+                strncpy_s(executable_dir, MAX_PATH, full_exe_path, dir_len);
+                // executable_dir[dir_len] = '\0'; // strncpy_s with _TRUNCATE should null terminate if space
+            } else {
+                printf_s("Warning: Executable directory path too long. Trying paths relative to current directory.\n");
+                strncpy_s(executable_dir, MAX_PATH, ".", _TRUNCATE);
+            }
+        } else {
+            // No slash found, assume executable is in current dir or path is just filename
+            strncpy_s(executable_dir, MAX_PATH, ".", _TRUNCATE);
         }
     }
-    
-    // If still doesn't exist, try as absolute path
-    if (_access(config_path, F_OK) != 0) {
-        strncpy_s(config_path, MAX_PATH, config_filename, MAX_PATH);
+
+    // Attempt 1: Executable directory + "ouija_configs" + given name
+    snprintf(config_path, MAX_PATH, "%s%souija_configs%s%s",
+             executable_dir, PATH_SEPARATOR_STR, PATH_SEPARATOR_STR, config_filename);
+    if (_access(config_path, F_OK) == 0) {
+        goto found_path_or_continue_parsing;
     }
-    
+
+    // Attempt 2: Executable directory + "ouija_configs" + given name + ".ouija.json"
+    if (strstr(config_filename, ".ouija.json") == NULL) {
+        snprintf(config_path, MAX_PATH, "%s%souija_configs%s%s.ouija.json",
+                 executable_dir, PATH_SEPARATOR_STR, PATH_SEPARATOR_STR, config_filename);
+        if (_access(config_path, F_OK) == 0) {
+            goto found_path_or_continue_parsing;
+        }
+    }
+
+    // Attempt 3: Current working directory ('.') + "ouija_configs" + given name
+    snprintf(config_path, MAX_PATH, ".%souija_configs%s%s",
+             PATH_SEPARATOR_STR, PATH_SEPARATOR_STR, config_filename);
+    if (_access(config_path, F_OK) == 0) {
+        goto found_path_or_continue_parsing;
+    }
+
+    // Attempt 4: Current working directory ('.') + "ouija_configs" + given name + ".ouija.json"
+    if (strstr(config_filename, ".ouija.json") == NULL) {
+        snprintf(config_path, MAX_PATH, ".%souija_configs%s%s.ouija.json",
+                 PATH_SEPARATOR_STR, PATH_SEPARATOR_STR, config_filename);
+        if (_access(config_path, F_OK) == 0) {
+            goto found_path_or_continue_parsing;
+        }
+    }
+
+    // Attempt 5: Given name directly (as absolute path or relative to current working directory)
+    strncpy_s(config_path, MAX_PATH, config_filename, _TRUNCATE);
+    if (_access(config_path, F_OK) == 0) {
+        goto found_path_or_continue_parsing;
+    }
+
+    // Attempt 6: Given name directly + ".ouija.json"
+    if (strstr(config_filename, ".ouija.json") == NULL) {
+        snprintf(config_path, MAX_PATH, "%s.ouija.json", config_filename);
+        if (_access(config_path, F_OK) == 0) {
+            goto found_path_or_continue_parsing;
+        }
+    }
+    // If all attempts fail, config_path will hold the last attempted path,
+    // and the fopen_s below will fail, printing an error with that path.
+
+found_path_or_continue_parsing:
     printf_s("Attempting to load config from: %s\n", config_path);
-    
+
     // Using the safer fopen_s instead of deprecated fopen
     FILE* file = NULL;
     errno_t err = fopen_s(&file, config_path, "r");

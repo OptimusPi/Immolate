@@ -2,11 +2,11 @@
 #include "lib/ouija_config.cl" 
 #include "lib/ouija_result.cl" 
 
-OuijaResult ouija_filter(instance *inst, __global OuijaConfig *config);
+void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result);
 
 __kernel void ouija_search(char8 starting_seed_char8, // Renamed to avoid conflict with seed type
                            long num_seeds_for_this_dispatch, // Total seeds this kernel dispatch should handle
-                           __global OuijaConfig *config,
+                           __constant OuijaConfig *config,
                            __global OuijaResult *results,
                            __global long *batch_seed_offset) { // Renamed for clarity
     
@@ -23,7 +23,7 @@ __kernel void ouija_search(char8 starting_seed_char8, // Renamed to avoid confli
         // _seed is now correctly positioned for the current 'i' by the initial skip
         // or by the s_skip at the end of the previous iteration.
         instance inst = i_new(_seed);
-        results[i] = ouija_filter(&inst, config);
+        ouija_filter(&inst, config, &results[i]); // Process the instance with the current configuration
 
         // After processing, advance _seed by the stride to prepare for the next iteration (if any).
         // This skip will happen even after the last useful iteration for this work-item, which is harmless.
