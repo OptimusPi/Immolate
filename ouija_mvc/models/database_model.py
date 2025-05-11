@@ -127,8 +127,14 @@ class DatabaseModel:
             print(f"Error upserting result: {e}")
             return False
     
-    def query_results(self, sort_column="Score", descending=True):
-        """Query results from the database, optionally sorted"""
+    def query_results(self, sort_column="Score", descending=True, limit=1000):
+        """Query results from the database, optionally sorted and limited
+        
+        Args:
+            sort_column: Column to sort by (default: "Score")
+            descending: Sort in descending order (default: True)
+            limit: Maximum number of results to return (default: 1000)
+        """
         if not self.conn:
             return None
             
@@ -138,9 +144,9 @@ class DatabaseModel:
             if not table_exists:
                 return None
                 
-            # Query with optional sorting
+            # Query with optional sorting, limited to top 1000 results by default
             direction = "DESC" if descending else "ASC"
-            result = self.conn.execute(f'SELECT * FROM results ORDER BY "{sort_column}" {direction}').fetch_df()
+            result = self.conn.execute(f'SELECT * FROM results ORDER BY "{sort_column}" {direction} LIMIT {limit}').fetch_df()
             return result
         except Exception as e:
             print(f"Error querying results: {e}")
