@@ -960,15 +960,15 @@ item parse_item(const char* name) {
 
     // Ranks
     if (strcmp(name, "RANK_BEGIN") == 0) return RANK_BEGIN;
-    if (strcmp(name, "_2") == 0) return _2;
-    if (strcmp(name, "_3") == 0) return _3;
-    if (strcmp(name, "_4") == 0) return _4;
-    if (strcmp(name, "_5") == 0) return _5;
-    if (strcmp(name, "_6") == 0) return _6;
-    if (strcmp(name, "_7") == 0) return _7;
-    if (strcmp(name, "_8") == 0) return _8;
-    if (strcmp(name, "_9") == 0) return _9;
-    if (strcmp(name, "_10") == 0) return _10;
+    if (strcmp(name, "2") == 0) return _2;
+    if (strcmp(name, "3") == 0) return _3;
+    if (strcmp(name, "4") == 0) return _4;
+    if (strcmp(name, "5") == 0) return _5;
+    if (strcmp(name, "6") == 0) return _6;
+    if (strcmp(name, "7") == 0) return _7;
+    if (strcmp(name, "8") == 0) return _8;
+    if (strcmp(name, "9") == 0) return _9;
+    if (strcmp(name, "10") == 0) return _10;
     if (strcmp(name, "Jack") == 0) return Jack;
     if (strcmp(name, "Queen") == 0) return Queen;
     if (strcmp(name, "King") == 0) return King;

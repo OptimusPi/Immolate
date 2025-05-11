@@ -26,6 +26,8 @@ class ConfigModel:
         self.thread_groups = "32"
         self.starting_seed = "random"
         self.number_of_seeds = "All"
+        self.cutoff = ""  # Default to empty, meaning no cutoff
+        self.gpu_batch = "16" # Default GPU batch size
         
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)
@@ -51,6 +53,10 @@ class ConfigModel:
                     self.stake = conf["last_stake"]
                 if conf.get("last_number_of_seeds"):
                     self.number_of_seeds = conf["last_number_of_seeds"]
+                if conf.get("cutoff"): # Load cutoff
+                    self.cutoff = conf["cutoff"]
+                if conf.get("gpu_batch_size"): # Load GPU batch size
+                    self.gpu_batch = conf["gpu_batch_size"]
                 if conf.get("last_config_path") and os.path.exists(conf["last_config_path"]):
                     self.load_config_from_path(conf["last_config_path"])
                 return True
@@ -66,7 +72,9 @@ class ConfigModel:
             "last_seed": self.starting_seed,
             "last_deck": self.deck,
             "last_stake": self.stake,
-            "last_number_of_seeds": self.number_of_seeds
+            "last_number_of_seeds": self.number_of_seeds,
+            "cutoff": self.cutoff, # Save cutoff
+            "gpu_batch_size": self.gpu_batch # Save GPU batch size
         }
         
         try:

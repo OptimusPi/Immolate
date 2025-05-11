@@ -49,6 +49,11 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
           result->ScoreWants[w] += 1;
         }
       }
+      for (int n = 0; n < config->numWants; n++) {
+        if (r == config->Needs[n].value || s == config->Needs[n].value) {
+          ScoreNeeds[n] = true;
+        }
+      }
     }
   }
 

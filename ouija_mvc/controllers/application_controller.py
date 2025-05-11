@@ -189,7 +189,7 @@ class ApplicationController:
         return True
     
     # Search management
-    def start_search(self):
+    def run_search(self):  # Renamed from start_search
         """Start the search process"""
         if self.search_model.has_active_searches():
             # If there's already a search running, stop it instead
@@ -213,7 +213,9 @@ class ApplicationController:
             starting_seed=self.config_model.starting_seed,
             thread_groups=self.config_model.thread_groups,
             number_of_seeds=self.config_model.number_of_seeds,
-            db_model=self.database_model
+            db_model=self.database_model,
+            cutoff=self.config_model.cutoff,  # Pass cutoff
+            gpu_batch=self.config_model.gpu_batch  # Pass gpu_batch
         )
         # Update UI state if successful
         if success and self.current_view:
@@ -237,53 +239,26 @@ class ApplicationController:
         return df is not None
     
     # Callbacks for the search model
-    def _on_search_results(self, header_columns, result_rows):
-        """Callback for when search results are available"""
+    def _on_search_results(self, header_columns, result_rows):  # header_columns and result_rows are now None
+        """Callback for when search results are available (signals to refresh from DB)"""
         if self.current_view:
-            # Store the results for later processing
-            self.pending_headers = header_columns
-            self.pending_results = result_rows
-            
             # Cancel any pending update
             if self.update_timer_id:
                 self.current_view.root.after_cancel(self.update_timer_id)
             
-            # Schedule a new update
+            # Schedule a new update (which will now just call refresh_results)
             self.update_timer_id = self.current_view.root.after(
                 self.update_debounce_ms, self._process_pending_results)
     
     def _process_pending_results(self):
-        """Process pending results after debounce period"""
+        """Process pending results after debounce period (now just refreshes from DB)"""
         # Reset the timer ID
         self.update_timer_id = None
         
-        if self.pending_results is None or self.pending_headers is None:
-            return
-            
-        import pandas as pd
-        from ..utils.game_data import get_display_name
+        # Refresh results directly from the database
+        self.refresh_results()
         
-        # Create a DataFrame from all accumulated results
-        def clean_col(col):
-            return col
-        
-        display_columns = [clean_col(col) for col in self.pending_headers]
-        df = pd.DataFrame(self.pending_results, columns=display_columns)
-        
-        # Explicitly convert all numeric columns to integers (except 'Seed')
-        for col in df.columns:
-            if col != 'Seed':
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-        
-        # Sort by Score (descending) and then by Seed (ascending) for stability
-        # This will prevent "wiggling" of tied scores
-        if 'Score' in df.columns:
-            df = df.sort_values(by=['Score', 'Seed'], ascending=[False, True])
-        
-        # Update the UI with complete set of results
-        self.current_view.update_results_table(df)
-        
-        # Clear the pending results
+        # Clear any potentially lingering pending results (though they shouldn't be set anymore)
         self.pending_results = None
         self.pending_headers = None
     
@@ -339,6 +314,8 @@ class ApplicationController:
     
     def _on_search_completed(self):
         """Callback for when a search process completes"""
+        # Ensure one final refresh from the database
+        self.refresh_results()
         if self.current_view:
             self.current_view.write_to_console("--- Search Complete ---\n")
             self.current_view.set_search_running(False)
@@ -352,7 +329,9 @@ class ApplicationController:
             'starting_seed': 'starting_seed',
             'number_of_seeds': 'number_of_seeds',
             'deck': 'deck',
-            'stake': 'stake'
+            'stake': 'stake',
+            'cutoff': 'cutoff',
+            'gpu_batch': 'gpu_batch'
         }
         
         if key in settings_map:
@@ -367,7 +346,9 @@ class ApplicationController:
             'starting_seed': 'starting_seed',
             'number_of_seeds': 'number_of_seeds',
             'deck': 'deck',
-            'stake': 'stake'
+            'stake': 'stake',
+            'cutoff': 'cutoff',
+            'gpu_batch': 'gpu_batch'
         }
         
         if key in settings_map:

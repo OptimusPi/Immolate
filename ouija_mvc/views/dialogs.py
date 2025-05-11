@@ -26,11 +26,10 @@ class ItemSelectorDialog(tk.Toplevel):
         self.configure(bg=BACKGROUND)
         
         self.category = category
-        self.is_need = is_need
+        self.is_need = is_need  # Initial context from MainWindow
         self.selected_item = None
-        self.selected_ante = 0
-        self.selected_edition = "No_Edition"
         self.result = None  # Will store the final result on selection
+        self.is_rank_or_suit = self.category in ["Ranks", "Suits"]
         
         # Main container frame
         self.main_frame = tk.Frame(self, bg=BACKGROUND)
@@ -68,8 +67,26 @@ class ItemSelectorDialog(tk.Toplevel):
         self.items_listbox.pack(side="left", fill="both", expand=True)
         self.item_scrollbar.config(command=self.items_listbox.yview)
         
-        # Ante selection for needs - horizontal radio buttons with better visibility
-        if is_need:
+        # Ante selection for needs (non-Rank/Suit) OR Need/Want for Rank/Suit
+        if self.is_rank_or_suit:
+            self.need_want_frame = tk.LabelFrame(self.main_frame, text="Desire Type", 
+                                                 bg=BACKGROUND, fg="white")
+            self.need_want_frame.pack(side=tk.LEFT, fill="y", padx=5, pady=5) 
+            
+            self.is_need_for_rank_suit_var = tk.BooleanVar(value=self.is_need)  # Default from initial context
+
+            need_want_container = tk.Frame(self.need_want_frame, bg=BACKGROUND)
+            need_want_container.pack(fill="x", padx=5, pady=5)
+
+            rb_need = ttk.Radiobutton(need_want_container, text="Need", 
+                                      variable=self.is_need_for_rank_suit_var, value=True)
+            rb_need.grid(row=0, column=0, padx=5, pady=2, sticky="w")
+
+            rb_want = ttk.Radiobutton(need_want_container, text="Want", 
+                                      variable=self.is_need_for_rank_suit_var, value=False)
+            rb_want.grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        
+        elif self.is_need:  # Only show ante for non-Rank/Suit if context is 'Need'
             self.ante_frame = tk.LabelFrame(self.main_frame, text="Required by Ante", 
                                           bg=BACKGROUND, fg="white")
             self.ante_frame.pack(side=tk.LEFT, fill="y", padx=5, pady=5)
@@ -145,25 +162,39 @@ class ItemSelectorDialog(tk.Toplevel):
             return False
         
         selected_index = self.items_listbox.curselection()[0]
-        selected_item = self.items_listbox.get(selected_index)
+        selected_item_display_name = self.items_listbox.get(selected_index)
         
-        # Convert display name to internal value
-        internal_value = get_internal_name(selected_item)
-        
-        # Create result object
-        result = {
-            "value": internal_value,
-            "desireByAnte": self.ante_var.get() if hasattr(self, 'ante_var') else 0
-        }
-        
-        # Add edition info for jokers
+        internal_value = get_internal_name(selected_item_display_name)
+        item_payload = {"value": internal_value}  # Base payload
+
+        # Add edition info ONLY for Jokers
         if self.category == "Jokers" and hasattr(self, 'edition_var'):
             edition = self.edition_var.get()
             if edition != "No_Edition":
-                result["jokeredition"] = edition
+                item_payload["jokeredition"] = edition
         
-        # Store the result and close the dialog
-        self.result = result
+        is_item_actually_a_need = False  # Default to Want
+
+        if self.is_rank_or_suit:
+            is_item_actually_a_need = self.is_need_for_rank_suit_var.get()
+            self.result = {
+                "payload": item_payload,
+                "type": "RankOrSuit",
+                "is_need": is_item_actually_a_need
+            }
+        else:  # Standard item (Jokers, Tarots, Vouchers, Tags, Spectrals)
+            if hasattr(self, 'ante_var'):  # ante_frame was created (i.e., self.is_need was true at init)
+                desire_by_ante = self.ante_var.get()
+                if desire_by_ante > 0:
+                    item_payload["desireByAnte"] = desire_by_ante
+                    is_item_actually_a_need = True
+            
+            self.result = {
+                "payload": item_payload,
+                "type": "Standard",
+                "is_need": is_item_actually_a_need
+            }
+        
         self.destroy()
         return True
     

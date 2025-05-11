@@ -220,7 +220,8 @@ int main(int argc, char **argv) {
             if (config.numWants > 0) {
                 printf_s("Wants:\n");
                 for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item %i\n", config.Wants[i].value);
+                    printf_s("  - Item ");
+                    print_item_host(config.Wants[i].value);
                 }
             }
         }

@@ -52,8 +52,9 @@ class MainWindow:
         
         # Create widgets in each section
         self.create_config_section()
-        self.create_criteria_section() 
-        self.create_run_settings_section()
+        self.create_deck_settings_section()
+        self.create_criteria_section()    
+        self.create_run_settings_section() 
         self.create_results_section()
         
         # Create status bar
@@ -66,6 +67,7 @@ class MainWindow:
         # Initialize the UI with current settings
         self.update_config_display()
         self.update_criteria_display()
+        
         self.controller.refresh_results()
         
         # Add to __init__
@@ -95,9 +97,18 @@ class MainWindow:
         self.main_container = tk.Frame(self.root, bg=BACKGROUND)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
-        # Top frame (for control panels) - take less vertical space
+        # Top frame (for control panels) - allow it to expand
         self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND)
-        self.settings_frame.pack(fill=tk.BOTH, expand=False, padx=2, pady=2)
+        self.settings_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        # Create columns within the settings_frame
+        self.config_column_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=280) 
+        self.config_column_frame.pack_propagate(False)
+        self.config_column_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+
+        self.deck_column_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=200) # Adjusted width
+        self.deck_column_frame.pack_propagate(False)
+        self.deck_column_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
         
         # Bottom frame (for results table) - take more vertical space
         self.bottom_frame = tk.Frame(self.main_container, bg=BACKGROUND)
@@ -105,13 +116,10 @@ class MainWindow:
     
     def create_config_section(self):
         """Create the configuration section with a more streamlined layout"""
-        # Left sidebar for configuration controls - slightly wider for larger font
-        self.left_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=280)
-        self.left_frame.pack_propagate(False)
-        self.left_frame.pack(fill=tk.Y, side=tk.LEFT, padx=2, pady=2)
+        # self.left_frame is replaced by self.config_column_frame defined in create_layout
         
         # ===== Save/Load Frame =====
-        self.config_frame = tk.LabelFrame(self.left_frame, text="Configuration", 
+        self.config_frame = tk.LabelFrame(self.config_column_frame, text="Configuration", 
                                         padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
         self.config_frame.pack(fill=tk.X, expand=False, padx=2, pady=2)
         
@@ -138,7 +146,7 @@ class MainWindow:
         self.load_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(1,0))
         
         # ===== Search Settings Frame =====
-        self.search_settings_frame = tk.LabelFrame(self.left_frame, text="Search Settings", 
+        self.search_settings_frame = tk.LabelFrame(self.config_column_frame, text="Search Settings", 
                                                  padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
         self.search_settings_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
         
@@ -158,9 +166,9 @@ class MainWindow:
                                           font=("m6x11", 12))
         self.starting_seed_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        random_seed_button = tk.Button(seed_frame, text="🎲", bg=GREEN, fg=LIGHT_TEXT, 
+        random_seed_button = tk.Button(seed_frame, text="🎲", bg=GREEN, fg=LIGHT_TEXT,
                                      command=self.on_random_seed, font=("m6x11", 12))
-        random_seed_button.pack(side=tk.RIGHT, padx=2)
+        random_seed_button.pack(side=tk.RIGHT, fill=tk.X, expand=False, padx=(4, 0))
         
         # Search size dropdown
         tk.Label(self.search_settings_frame, text="Search Size:", 
@@ -184,14 +192,63 @@ class MainWindow:
         self.thread_groups_dropdown = ttk.Combobox(self.search_settings_frame, 
                                                  textvariable=self.thread_groups_var, state="readonly", 
                                                  font=("m6x11", 12))
-        self.thread_groups_dropdown['values'] = ["Single", "32", "64", "112", "128", "256"]
+        self.thread_groups_dropdown['values'] = ["Single", "16", "32", "48", "56", "64", "96", "112", "128", "224", "256"]
         self.thread_groups_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.thread_groups_dropdown.bind("<<ComboboxSelected>>", self.on_thread_groups_changed)
+        row += 1
+
+        # Cutoff entry
+        tk.Label(self.search_settings_frame, text="Cutoff Score:",
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.cutoff_var = tk.StringVar()
+        self.cutoff_entry = tk.Entry(self.search_settings_frame, textvariable=self.cutoff_var,
+                                     font=("m6x11", 12))
+        self.cutoff_entry.grid(row=row, column=1, sticky="ew", pady=2)
+        self.cutoff_var.trace_add("write", self.on_cutoff_changed)
+        row += 1
+
+        # GPU Batch dropdown
+        tk.Label(self.search_settings_frame, text="GPU Batch Size:",
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.gpu_batch_var = tk.StringVar()
+        self.gpu_batch_dropdown = ttk.Combobox(self.search_settings_frame,
+                                               textvariable=self.gpu_batch_var, state="readonly",
+                                               font=("m6x11", 12))
+        self.gpu_batch_dropdown['values'] = ["1", "2", "4", "8", "16", "32", "64", "128", "256"]
+        self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.gpu_batch_dropdown.bind("<<ComboboxSelected>>", self.on_gpu_batch_changed)
         row += 1
         
         # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
     
+    def create_deck_settings_section(self):
+        """Create the deck settings section"""
+        self.deck_settings_frame = tk.LabelFrame(self.deck_column_frame, text="Deck Settings",
+                                                 padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.deck_settings_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
+
+        # Deck dropdown
+        self.deck_var = tk.StringVar()
+        self.deck_dropdown = ttk.Combobox(self.deck_settings_frame,
+                                        textvariable=self.deck_var, state="readonly",
+                                        font=("m6x11", 12))
+        self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
+        self.deck_dropdown.grid(row=0, column=1, sticky="ew", pady=2)
+        self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
+
+        # Stake dropdown
+        self.stake_var = tk.StringVar()
+        self.stake_dropdown = ttk.Combobox(self.deck_settings_frame,
+                                         textvariable=self.stake_var, state="readonly",
+                                         font=("m6x11", 12))
+        self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
+        self.stake_dropdown.grid(row=1, column=1, sticky="ew", pady=2)
+        self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
+
+        # Configure column weights
+        self.deck_settings_frame.columnconfigure(1, weight=1)
+
     def create_criteria_section(self):
         """Create the criteria selection section with deck settings included"""
         self.criteria_frame = tk.LabelFrame(self.settings_frame, text="Search Criteria", 
@@ -204,32 +261,7 @@ class MainWindow:
         
         criteria_right = tk.Frame(self.criteria_frame, bg=BACKGROUND)
         criteria_right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=2)
-        
-        # Deck settings in the left side of criteria frame
-        deck_frame = tk.LabelFrame(criteria_left, text="Game Setup", 
-                                 padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
-        deck_frame.pack(fill=tk.X, pady=2)
-        
-        tk.Label(deck_frame, text="Deck:", bg=BACKGROUND, fg=LIGHT_TEXT, 
-               font=("m6x11", 12)).pack(anchor=tk.W, pady=2)
-        
-        self.deck_var = tk.StringVar()
-        self.deck_dropdown = ttk.Combobox(deck_frame, textvariable=self.deck_var, 
-                                        state="readonly", font=("m6x11", 12))
-        self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
-        self.deck_dropdown.pack(fill=tk.X, pady=2)
-        self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
-        
-        tk.Label(deck_frame, text="Stake:", bg=BACKGROUND, fg=LIGHT_TEXT, 
-               font=("m6x11", 12)).pack(anchor=tk.W, pady=2)
-        
-        self.stake_var = tk.StringVar()
-        self.stake_dropdown = ttk.Combobox(deck_frame, textvariable=self.stake_var, 
-                                         state="readonly", font=("m6x11", 12))
-        self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
-        self.stake_dropdown.pack(fill=tk.X, pady=2)
-        self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
-        
+
         # Criteria buttons in right side
         self.add_criteria_frame = tk.Frame(criteria_right, bg=BACKGROUND)
         self.add_criteria_frame.pack(fill=tk.X, pady=2)
@@ -250,6 +282,12 @@ class MainWindow:
         tk.Button(self.add_criteria_frame, text="+Voucher",
                 bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
                 command=lambda: self.on_add_need("Vouchers")).pack(side=tk.LEFT, padx=1)
+        tk.Button(self.add_criteria_frame, text="+Rank",
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
+                command=lambda: self.on_add_need("Ranks")).pack(side=tk.LEFT, padx=1)
+        tk.Button(self.add_criteria_frame, text="+Suit",
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
+                command=lambda: self.on_add_need("Suits")).pack(side=tk.LEFT, padx=1)
         
         # Criteria list
         self.criteria_list = tk.Listbox(criteria_right, height=4, bg=DARK_BACKGROUND, fg=LIGHT_TEXT,
@@ -271,9 +309,10 @@ class MainWindow:
         """Create the run settings and console output section with adjusted width"""
         self.run_settings_frame = tk.LabelFrame(self.settings_frame, text="Run", 
                                               padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        # Make this frame narrower by setting width explicitly
-        self.run_settings_frame.config(width=200)
-        self.run_settings_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=4, pady=4)
+        # Make this frame narrower by setting width explicitly and prevent children from resizing it
+        self.run_settings_frame.config(width=320) # Adjusted width
+        self.run_settings_frame.pack_propagate(False) # Prevent children from resizing this frame
+        self.run_settings_frame.pack(fill=tk.Y, expand=False, side=tk.LEFT, padx=4, pady=4) # Changed fill to tk.Y
         
         # Console output at top now
         console_frame = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
@@ -350,13 +389,15 @@ class MainWindow:
                 else:
                     # Handle case where table exists but is empty or df is None
                     self.pt.model.df = pd.DataFrame()  # Show empty table
+                    self._adjust_table_column_widths()  # Adjust widths
                     self.pt.redraw()
             else:
                 # Ensure an empty table is shown if no data
                 self.pt.model.df = pd.DataFrame()
+                self._adjust_table_column_widths()  # Adjust widths
                 self.pt.redraw()
 
-        self.root.after(100, load_df)
+        self.root.after(1000, load_df)
 
     def update_results_table(self, dataframe):
         self.latest_df = dataframe
@@ -462,6 +503,14 @@ class MainWindow:
         """Handle thread groups selection changes"""
         self.controller.set_setting('thread_groups', self.thread_groups_var.get())
     
+    def on_cutoff_changed(self, *args):
+        """Handle cutoff score changes"""
+        self.controller.set_setting('cutoff', self.cutoff_var.get())
+
+    def on_gpu_batch_changed(self, event=None):
+        """Handle GPU batch size selection changes"""
+        self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
+
     def on_random_seed(self):
         """Generate a random seed of 1-8 uppercase letters/numbers"""
         import random
@@ -511,23 +560,44 @@ class MainWindow:
         
         if file_path:
             self.controller.load_config(file_path)
-            self.controller.refresh_results()
+            self.update_config_display()    # Add this to refresh config UI elements
+            self.update_criteria_display()  # Add this to refresh criteria list
+            self.controller.refresh_results()      # Refresh results table once after UI updates
     
     def on_add_need(self, category):
         """Add a need from the selected category"""
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Need {category}", category, True)
+        # The True argument indicates to the dialog that the initial context is a 'Need'
+        result = ItemSelectorDialog.show_dialog(self.root, f"Select Need: {category}", category, True)
         if result:
-            # If the ante is set to 0, add as a want instead
-            if result["desireByAnte"] == 0:
-                self.controller.add_want(result)
+            item_payload = result["payload"]
+
+            if result["is_need"]:
+                # If it's a Rank or Suit Need, explicitly set desireByAnte to 1 as per requirements
+                if result["type"] == "RankOrSuit":
+                    item_payload["desireByAnte"] = 1
+                # For Standard needs, desireByAnte should already be in item_payload if ante > 0
+                self.controller.add_need(item_payload)
             else:
-                self.controller.add_need(result)
+                # If is_need is False (either Rank/Suit selected as Want, or Standard item with Ante 0)
+                # it's treated as a Want. Ensure desireByAnte is not in payload for wants if it was 0.
+                if "desireByAnte" in item_payload and item_payload["desireByAnte"] == 0:
+                    del item_payload["desireByAnte"]
+                self.controller.add_want(item_payload)
+            
+            self.update_criteria_display() # Refresh list after adding
     
     def on_add_want(self, category):
         """Add a want from the selected category"""
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Want {category}", category, False)
+        # The False argument indicates to the dialog that the initial context is a 'Want'
+        result = ItemSelectorDialog.show_dialog(self.root, f"Select Want: {category}", category, False)
         if result:
-            self.controller.add_want(result)
+            item_payload = result["payload"]
+            # Ensure desireByAnte is not part of a want payload, 
+            # especially if it might have been added and set to 0 by the dialog for standard items.
+            if "desireByAnte" in item_payload:
+                del item_payload["desireByAnte"]
+            self.controller.add_want(item_payload)
+            self.update_criteria_display() # Refresh list after adding
     
     def on_remove_selected(self):
         """Remove the selected criterion"""
@@ -555,7 +625,7 @@ class MainWindow:
             self.search_running = True
             self.start_time = time.time()
             self.run_button.config(text="STOP SEARCH", bg=RED)
-            self.controller.start_search()
+            self.controller.run_search()
         else:
             self.search_running = False
             self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
@@ -582,10 +652,11 @@ class MainWindow:
         self.config_name_var.set(self.controller.get_config_name())
         self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
         self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
-        self.thread_groups_var.set(self.controller.get_setting('thread_groups', '112'))
+        self.thread_groups_var.set(self.controller.get_setting('thread_groups', '32'))
         self.starting_seed_var.set(self.controller.get_setting('starting_seed', 'random'))
-        self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'Default (All Seeds)'))
-        self.controller.refresh_results()
+        self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'All'))
+        self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
+        self.gpu_batch_var.set(self.controller.get_setting('gpu_batch', '16'))
 
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""
@@ -605,4 +676,8 @@ class MainWindow:
             if "jokeredition" in want and want["jokeredition"] != "No_Edition":
                 display_text += f" ({want['jokeredition']})"
             self.criteria_list.insert(tk.END, display_text)
-        self.controller.refresh_results()
+
+    def update_deck_Settings_display(self):
+        """Update the deck settings display with current values"""
+        self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
+        self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))

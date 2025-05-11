@@ -2,6 +2,10 @@
 Game Data - Constants and mappings for Balatro items
 """
 
+# Card Ranks and Suits
+CARD_RANKS = ["Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"]
+CARD_SUITS = ["Hearts", "Diamonds", "Clubs", "Spades"] # Ordered for consistency if it matters
+
 # Mapping between display names and internal values
 JOKER_MAPPING = {
     # Jokers - Common
@@ -294,6 +298,14 @@ JOKER_MAPPING = {
     "Gold Stake": "Gold_Stake"
 }
 
+# Populate JOKER_MAPPING with individual Ranks
+for rank in CARD_RANKS:
+    JOKER_MAPPING[rank] = rank
+
+# Populate JOKER_MAPPING with individual Suits
+for suit in CARD_SUITS:
+    JOKER_MAPPING[suit] = suit
+
 # Map of all available items by category
 AVAILABLE_ITEMS = {
     "Jokers": [
@@ -370,7 +382,9 @@ AVAILABLE_ITEMS = {
     "Stakes": [
         "White Stake", "Red Stake", "Green Stake", "Black Stake",
         "Blue Stake", "Purple Stake", "Orange Stake", "Gold Stake"
-    ]
+    ],
+    "Ranks": CARD_RANKS[:], # Add Ranks category, assign a copy
+    "Suits": CARD_SUITS[:]  # Add Suits category, assign a copy
 }
 
 # Valid joker editions
