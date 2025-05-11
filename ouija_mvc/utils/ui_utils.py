@@ -137,16 +137,36 @@ class StatusBar(tk.Frame):
             master: Parent widget
         """
         tk.Frame.__init__(self, master)
-        self.label = tk.Label(self, bd=1, relief=tk.SUNKEN, anchor=tk.W,
+        
+        # Main status label (left-aligned)
+        self.status_label = tk.Label(self, bd=1, relief=tk.SUNKEN, anchor=tk.W,
                               bg=DARK_BACKGROUND, fg=LIGHT_TEXT)
-        self.label.pack(fill=tk.X)
+        self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Right-aligned metrics label (for search speed, etc.)
+        # Reduce width from 20 to 15 characters
+        self.metrics_label = tk.Label(self, bd=1, relief=tk.SUNKEN, anchor=tk.E,
+                              bg=DARK_BACKGROUND, fg=LIGHT_TEXT, width=15)
+        self.metrics_label.pack(side=tk.RIGHT, fill=tk.NONE)
+        
+        # Initialize with default values
         self.set_status("Ready")
+        self.set_metrics("")
     
     def set_status(self, text):
-        """Set the status text
+        """Set the main status text (left-aligned)
         
         Args:
             text: Status message to display
         """
-        self.label.config(text=text)
+        self.status_label.config(text=text)
+        self.update_idletasks()
+    
+    def set_metrics(self, text):
+        """Set the metrics text (right-aligned)
+        
+        Args:
+            text: Metrics to display
+        """
+        self.metrics_label.config(text=text)
         self.update_idletasks()

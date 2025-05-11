@@ -15,6 +15,10 @@ class ApplicationController:
         self.search_model = search_model
         self.database_model = database_model
         self.current_view = None
+        self.update_timer_id = None
+        self.pending_results = None
+        self.pending_headers = None
+        self.update_debounce_ms = 1000  # Update UI at most every second
         
         # Set up callbacks for the search model
         self.search_model.set_callbacks(
@@ -236,18 +240,99 @@ class ApplicationController:
     def _on_search_results(self, header_columns, result_rows):
         """Callback for when search results are available"""
         if self.current_view:
-            import pandas as pd
-            from ..utils.game_data import get_display_name
-            def clean_col(col):
-                return col
-            display_columns = [clean_col(col) for col in header_columns]
-            df = pd.DataFrame(result_rows, columns=display_columns)
-            self.current_view.update_results_table(df)
+            # Store the results for later processing
+            self.pending_headers = header_columns
+            self.pending_results = result_rows
+            
+            # Cancel any pending update
+            if self.update_timer_id:
+                self.current_view.root.after_cancel(self.update_timer_id)
+            
+            # Schedule a new update
+            self.update_timer_id = self.current_view.root.after(
+                self.update_debounce_ms, self._process_pending_results)
+    
+    def _process_pending_results(self):
+        """Process pending results after debounce period"""
+        # Reset the timer ID
+        self.update_timer_id = None
+        
+        if self.pending_results is None or self.pending_headers is None:
+            return
+            
+        import pandas as pd
+        from ..utils.game_data import get_display_name
+        
+        # Create a DataFrame from all accumulated results
+        def clean_col(col):
+            return col
+        
+        display_columns = [clean_col(col) for col in self.pending_headers]
+        df = pd.DataFrame(self.pending_results, columns=display_columns)
+        
+        # Explicitly convert all numeric columns to integers (except 'Seed')
+        for col in df.columns:
+            if col != 'Seed':
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+        
+        # Sort by Score (descending) and then by Seed (ascending) for stability
+        # This will prevent "wiggling" of tied scores
+        if 'Score' in df.columns:
+            df = df.sort_values(by=['Score', 'Seed'], ascending=[False, True])
+        
+        # Update the UI with complete set of results
+        self.current_view.update_results_table(df)
+        
+        # Clear the pending results
+        self.pending_results = None
+        self.pending_headers = None
     
     def _on_console_output(self, line):
         """Callback for when there's output to the console"""
         if self.current_view:
-            self.current_view.write_to_console(line)
+            # Check if this is a status message
+            if line.startswith("STATUS:"):
+                # Extract the status message and set it in the status bar
+                status_message = line[7:].strip()  # Remove "STATUS:" prefix
+                
+                # Format time display - convert seconds to hours, minutes, seconds
+                import re
+                
+                def format_time(match):
+                    seconds = float(match.group(1))
+                    hours, remainder = divmod(seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    
+                    if hours > 0:
+                        return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+                    elif minutes > 0:
+                        return f"{int(minutes)}m {int(seconds)}s"
+                    else:
+                        return f"{int(seconds)}s"
+                
+                # Replace time values in both elapsed and remaining time sections
+                status_message = re.sub(r"Elapsed time: (\d+\.\d+) seconds", 
+                                       lambda m: f"Elapsed time: {format_time(m)}", status_message)
+                status_message = re.sub(r"Estimated remaining time: (\d+\.\d+) seconds", 
+                                       lambda m: f"Estimated remaining time: {format_time(m)}", status_message)
+                
+                # Check if this is a metrics message (contains clock emoji)
+                if "⏱️" in status_message:
+                    # Split into two parts: status and metrics
+                    parts = status_message.split("⏱️")
+                    if len(parts) == 2:
+                        # Set the main status as the first part
+                        self.current_view.set_status(parts[0].strip())
+                        # Set the metrics as the second part with the clock emoji
+                        self.current_view.set_metrics(f"⏱️{parts[1].strip()}")
+                    else:
+                        self.current_view.set_status(status_message)
+                else:
+                    # Regular status message
+                    self.current_view.set_status(status_message)
+            else:
+                # Regular console output
+                self.current_view.write_to_console(line)
     
     def _on_search_completed(self):
         """Callback for when a search process completes"""
@@ -300,5 +385,9 @@ class ApplicationController:
         
         # Save user preferences
         self.config_model.save_user_conf()
+        
+        # Cancel any pending updates
+        if self.update_timer_id and self.current_view:
+            self.current_view.root.after_cancel(self.update_timer_id)
         
         return True

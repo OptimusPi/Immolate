@@ -66,4 +66,5 @@ try {
 
 # Notify the user
 Write-Host "Clean rebuild complete!" -ForegroundColor Green
-Write-Host "You can now run the GUI with: python Ouija.py" -ForegroundColor Cyan
+Write-Host "You can now run the GUI with:" -ForegroundColor Cyan
+Write-Host ".\.venv\Scripts\Activate.ps1 && python run_ouija_mvc.py" -ForegroundColor Cyan

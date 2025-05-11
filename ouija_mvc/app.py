@@ -7,14 +7,30 @@ Author: pifreak
 
 import tkinter as tk
 import sv_ttk
+import atexit
+import subprocess
+import os
 from .views.main_window import MainWindow
 from .controllers.application_controller import ApplicationController
 from .models.config_model import ConfigModel
 from .models.search_model import SearchModel
 from .models.database_model import DatabaseModel
 
+def cleanup_ouija_processes():
+    """Ensure all Ouija.exe processes are terminated when the app exits"""
+    try:
+        if os.name == 'nt':  # Windows
+            subprocess.call(['taskkill', '/F', '/IM', 'Ouija.exe'], stderr=subprocess.DEVNULL)
+        else:  # Unix/Linux/Mac
+            subprocess.call(['pkill', '-f', 'Ouija.exe'], stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print(f"Error cleaning up Ouija processes: {e}")
+
 def main():
     """Main entry point for the Ouija application"""
+    # Register cleanup handler to ensure Ouija processes are terminated on exit
+    atexit.register(cleanup_ouija_processes)
+    
     # Initialize the root window
     root = tk.Tk()
     root.title("Ouija - Balatro Seed Finder")

@@ -88,7 +88,7 @@ class SearchModel:
                 shell=True, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE, 
-                text=True, 
+                text=False,  # Changed to False to receive bytes instead of text
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             
@@ -113,7 +113,37 @@ class SearchModel:
         """Read and process output from the search command"""
         header_columns = None
         header_found = False
-        result_rows = []
+        result_rows = []  # This will store all accumulated results
+        db_table_created = False
+        last_update_time = time.time()
+        update_interval = 1.0  # Update UI at most every 1 second
+        results_updated = False
+        
+        # If we already have results in the database, load them
+        if db_model and db_model.conn and db_model.table_exists():
+            try:
+                df = db_model.get_dataframe()
+                if df is not None and not df.empty:
+                    # Convert dataframe rows to list format
+                    header_columns = df.columns.tolist()
+                    # Convert DataFrame values to properly typed list of lists
+                    result_rows = []
+                    for _, row in df.iterrows():
+                        # Ensure consistent typing: all values except Seed are converted to int or 0
+                        typed_row = []
+                        for col_idx, value in enumerate(row):
+                            if col_idx == 0:  # First column is Seed, keep as string
+                                typed_row.append(str(value))
+                            else:  # Other columns should be integers
+                                try:
+                                    typed_row.append(int(value) if value is not None else 0)
+                                except (ValueError, TypeError):
+                                    typed_row.append(0)  # Fallback to 0 if conversion fails
+                        result_rows.append(typed_row)
+                    db_table_created = True
+            except Exception as e:
+                if self.console_callback:
+                    self.console_callback(f"Error loading existing results: {str(e)}\n")
         
         try:
             while True:
@@ -121,56 +151,119 @@ class SearchModel:
                 if process.poll() is not None:
                     break
                 
-                # Read a line from stdout
-                line = process.stdout.readline()
-                if not line:
+                # Read a line from stdout as bytes and decode with error handling
+                line_bytes = process.stdout.readline()
+                if not line_bytes:
                     break
                 
-                # Send line to console
-                if self.console_callback:
-                    self.console_callback(line)
+                # Try multiple encodings
+                line = None
+                for encoding in ['utf-8', 'latin-1', 'cp1252']:
+                    try:
+                        line = line_bytes.decode(encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
                 
+                # If all encodings fail, use 'latin-1' as a fallback with error replacement
+                if line is None:
+                    line = line_bytes.decode('latin-1', errors='replace')
+
                 # Parse CSV header
                 if not header_found and line.strip().startswith("Seed,"):
                     header_columns = [col.strip() for col in line.strip().split(",") if col.strip() != ""]
                     header_found = True
                     
                     # Create table in database
-                    if db_model and db_model.conn:
+                    if db_model and db_model.conn and not db_table_created:
                         db_model.create_table(header_columns)
+                        db_table_created = True
                     
                     continue
                 
                 # Process result lines (those starting with '|')
                 if line.startswith("|"):
-                    if not header_columns:
-                        # Fallback for missing headers
-                        parts = line[1:].strip().split(",")
-                        header_columns = [f"col{i+1}" for i in range(len(parts))]
+                    try:
+                        # Process the CSV line directly using DuckDB's CSV parser
+                        result = db_model.process_csv_line(line, header_columns)
+                            
+                        if not result:
+                            continue
+                            
+                        # Unpack the result
+                        parsed_headers, parsed_values = result
                         
-                        # Create table if needed
-                        if db_model and db_model.conn and not db_model.table_exists():
-                            db_model.create_table(header_columns)
-                    
-                    # Extract data from the line
-                    parts = line[1:].strip().split(",")
-                    
-                    # Store in database
-                    if db_model and db_model.conn:
-                        db_model.insert_result(header_columns, parts)
-                    
-                    # Add to results for immediate display
-                    result_rows.append(parts)
-                    
-                    # Update the UI if we have a results callback
-                    if self.results_callback and header_columns:
-                        self.results_callback(header_columns, result_rows)
-                if line.startswith("$"):
-                    # Status Bar message
-                    self.status_bar.set_status(line[1:].strip())
+                        # If we didn't have headers before, use the ones from parsing
+                        if not header_columns:
+                            header_columns = parsed_headers
+                            
+                            # Create table if needed
+                            if db_model and db_model.conn and not db_table_created:
+                                db_model.create_table(header_columns)
+                                db_table_created = True
+                        
+                        # Store in database using upsert
+                        if db_model and db_model.conn:
+                            db_model.insert_result(header_columns, parsed_values)
+                        
+                        # Update in-memory results
+                        # Check if this seed already exists in our results
+                        seed = parsed_values[0] if parsed_values else ""
+                        found = False
+                        
+                        for i, row in enumerate(result_rows):
+                            if row[0] == seed:
+                                # Update the existing row
+                                result_rows[i] = parsed_values
+                                found = True
+                                break
+                                
+                        # Add new row if not found
+                        if not found:
+                            result_rows.append(parsed_values)
+                        
+                        # Mark that we have new results to display
+                        results_updated = True
+                        
+                        # Only update UI at most once per second
+                        current_time = time.time()
+                        if (current_time - last_update_time) >= update_interval:
+                            if self.results_callback and header_columns:
+                                self.results_callback(header_columns, result_rows)
+                                last_update_time = current_time
+                                results_updated = False
+                    except Exception as e:
+                        if self.console_callback:
+                            self.console_callback(f"Error processing CSV line: {str(e)}\n")
+                
+                # Handle status bar messages (lines starting with "$")
+                elif line.startswith("$") and line.strip() != "$":
+                    # Pass status messages to the application controller via console callback
+                    # with a special prefix that the controller will recognize
+                    if self.console_callback:
+                        # Strip the "$" and any whitespace
+                        status_message = line.strip()[1:].strip()
+                        
+                        # Format metrics with clock emoji at the end for right-alignment
+                        # Example: "Elapsed time: 12.3 seconds, Estimated remaining time: 45.6 seconds ⏱️123.4K/s"
+                        if "$clock$" in status_message:
+                            parts = status_message.split("$clock$")
+                            status_message = f"{parts[0].strip()} ⏱️{parts[1].strip()}"
+                        
+                        self.console_callback(f"STATUS:{status_message}\n")
+
+            # Make sure to update UI with final results if there are pending updates
+            if results_updated and self.results_callback and header_columns:
+                self.results_callback(header_columns, result_rows)
 
             # Process stderr after stdout is done
-            for line in process.stderr:
+            for line_bytes in process.stderr:
+                # Decode stderr bytes with error handling
+                try:
+                    line = line_bytes.decode('utf-8')
+                except UnicodeDecodeError:
+                    line = line_bytes.decode('latin-1', errors='replace')
+                
                 if self.console_callback:
                     self.console_callback(f"ERROR: {line}")
             
@@ -192,6 +285,7 @@ class SearchModel:
     
     def stop_all_searches(self):
         """Stop all active search processes"""
+        # First try to stop the processes we're tracking
         for process in self.active_processes:
             try:
                 if process.poll() is None:  # If process is still running
@@ -201,6 +295,17 @@ class SearchModel:
                         os.kill(process.pid, signal.SIGKILL)
             except Exception as e:
                 print(f"Error stopping process: {e}")
+        
+        # Also look for any Ouija.exe processes that might have been left behind
+        try:
+            if os.name == 'nt':  # Windows
+                # Kill any remaining Ouija.exe processes
+                subprocess.call(['taskkill', '/F', '/IM', 'Ouija.exe'], stderr=subprocess.DEVNULL)
+            else:  # Unix/Linux/Mac
+                # Find and kill any Ouija processes
+                subprocess.call(['pkill', '-f', 'Ouija.exe'], stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"Error cleaning up Ouija processes: {e}")
         
         # Clear the list
         self.active_processes.clear()

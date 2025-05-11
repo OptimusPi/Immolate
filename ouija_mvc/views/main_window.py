@@ -37,6 +37,10 @@ class MainWindow:
         self.start_time = None  # Ensure this always exists
         self.search_running = False
         
+        # Define table font attributes early
+        self.table_font_family = "m6x11"
+        self.table_font_size = 12  # Consistent with other text elements like console
+
         # Register this view with the controller
         controller.register_view(self)
         
@@ -73,9 +77,6 @@ class MainWindow:
         self._status_update_interval_ms = 1000
         self._search_start_time = None
         self._search_results_count = 0
-
-        self.table_font_family = "m6x11"
-        self.table_font_size = 12  # Consistent with other text elements like console
     
     def setup_font(self):
         """Set up custom font for the application"""
@@ -240,49 +241,40 @@ class MainWindow:
         self.output_text.pack(fill=tk.BOTH, side=tk.RIGHT, expand=False, padx=(5, 0), pady=0)
         self.results_frame = tk.Frame(self.bottom_frame, bg=BACKGROUND)
         self.results_frame.pack(fill=tk.BOTH, expand=True)
-        # Embedded pandastable
+        
+        # Embedded pandastable with specific format options
         self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),
                         showtoolbar=False, showstatusbar=False,
                         font=self.table_font_family,
                         fontsize=self.table_font_size,
                         headerfont=(self.table_font_family, self.table_font_size, 'bold'))
+        
+        # Show the table before configuring formats to ensure all default properties are initialized
         self.pt.show()
+        
+        # Set default precision of 0 for numeric columns (no decimal places)
+        # We need to preserve existing keys in the columnformats dictionary
+        if not hasattr(self.pt, 'columnformats'):
+            self.pt.columnformats = {}
+        self.pt.columnformats['default'] = {'precision': 0}
+        
         self.latest_df = None
         self._setup_initial_table()
 
     def _adjust_table_column_widths(self):
-        """Adjusts column widths, ensuring headers are not truncated."""
+        """Adjusts column widths using pandastable's built-in auto-resize feature."""
         if not hasattr(self.pt, 'model') or self.pt.model is None or \
            not hasattr(self.pt.model, 'df') or self.pt.model.df is None:
             self.pt.redraw()  # Ensure table is drawn if empty
             return
 
-        self.pt.autoResizeColumns()  # Pandastable's default auto-sizing
-
-        # Define header font based on what was passed to pandastable
-        header_actual_font = tk.font.Font(
-            family=self.table_font_family,
-            size=self.table_font_size,
-            weight='bold'
-        )
-
-        # Padding: (abs(self.pt.renderer.cellwidthpad) * 2 + 4) is typical in pandastable
-        # self.pt.renderer.cellwidthpad is often 1 (from theme style.fontpadx)
-        # So, 1*2 + 4 = 6. Add a little extra for safety with bold fonts.
-        header_padding = 8 
-
-        if self.pt.model.df is not None:  # Check if df exists
-            for col_idx, col_name in enumerate(self.pt.model.df.columns):
-                if col_idx >= self.pt.model.getColumnCount():  # Safety check
-                    continue
-                    
-                current_width = self.pt.getColumnWidth(col_idx)
-                required_header_width = header_actual_font.measure(str(col_name)) + header_padding
-                
-                if required_header_width > current_width:
-                    self.pt.setColumnWidth(col_idx, required_header_width)
+        # Let pandastable handle the column sizing
+        self.pt.autoResizeColumns()
         
-        self.pt.redraw()
+        # Apply a minimum size to ensure headers aren't cut off
+        if hasattr(self.pt, 'currentwidths') and self.pt.model.df is not None:
+            # Redraw the table to apply changes
+            self.pt.redraw()
 
     def _setup_initial_table(self):
         import json
@@ -315,6 +307,15 @@ class MainWindow:
     def update_results_table(self, dataframe):
         self.latest_df = dataframe
         if dataframe is not None:
+            # Ensure numeric columns display as integers
+            for col in dataframe.columns:
+                if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
+                    # Set format for this column to show integers (no decimals)
+                    if hasattr(self.pt, 'columnformats'):
+                        if col not in self.pt.columnformats:
+                            self.pt.columnformats[col] = {}
+                        self.pt.columnformats[col]['precision'] = 0
+            
             self.pt.model.df = dataframe
         else:
             self.pt.model.df = pd.DataFrame()  # Ensure empty df if None
@@ -357,6 +358,14 @@ class MainWindow:
             text: Status text to display
         """
         self.status_bar.set_status(text)
+    
+    def set_metrics(self, text):
+        """Set metrics text in the status bar (right side)
+        
+        Args:
+            text: Metrics text to display
+        """
+        self.status_bar.set_metrics(text)
     
     def get_available_items(self):
         """Get the available items by category

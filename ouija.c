@@ -675,7 +675,28 @@ int main(int argc, char **argv) {
         size_t local_work_size_next = (size_t)localWorkSize;
         if (num_seeds_this_dispatch == 0) global_work_size_next = 0;
 
+        // Clean the result buffer before dispatching kernel
+        OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[current_buffer_idx], CL_TRUE,
+                                               CL_MAP_WRITE, 0, sizeof(OuijaHostResult) * num_seeds_this_dispatch, 0, NULL, NULL, &err);
+        clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer for clearing");
+        for (cl_long i = 0; i < num_seeds_this_dispatch; i++) {
+            memset(&mapped_results[i], 0, sizeof(OuijaHostResult));
+        }
+        err = clEnqueueUnmapMemObject(queue, resultBuf_dev[current_buffer_idx], mapped_results, 0, NULL, NULL);
+        clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer after clearing");
 
+        if (clock() - ticker > 1000 && cumulative_seeds_dispatched > 0) { // Use cumulative_seeds_dispatched for progress
+            ticker = clock();
+            double elapsed_time = (double)(clock() - start_time) / CLOCKS_PER_SEC;
+            double estimated_total_time = (elapsed_time / cumulative_seeds_dispatched) * numSeeds;
+            double remaining_time = estimated_total_time - elapsed_time;
+
+            printf_s("$Elapsed time: %.2f seconds, Estimated remaining time: %.2f seconds             $clock$%.1fK/s\n", 
+                elapsed_time, remaining_time, (elapsed_time > 0) ? 
+                    ((double)cumulative_seeds_dispatched / elapsed_time)*0.001f : 0.0);
+            fflush(stdout);
+        }
+        
         if (num_seeds_this_dispatch > 0) {
             err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size_next, &local_work_size_next, 0, NULL, &kernel_events[current_buffer_idx]);
             clErrCheck(err, "clEnqueueNDRangeKernel - Subsequent kernel execution");
@@ -685,18 +706,6 @@ int main(int argc, char **argv) {
         dispatched_kernel_seeds[current_buffer_idx] = num_seeds_this_dispatch; // ADDED: Store seeds for this launch
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
         // --- End of Prepare and Launch Next Kernel ---
-        
-        if (clock() - ticker > 1000 && cumulative_seeds_dispatched > 0) { // Use cumulative_seeds_dispatched for progress
-            ticker = clock();
-            double elapsed_time = (double)(clock() - start_time) / CLOCKS_PER_SEC;
-            double estimated_total_time = (elapsed_time / cumulative_seeds_dispatched) * numSeeds;
-            double remaining_time = estimated_total_time - elapsed_time;
-
-            printf_s("$Elapsed time: %.2f seconds, Estimated remaining time: %.2f seconds$ ⏱️%.1f seeds/second\n", 
-                elapsed_time, remaining_time, (elapsed_time > 0) ? 
-                    ((double)cumulative_seeds_dispatched / elapsed_time) : 0.0);
-            fflush(stdout);
-        }
     }
 
     // After the loop, ensure any final outstanding kernel event is handled
