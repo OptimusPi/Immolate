@@ -34,11 +34,11 @@ class Tooltip:
         tw.wm_overrideredirect(True)  # Remove window decorations
         tw.wm_geometry(f"+{x}+{y}")
         
-        # Create tooltip label
+        # Create tooltip label with slightly larger font
         label = tk.Label(tw, text=self.text, justify="left",
                          background="#333333", foreground="white", 
                          relief="solid", borderwidth=1,
-                         font=("m6x11", 12))
+                         font=("m6x11", 13))  # Increase from 12 to 13
         label.pack(ipadx=1)
 
     def hide_tooltip(self, event=None):
@@ -140,13 +140,13 @@ class StatusBar(tk.Frame):
         
         # Main status label (left-aligned)
         self.status_label = tk.Label(self, bd=1, relief=tk.SUNKEN, anchor=tk.W,
-                              bg=DARK_BACKGROUND, fg=LIGHT_TEXT)
+                              bg=DARK_BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
         self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # Right-aligned metrics label (for search speed, etc.)
         # Reduce width from 20 to 15 characters
         self.metrics_label = tk.Label(self, bd=1, relief=tk.SUNKEN, anchor=tk.E,
-                              bg=DARK_BACKGROUND, fg=LIGHT_TEXT, width=15)
+                              bg=DARK_BACKGROUND, fg=LIGHT_TEXT, width=15, font=("m6x11", 13))
         self.metrics_label.pack(side=tk.RIGHT, fill=tk.NONE)
         
         # Initialize with default values

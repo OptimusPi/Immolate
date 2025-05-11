@@ -38,7 +38,7 @@ class ItemSelectorDialog(tk.Toplevel):
         
         # Title showing the current category
         category_label = tk.Label(self.main_frame, text=f"Selecting: {category}", 
-                                 font=("m6x11", 16, "bold"), bg=BACKGROUND, fg="white")
+                                 font=("m6x11", 16), bg=BACKGROUND, fg="white")
         category_label.pack(fill="x", padx=5, pady=5)
         
         # Search field

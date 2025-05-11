@@ -23,9 +23,9 @@ class ConfigModel:
         self.config_loaded_from_file = False
         self.config_modified = False
         self.loaded_config_path = None
-        self.thread_groups = "112"  # Default thread groups
+        self.thread_groups = "32"
         self.starting_seed = "random"
-        self.number_of_seeds = "Default (All Seeds)"
+        self.number_of_seeds = "All"
         
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)

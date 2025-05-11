@@ -39,7 +39,7 @@ class MainWindow:
         
         # Define table font attributes early
         self.table_font_family = "m6x11"
-        self.table_font_size = 12  # Consistent with other text elements like console
+        self.table_font_size = 13  # Updated font size
 
         # Register this view with the controller
         controller.register_view(self)
@@ -71,189 +71,243 @@ class MainWindow:
         # Add to __init__
         self._debounce_table_update_id = None
         self._pending_table_df = None
-        self._debounce_interval_ms = 100  # 1 second debounce
+        self._debounce_interval_ms = 1000
         self._status_update_id = None
         self._last_results_count = 0
-        self._status_update_interval_ms = 1000
         self._search_start_time = None
         self._search_results_count = 0
     
     def setup_font(self):
-        """Set up custom font for the application"""
+        """Set up custom font for the application with slightly larger size"""
         # Use system monospace font as fallback if m6x11 not available
         self.custom_font = font.nametofont("TkDefaultFont")
-        self.custom_font.configure(family="m6x11", size=16)
+        self.custom_font.configure(family="m6x11", size=18)
         self.root.option_add("*Font", self.custom_font)
+        
+        # Define table font attributes with slightly larger size
+        self.table_font_family = "m6x11"
+        # Increase table font size from 12 to 13
+        self.table_font_size = 16
     
     def create_layout(self):
-        """Create the main layout frames"""
-        self.settings_frame = tk.Frame(self.root, bg=BACKGROUND)
-        self.settings_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        """Create the main layout frames with better proportioning"""
+        # Main container frame
+        self.main_container = tk.Frame(self.root, bg=BACKGROUND)
+        self.main_container.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
-        self.bottom_frame = tk.Frame(self.root, bg=BACKGROUND)
+        # Top frame (for control panels) - take less vertical space
+        self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND)
+        self.settings_frame.pack(fill=tk.BOTH, expand=False, padx=2, pady=2)
+        
+        # Bottom frame (for results table) - take more vertical space
+        self.bottom_frame = tk.Frame(self.main_container, bg=BACKGROUND)
         self.bottom_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
     
     def create_config_section(self):
-        """Create the custom configuration section"""
-        self.left_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=200)
+        """Create the configuration section with a more streamlined layout"""
+        # Left sidebar for configuration controls - slightly wider for larger font
+        self.left_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=280)
         self.left_frame.pack_propagate(False)
         self.left_frame.pack(fill=tk.Y, side=tk.LEFT, padx=2, pady=2)
         
-        self.config_frame = tk.LabelFrame(self.left_frame, text="Save/Load", 
-                                        padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
-        self.config_frame.pack(fill=tk.X, expand=False, side=tk.TOP, padx=2, pady=2)
+        # ===== Save/Load Frame =====
+        self.config_frame = tk.LabelFrame(self.left_frame, text="Configuration", 
+                                        padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.config_frame.pack(fill=tk.X, expand=False, padx=2, pady=2)
         
+        # Config name entry
         self.config_name_var = tk.StringVar()
-        self.config_name_entry = tk.Entry(self.config_frame, textvariable=self.config_name_var, font=("m6x11", 12))
+        self.config_name_entry = tk.Entry(self.config_frame, textvariable=self.config_name_var, font=("m6x11", 13))
         self.config_name_entry.pack(fill=tk.X, pady=2)
-        self.config_name_var.trace("w", self.on_config_name_changed)
+        self.config_name_var.trace_add("write", self.on_config_name_changed)
         
+        # Button rows
         button_frame = tk.Frame(self.config_frame, bg=BACKGROUND)
         button_frame.pack(fill=tk.X, pady=2)
         
         self.save_button = tk.Button(button_frame, text="Save", 
-                                    command=self.on_save_direct, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11))
+                                   command=self.on_save_direct, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
         self.save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,1))
         
-        self.save_as_button = tk.Button(button_frame, text="Save As...", 
-                                    command=self.on_save_as, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11))
+        self.save_as_button = tk.Button(button_frame, text="Save As", 
+                                      command=self.on_save_as, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
         self.save_as_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(1,1))
         
         self.load_button = tk.Button(button_frame, text="Load", 
-                                    command=self.on_load_config, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11))
+                                   command=self.on_load_config, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
         self.load_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(1,0))
         
-        self.deck_frame = tk.LabelFrame(self.left_frame, text="Deck Parameters", 
-                                       padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
-        self.deck_frame.pack(fill=tk.X, expand=False, side=tk.TOP, padx=2, pady=2)
+        # ===== Search Settings Frame =====
+        self.search_settings_frame = tk.LabelFrame(self.left_frame, text="Search Settings", 
+                                                 padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.search_settings_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
         
-        self.gpu_options_frame = tk.LabelFrame(self.left_frame, text="GPU Options", 
-                                               padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
-        self.gpu_options_frame.pack(fill=tk.X, expand=False, side=tk.TOP, padx=2, pady=2)
+        # Create a grid layout for more compact controls
+        row = 0
         
-        thread_label = tk.Label(self.gpu_options_frame, text="GPU Thread Groups:", 
-                              bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12))
-        thread_label.pack(anchor="w", pady=2)
-        add_tooltip(thread_label, 
-                   "Select the number of GPU thread groups to use. Use 'Single' for analyzing one seed. "
-                   "Optimal value differs per system. Experimenting/Benchmarking Recommended!")
+        # Seed settings
+        tk.Label(self.search_settings_frame, text="Starting Seed:", 
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        
+        seed_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
+        seed_frame.grid(row=row, column=1, sticky="ew", pady=2)
+        row += 1
+        
+        self.starting_seed_var = tk.StringVar()
+        self.starting_seed_entry = tk.Entry(seed_frame, textvariable=self.starting_seed_var, 
+                                          font=("m6x11", 12))
+        self.starting_seed_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        random_seed_button = tk.Button(seed_frame, text="🎲", bg=GREEN, fg=LIGHT_TEXT, 
+                                     command=self.on_random_seed, font=("m6x11", 12))
+        random_seed_button.pack(side=tk.RIGHT, padx=2)
+        
+        # Search size dropdown
+        tk.Label(self.search_settings_frame, text="Search Size:", 
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        
+        self.number_of_seeds_var = tk.StringVar()
+        self.number_of_seeds_dropdown = ttk.Combobox(self.search_settings_frame, 
+                                                   textvariable=self.number_of_seeds_var, state="readonly", 
+                                                   font=("m6x11", 12))
+        self.number_of_seeds_dropdown['values'] = ["All", "Single",
+                                                "100K", "1M", "100M", "1B"]
+        self.number_of_seeds_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>", self.on_number_of_seeds_changed)
+        row += 1
+        
+        # Thread groups
+        tk.Label(self.search_settings_frame, text="Thread Groups:", 
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
         
         self.thread_groups_var = tk.StringVar()
-        self.thread_groups_dropdown = ttk.Combobox(self.gpu_options_frame, 
-                                                 textvariable=self.thread_groups_var, state="readonly", font=("m6x11", 11))
-        self.thread_groups_dropdown['values'] = ["Single", "32"]
-        self.thread_groups_dropdown.pack(fill=tk.X, pady=(2, 4))
+        self.thread_groups_dropdown = ttk.Combobox(self.search_settings_frame, 
+                                                 textvariable=self.thread_groups_var, state="readonly", 
+                                                 font=("m6x11", 12))
+        self.thread_groups_dropdown['values'] = ["Single", "32", "64", "112", "128", "256"]
+        self.thread_groups_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.thread_groups_dropdown.bind("<<ComboboxSelected>>", self.on_thread_groups_changed)
+        row += 1
+        
+        # Configure column weights
+        self.search_settings_frame.columnconfigure(1, weight=1)
+    
+    def create_criteria_section(self):
+        """Create the criteria selection section with deck settings included"""
+        self.criteria_frame = tk.LabelFrame(self.settings_frame, text="Search Criteria", 
+                                          padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.criteria_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=4, pady=4)
+        
+        # Criteria section - split into left (deck settings) and right (criteria list)
+        criteria_left = tk.Frame(self.criteria_frame, bg=BACKGROUND)
+        criteria_left.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        criteria_right = tk.Frame(self.criteria_frame, bg=BACKGROUND)
+        criteria_right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=2)
+        
+        # Deck settings in the left side of criteria frame
+        deck_frame = tk.LabelFrame(criteria_left, text="Game Setup", 
+                                 padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
+        deck_frame.pack(fill=tk.X, pady=2)
+        
+        tk.Label(deck_frame, text="Deck:", bg=BACKGROUND, fg=LIGHT_TEXT, 
+               font=("m6x11", 12)).pack(anchor=tk.W, pady=2)
         
         self.deck_var = tk.StringVar()
-        self.deck_dropdown = ttk.Combobox(self.deck_frame, textvariable=self.deck_var, state="readonly", font=("m6x11", 11))
+        self.deck_dropdown = ttk.Combobox(deck_frame, textvariable=self.deck_var, 
+                                        state="readonly", font=("m6x11", 12))
         self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
         self.deck_dropdown.pack(fill=tk.X, pady=2)
         self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
         
+        tk.Label(deck_frame, text="Stake:", bg=BACKGROUND, fg=LIGHT_TEXT, 
+               font=("m6x11", 12)).pack(anchor=tk.W, pady=2)
+        
         self.stake_var = tk.StringVar()
-        self.stake_dropdown = ttk.Combobox(self.deck_frame, textvariable=self.stake_var, state="readonly", font=("m6x11", 11))
+        self.stake_dropdown = ttk.Combobox(deck_frame, textvariable=self.stake_var, 
+                                         state="readonly", font=("m6x11", 12))
         self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
         self.stake_dropdown.pack(fill=tk.X, pady=2)
         self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
         
-        self.seed_settings_frame = tk.LabelFrame(self.left_frame, text="Seed Settings", 
-                                                padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
-        self.seed_settings_frame.pack(fill=tk.X, expand=False, side=tk.TOP, padx=2, pady=2)
-        
-        starting_seed_label = tk.Label(self.seed_settings_frame, text="Starting Seed", 
-                                     bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12))
-        starting_seed_label.pack(anchor="w", pady=2)
-        self.starting_seed_var = tk.StringVar()
-        vcmd = (self.root.register(self.validate_seed), '%P')
-        seed_frame = tk.Frame(self.seed_settings_frame, bg=BACKGROUND)
-        seed_frame.pack(fill=tk.X, pady=2)
-        self.starting_seed_entry = tk.Text(seed_frame, height=2, width=20, font=("m6x11", 12))
-        self.starting_seed_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        random_seed_button = tk.Button(seed_frame, text="🎲", bg=GREEN, fg=LIGHT_TEXT, command=self.on_random_seed, font=("m6x11", 12))
-        random_seed_button.pack(side=tk.RIGHT, padx=2)
-        self.auto_advance_var = tk.BooleanVar()
-        auto_advance_check = tk.Checkbutton(seed_frame, text="Auto Advance", variable=self.auto_advance_var, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 11))
-        auto_advance_check.pack(side=tk.RIGHT, padx=2)
-    
-    def create_criteria_section(self):
-        """Create the criteria selection section"""
-        self.criteria_frame = tk.LabelFrame(self.settings_frame, text="Search Criteria", 
-                                          padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
-        self.criteria_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=4, pady=4, ipady=0, ipadx=0)
-        self.add_criteria_frame = tk.Frame(self.criteria_frame, bg=BACKGROUND)
+        # Criteria buttons in right side
+        self.add_criteria_frame = tk.Frame(criteria_right, bg=BACKGROUND)
         self.add_criteria_frame.pack(fill=tk.X, pady=2)
-        tk.Button(self.add_criteria_frame, text="+ Joker", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11),
+        
+        # Add criteria buttons
+        tk.Button(self.add_criteria_frame, text="+Joker", 
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
                 command=lambda: self.on_add_need("Jokers")).pack(side=tk.LEFT, padx=1)
-        tk.Button(self.add_criteria_frame, text="+ Tarot", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11),
+        tk.Button(self.add_criteria_frame, text="+Tarot", 
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
                 command=lambda: self.on_add_need("Tarots")).pack(side=tk.LEFT, padx=1)
-        tk.Button(self.add_criteria_frame, text="+ Spectral", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11),
+        tk.Button(self.add_criteria_frame, text="+Spectral", 
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
                 command=lambda: self.on_add_need("Spectrals")).pack(side=tk.LEFT, padx=1)
-        tk.Button(self.add_criteria_frame, text="+ Tag", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11),
+        tk.Button(self.add_criteria_frame, text="+Tag", 
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
                 command=lambda: self.on_add_need("Tags")).pack(side=tk.LEFT, padx=1)
-        tk.Button(self.add_criteria_frame, text="+ Voucher", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 11),
+        tk.Button(self.add_criteria_frame, text="+Voucher",
+                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
                 command=lambda: self.on_add_need("Vouchers")).pack(side=tk.LEFT, padx=1)
-        self.criteria_list = tk.Listbox(self.criteria_frame, height=4, bg=DARK_BACKGROUND, fg=LIGHT_TEXT,
-                                      selectmode=tk.SINGLE, font=("m6x11", 11))
-        self.criteria_list.pack(fill=tk.BOTH, expand=False, padx=2, pady=2)
-        self.criteria_buttons_frame = tk.Frame(self.criteria_frame, bg=BACKGROUND)
+        
+        # Criteria list
+        self.criteria_list = tk.Listbox(criteria_right, height=4, bg=DARK_BACKGROUND, fg=LIGHT_TEXT,
+                                     selectmode=tk.SINGLE, font=("m6x11", 12))
+        self.criteria_list.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        # Criteria action buttons
+        self.criteria_buttons_frame = tk.Frame(criteria_right, bg=BACKGROUND)
         self.criteria_buttons_frame.pack(fill=tk.X, pady=2)
+        
         tk.Button(self.criteria_buttons_frame, text="Randomize! 🎲", 
-                command=self.on_randomize, bg=GREEN, fg=LIGHT_TEXT, font=("m6x11", 11)).pack(side=tk.LEFT, padx=1)
+                command=self.on_randomize, bg=GREEN, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.LEFT, padx=1)
         tk.Button(self.criteria_buttons_frame, text="Clear All", 
-                command=self.on_clear_all, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 11)).pack(side=tk.RIGHT, padx=1)
+                command=self.on_clear_all, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=1)
         tk.Button(self.criteria_buttons_frame, text="Remove Selected", 
-                command=self.on_remove_selected, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 11)).pack(side=tk.RIGHT, padx=1)
+                command=self.on_remove_selected, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=1)
     
     def create_run_settings_section(self):
-        """Create the run settings section"""
-        self.run_settings_frame = tk.LabelFrame(self.settings_frame, text="Run Settings", 
-                                              padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 13))
+        """Create the run settings and console output section with adjusted width"""
+        self.run_settings_frame = tk.LabelFrame(self.settings_frame, text="Run", 
+                                              padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        # Make this frame narrower by setting width explicitly
+        self.run_settings_frame.config(width=200)
         self.run_settings_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=4, pady=4)
         
-        number_of_seeds_label = tk.Label(self.run_settings_frame, text="Search Size", 
-                                       bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12))
-        number_of_seeds_label.pack(anchor="w", pady=2)
+        # Console output at top now
+        console_frame = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
+        console_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.number_of_seeds_var = tk.StringVar()
-        self.number_of_seeds_dropdown = ttk.Combobox(self.run_settings_frame, 
-                                                   textvariable=self.number_of_seeds_var, state="readonly", font=("m6x11", 11))
-        self.number_of_seeds_dropdown['values'] = ["Single (1)", "Default (All Seeds)", "1K", "100K", "1M", "100M", "1B"]
-        self.number_of_seeds_dropdown.pack(fill=tk.X, pady=2)
-        self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>", self.on_number_of_seeds_changed)
+        self.output_text = tk.Text(console_frame, wrap=tk.WORD, height=5,
+                                 bg=DARK_BACKGROUND, fg=LIGHT_TEXT, 
+                                 font=("m6x11", 13), insertbackground='white')
+        self.output_text.pack(fill=tk.BOTH, expand=True)
         
+        # Move run button to bottom
         self.run_button = tk.Button(self.run_settings_frame, text="Let Jimbo Cook!", 
                                   command=self.on_run_search, 
                                   bg=BLUE, fg=LIGHT_TEXT, 
-                                  font=("m6x11", 15, "bold"), height=1, width=18)
-        self.run_button.pack(pady=(8, 2))
+                                  font=("m6x11", 16))
+        self.run_button.pack(fill=tk.X, pady=(10, 0), padx=5)
     
     def create_results_section(self):
-        """Create the console output and results table section"""
-        self.output_text = tk.Text(self.run_settings_frame, wrap=tk.WORD, height=6, 
-                                 bg=DARK_BACKGROUND, fg=LIGHT_TEXT, 
-                                 font=("m6x11", 12), insertbackground='white')
-        self.output_text.pack(fill=tk.BOTH, side=tk.RIGHT, expand=False, padx=(5, 0), pady=0)
-        self.results_frame = tk.Frame(self.bottom_frame, bg=BACKGROUND)
-        self.results_frame.pack(fill=tk.BOTH, expand=True)
+        """Create results table section with more vertical space"""
+        self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results", 
+                                         padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
-        # Embedded pandastable with specific format options
+        # Make results table take up more vertical space
         self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),
-                        showtoolbar=False, showstatusbar=False,
-                        font=self.table_font_family,
-                        fontsize=self.table_font_size,
-                        headerfont=(self.table_font_family, self.table_font_size, 'bold'))
+                       showtoolbar=False, showstatusbar=False,
+                       font=self.table_font_family,
+                       fontsize=self.table_font_size,
+                       headerfont=(self.table_font_family, self.table_font_size))
         
-        # Show the table before configuring formats to ensure all default properties are initialized
+        # Show the table and set it to expand fully
         self.pt.show()
         
-        # Set default precision of 0 for numeric columns (no decimal places)
-        # We need to preserve existing keys in the columnformats dictionary
+        # Set default precision for numeric columns
         if not hasattr(self.pt, 'columnformats'):
             self.pt.columnformats = {}
         self.pt.columnformats['default'] = {'precision': 0}
@@ -291,8 +345,8 @@ class MainWindow:
                 self.latest_df = db_model.get_dataframe()
                 if self.latest_df is not None and not self.latest_df.empty:
                     self.pt.model.df = self.latest_df
-                    self.pt.redraw()  # Redraw with new data
                     self._adjust_table_column_widths()  # Adjust widths
+                    self.pt.redraw()  # Redraw with new data
                 else:
                     # Handle case where table exists but is empty or df is None
                     self.pt.model.df = pd.DataFrame()  # Show empty table
@@ -512,7 +566,14 @@ class MainWindow:
     
     def on_closing(self):
         """Handle window closing event"""
+        # Make sure we stop all search processes first
+        if self.search_running:
+            self.controller.stop_search()
+        
+        # Then do the general cleanup
         self.controller.cleanup()
+        
+        # Finally destroy the root window
         self.root.destroy()
 
     def update_config_display(self):

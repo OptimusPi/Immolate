@@ -1,0 +1,37 @@
+{
+    "name": "GloriousFortune",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 3,
+        "Needs": [
+            {
+                "value": "Omen_Globe",
+                "desireByAnte": 5
+            },
+            {
+                "value": "Money_Tree",
+                "desireByAnte": 4
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Campfire",
+                "desireByAnte": 8
+            },
+            {
+                "value": "The_Wheel_of_Fortune",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Card_Sharp",
+                "desireByAnte": 8,
+                "jokeredition": "Polychrome"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Painted_Deck",
+        "stake": "Green_Stake"
+    }
+}

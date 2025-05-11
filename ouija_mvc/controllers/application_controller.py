@@ -295,15 +295,18 @@ class ApplicationController:
                 # Extract the status message and set it in the status bar
                 status_message = line[7:].strip()  # Remove "STATUS:" prefix
                 
-                # Format time display - convert seconds to hours, minutes, seconds
+                # Format time display - convert seconds to days, hours, minutes, seconds
                 import re
                 
                 def format_time(match):
                     seconds = float(match.group(1))
-                    hours, remainder = divmod(seconds, 3600)
+                    days, remainder = divmod(seconds, 86400)  # 86400 seconds in a day
+                    hours, remainder = divmod(remainder, 3600)
                     minutes, seconds = divmod(remainder, 60)
                     
-                    if hours > 0:
+                    if days > 0:
+                        return f"{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s"
+                    elif hours > 0:
                         return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
                     elif minutes > 0:
                         return f"{int(minutes)}m {int(seconds)}s"
