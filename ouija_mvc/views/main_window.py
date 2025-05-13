@@ -370,34 +370,13 @@ class MainWindow:
             self.pt.redraw()
 
     def _setup_initial_table(self):
-        import json
-        try:
-            with open('ouija_user.conf', 'r') as f:
-                user_conf = json.load(f)
-            config_path = user_conf.get('last_config_path')
-        except Exception:
-            config_path = None
-        def load_df():
-            from ouija_mvc.models.database_model import DatabaseModel
-            db_model = DatabaseModel()
-            if config_path and db_model.connect(config_path) and db_model.table_exists():
-                self.latest_df = db_model.get_dataframe()
-                if self.latest_df is not None and not self.latest_df.empty:
-                    self.pt.model.df = self.latest_df
-                    self._adjust_table_column_widths()  # Adjust widths
-                    self.pt.redraw()  # Redraw with new data
-                else:
-                    # Handle case where table exists but is empty or df is None
-                    self.pt.model.df = pd.DataFrame()  # Show empty table
-                    self._adjust_table_column_widths()  # Adjust widths
-                    self.pt.redraw()
-            else:
-                # Ensure an empty table is shown if no data
-                self.pt.model.df = pd.DataFrame()
-                self._adjust_table_column_widths()  # Adjust widths
-                self.pt.redraw()
-
-        self.root.after(1000, load_df)
+        """Set up the results table to refresh immediately and then every 1000ms."""
+        def refresh_loop():
+            self.refresh_results_table()
+            self.root.after(1000, refresh_loop)
+        # Call once immediately, then start the loop
+        self.refresh_results_table()
+        self.root.after(1000, refresh_loop)
 
     def update_results_table(self, dataframe):
         self.latest_df = dataframe
@@ -419,6 +398,23 @@ class MainWindow:
         self._adjust_table_column_widths()  # Adjust widths
         self._search_results_count = len(dataframe) if dataframe is not None else 0
     
+    def refresh_results_table(self):
+        """Reload the results table from the database (or CSV) and update the UI."""
+        from ouija_mvc.models.database_model import DatabaseModel
+        db_model = DatabaseModel()
+        import json
+        try:
+            with open('ouija_user.conf', 'r') as f:
+                user_conf = json.load(f)
+            config_path = user_conf.get('last_config_path')
+        except Exception:
+            config_path = None
+        if config_path and db_model.connect(config_path) and db_model.table_exists():
+            df = db_model.get_dataframe()
+            self.update_results_table(df)
+        else:
+            self.update_results_table(pd.DataFrame())
+
     def set_search_running(self, is_running):
         """Update the UI state when search is running or stops
         
@@ -460,6 +456,9 @@ class MainWindow:
         Args:
             text: Metrics text to display
         """
+        # Replace $clock$ with ⏱️ for display
+        if text and "$clock$" in text:
+            text = text.replace("$clock$", "⏱️")
         self.status_bar.set_metrics(text)
     
     def get_available_items(self):

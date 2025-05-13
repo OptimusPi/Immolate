@@ -24,8 +24,8 @@
                 "desireByAnte": 0
             }
         ],
-        "maxSearchAnte": 1,
-        "deck": "Anaglyph_Deck",
+        "maxSearchAnte": 8,
+        "deck": "Magic_Deck",
         "stake": "White_Stake"
     }
 }
