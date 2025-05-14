@@ -9,6 +9,7 @@ import pandas as pd
 import time
 from pandastable import Table
 import sys
+import json
 
 # Import from our own modules
 from .dialogs import ItemSelectorDialog
@@ -36,6 +37,7 @@ class MainWindow:
         self.controller = controller
         self.start_time = None  # Ensure this always exists
         self.search_running = False
+        self._search_start_time = None
         
         # Define table font attributes early
         self.table_font_family = "m6x11"
@@ -52,7 +54,6 @@ class MainWindow:
         
         # Create widgets in each section
         self.create_config_section()
-        self.create_deck_settings_section()
         self.create_criteria_section()    
         self.create_run_settings_section() 
         self.create_results_section()
@@ -76,7 +77,6 @@ class MainWindow:
         self._debounce_interval_ms = 1000
         self._status_update_id = None
         self._last_results_count = 0
-        self._search_start_time = None
         self._search_results_count = 0
     
     def setup_font(self):
@@ -152,24 +152,50 @@ class MainWindow:
         
         # Create a grid layout for more compact controls
         row = 0
-        
-        # Seed settings
+
+        # Deck label and dropdown
+        tk.Label(self.search_settings_frame, text="Deck:", 
+                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.deck_var = tk.StringVar()
+        self.deck_dropdown = ttk.Combobox(self.search_settings_frame,
+                                           textvariable=self.deck_var, state="readonly",
+                                           font=("m6x11", 12))
+        self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
+        self.deck_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
+        row += 1
+
+        # Stake label and dropdown
+        tk.Label(self.search_settings_frame, text="Stake:", 
+                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.stake_var = tk.StringVar()
+        self.stake_dropdown = ttk.Combobox(self.search_settings_frame,
+                                            textvariable=self.stake_var, state="readonly",
+                                            font=("m6x11", 12))
+        self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
+        self.stake_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
+        row += 1
+
+        # Seed label and entry
         tk.Label(self.search_settings_frame, text="Starting Seed:", 
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        
+                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
         seed_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
         seed_frame.grid(row=row, column=1, sticky="ew", pady=2)
-        row += 1
-        
         self.starting_seed_var = tk.StringVar()
+
+        # Adjust the button and frame to ensure proper width
+        seed_frame.columnconfigure(0, weight=1)
+        seed_frame.columnconfigure(1, weight=0)
+
         self.starting_seed_entry = tk.Entry(seed_frame, textvariable=self.starting_seed_var, 
-                                          font=("m6x11", 12))
-        self.starting_seed_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
+                                            font=("m6x11", 12))
+        self.starting_seed_entry.grid(row=0, column=0, sticky="ew")
         random_seed_button = tk.Button(seed_frame, text="🎲", bg=GREEN, fg=LIGHT_TEXT,
-                                     command=self.on_random_seed, font=("m6x11", 12))
-        random_seed_button.pack(side=tk.RIGHT, fill=tk.X, expand=False, padx=(4, 0))
-        
+                                       command=self.on_random_seed, font=("m6x11", 12), width=6)
+        random_seed_button.grid(row=0, column=1, padx=(8, 0))
+        row += 1
+
         # Search size dropdown
         tk.Label(self.search_settings_frame, text="Search Size:", 
                bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
@@ -222,33 +248,6 @@ class MainWindow:
         # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
     
-    def create_deck_settings_section(self):
-        """Create the deck settings section"""
-        self.deck_settings_frame = tk.LabelFrame(self.deck_column_frame, text="Deck Settings",
-                                                 padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.deck_settings_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
-
-        # Deck dropdown
-        self.deck_var = tk.StringVar()
-        self.deck_dropdown = ttk.Combobox(self.deck_settings_frame,
-                                        textvariable=self.deck_var, state="readonly",
-                                        font=("m6x11", 12))
-        self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
-        self.deck_dropdown.grid(row=0, column=1, sticky="ew", pady=2)
-        self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
-
-        # Stake dropdown
-        self.stake_var = tk.StringVar()
-        self.stake_dropdown = ttk.Combobox(self.deck_settings_frame,
-                                         textvariable=self.stake_var, state="readonly",
-                                         font=("m6x11", 12))
-        self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
-        self.stake_dropdown.grid(row=1, column=1, sticky="ew", pady=2)
-        self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
-
-        # Configure column weights
-        self.deck_settings_frame.columnconfigure(1, weight=1)
-
     def create_criteria_section(self):
         """Create the criteria selection section with deck settings included"""
         self.criteria_frame = tk.LabelFrame(self.settings_frame, text="Search Criteria", 
@@ -298,8 +297,6 @@ class MainWindow:
         self.criteria_buttons_frame = tk.Frame(criteria_right, bg=BACKGROUND)
         self.criteria_buttons_frame.pack(fill=tk.X, pady=2)
         
-        tk.Button(self.criteria_buttons_frame, text="Randomize! 🎲", 
-                command=self.on_randomize, bg=GREEN, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.LEFT, padx=1)
         tk.Button(self.criteria_buttons_frame, text="Clear All", 
                 command=self.on_clear_all, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=1)
         tk.Button(self.criteria_buttons_frame, text="Remove Selected", 
@@ -334,7 +331,7 @@ class MainWindow:
         """Create results table section with more vertical space"""
         self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results", 
                                          padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.results_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
         
         # Make results table take up more vertical space
         self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),
@@ -376,7 +373,6 @@ class MainWindow:
             self.root.after(1000, refresh_loop)
         # Call once immediately, then start the loop
         self.refresh_results_table()
-        self.root.after(1000, refresh_loop)
 
     def update_results_table(self, dataframe):
         self.latest_df = dataframe
@@ -399,21 +395,29 @@ class MainWindow:
         self._search_results_count = len(dataframe) if dataframe is not None else 0
     
     def refresh_results_table(self):
-        """Reload the results table from the database (or CSV) and update the UI."""
+        """Reload the results table from the database and update the UI."""
         from ouija_mvc.models.database_model import DatabaseModel
         db_model = DatabaseModel()
-        import json
         try:
             with open('ouija_user.conf', 'r') as f:
                 user_conf = json.load(f)
             config_path = user_conf.get('last_config_path')
         except Exception:
             config_path = None
+            
         if config_path and db_model.connect(config_path) and db_model.table_exists():
             df = db_model.get_dataframe()
-            self.update_results_table(df)
+            if df is not None and (self.latest_df is None or not df.equals(self.latest_df)):
+                self.update_results_table(df)
+                
+                # Update metrics if search is running
+                if self._search_start_time is not None:
+                    elapsed = time.time() - self._search_start_time
+                    seeds_per_sec = self._search_results_count / elapsed if elapsed > 0 else 0
+                    self.set_metrics(f"$clock$ {seeds_per_sec:.0f}/s")
         else:
-            self.update_results_table(pd.DataFrame())
+            if self.latest_df is not None:
+                self.update_results_table(pd.DataFrame())
 
     def set_search_running(self, is_running):
         """Update the UI state when search is running or stops
@@ -511,13 +515,9 @@ class MainWindow:
         self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
 
     def on_random_seed(self):
-        """Generate a random seed of 1-8 uppercase letters/numbers"""
-        import random
-        seed_dictionary = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        length = random.randint(1, 8)
-        random_seed = ''.join(random.choice(seed_dictionary) for _ in range(length))
-        self.starting_seed_entry.delete(1.0, tk.END)
-        self.starting_seed_entry.insert(tk.END, random_seed)
+        """Set the search seed to random, ouija.exe handles this"""
+        self.starting_seed_entry.delete(0, tk.END)
+        self.starting_seed_entry.insert(0, "random")
     
     def on_number_of_seeds_changed(self, event=None):
         """Handle number of seeds selection changes"""
@@ -608,11 +608,6 @@ class MainWindow:
         """Clear all criteria"""
         if messagebox.askyesno("Confirm", "Are you sure you want to clear all criteria?"):
             self.controller.clear_all_criteria()
-    
-    def on_randomize(self):
-        """Generate random criteria"""
-        if messagebox.askyesno("Confirm", "This will clear your current criteria and create random ones. Continue?"):
-            self.controller.randomize_criteria()
     
     def on_run_search(self):
         """Start or stop the search process"""

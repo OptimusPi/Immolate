@@ -170,8 +170,7 @@ class ItemSelectorDialog(tk.Toplevel):
         # Add edition info ONLY for Jokers
         if self.category == "Jokers" and hasattr(self, 'edition_var'):
             edition = self.edition_var.get()
-            if edition != "No_Edition":
-                item_payload["jokeredition"] = edition
+            item_payload["jokeredition"] = edition
         
         is_item_actually_a_need = False  # Default to Want
 

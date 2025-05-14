@@ -1,0 +1,46 @@
+{
+    "name": "SeltzerFinder",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 6,
+        "Needs": [
+            {
+                "value": "Seltzer",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Sock_and_Buskin",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Seltzer",
+                "jokeredition": "Foil"
+            },
+            {
+                "value": "Seltzer",
+                "jokeredition": "Foil"
+            },
+            {
+                "value": "Seltzer",
+                "jokeredition": "Holographic"
+            },
+            {
+                "value": "Seltzer",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Queen"
+            },
+            {
+                "value": "King"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Erratic_Deck",
+        "stake": "Red_Stake"
+    }
+}

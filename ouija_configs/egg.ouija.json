@@ -24,7 +24,7 @@
                 "desireByAnte": 0
             }
         ],
-        "maxSearchAnte": 8,
+        "maxSearchAnte": 1,
         "deck": "Magic_Deck",
         "stake": "White_Stake"
     }

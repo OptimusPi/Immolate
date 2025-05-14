@@ -231,10 +231,10 @@ found_path_or_continue_parsing:
                 if (ante_str) {
                     config->Needs[need_index].desireByAnte = atoi(ante_str + 1);
                 } else {
-                    config->Needs[need_index].desireByAnte = 8;
+                    config->Needs[need_index].desireByAnte = 0;
                 }
             } else {
-                config->Needs[need_index].desireByAnte = 8;
+                config->Needs[need_index].desireByAnte = 0;
             }
             need_index++;
             // Move to the next Need item if there are more
@@ -313,10 +313,6 @@ found_path_or_continue_parsing:
         max_search_ante_str = strstr(max_search_ante_str, ":");
         if (max_search_ante_str) {
             config->maxSearchAnte = atoi(max_search_ante_str + 1);
-            if (config->maxSearchAnte < 1) {
-                printf_s("Warning: maxSearchAnte is set to %d, which is less than 1.\n", config->maxSearchAnte);
-                config->maxSearchAnte = 8; // Reset to default
-            }
         }
     } else {
         config->maxSearchAnte = 8; // Default value

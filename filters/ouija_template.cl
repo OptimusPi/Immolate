@@ -36,25 +36,31 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
   }
 
   // Default max search ante if config doesn't specify individual antes
-  int maxSearchAnte = config->maxSearchAnte > 0 ? config->maxSearchAnte : 8;
+  int maxSearchAnte = config->maxSearchAnte;
 
   if (config->deck == Erratic_Deck) {
     item deck[52];
     init_deck(inst, deck);
+    int bestScore = 0;
     for (int i = 0; i < 52; i++) {
       item r = rank(deck[i]);
       item s = suit(deck[i]);
       for (int w = 0; w < config->numWants; w++) {
         if (r == config->Wants[w].value || s == config->Wants[w].value) {
           result->ScoreWants[w] += 1;
+          if (result->ScoreWants[w] > bestScore) {
+            result->TotalScore = result->ScoreWants[w];
+          }
         }
       }
-      for (int n = 0; n < config->numWants; n++) {
+      for (int n = 0; n < config->numNeeds; n++) {
         if (r == config->Needs[n].value || s == config->Needs[n].value) {
           ScoreNeeds[n] = true;
         }
       }
     }
+    // Add best score to the total score
+    result->TotalScore += bestScore;
   }
 
   // Search through all antes up to maxSearchAnte
