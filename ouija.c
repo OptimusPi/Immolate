@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     cl_char8 startingSeed; // Keep as cl_char8
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
-    };
+    }
     cl_long numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
     // Default config values
     OuijaConfig config;
@@ -547,9 +547,15 @@ int main(int argc, char **argv) {
 
 
     // Print the CSV header for any consuming applications such as the python mvc.
-     printf_s("Seed,Score,NegativeJokers");
+    printf_s("+Seed,Score,Negative Jokers");
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
         printf_s(",");
+
+        // Add edition information if it's not No_Edition and not RETRY
+        if (config.Wants[w].jokeredition != No_Edition && config.Wants[w].jokeredition != RETRY) {
+            print_item_host(config.Wants[w].jokeredition);
+            printf_s(" ");
+        }
         print_item_host(config.Wants[w].value);
     }
     printf_s("\n");
