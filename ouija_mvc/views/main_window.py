@@ -616,9 +616,15 @@ class MainWindow:
             self.start_time = None
 
         if not self.search_running:
+            # Get the current seed value
+            seed_value = self.starting_seed_var.get().strip()
+            if not seed_value or seed_value.lower() == 'random':
+                seed_value = 'random'
+            
             self.search_running = True
             self.start_time = time.time()
             self.run_button.config(text="STOP SEARCH", bg=RED)
+            self.controller.set_setting('starting_seed', seed_value)  # Update the controller
             self.controller.run_search()
         else:
             self.search_running = False
