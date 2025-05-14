@@ -42,28 +42,30 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     item deck[52];
     init_deck(inst, deck);
     int bestScore = 0;
+    __attribute__((opencl_unroll_hint(4)))
     for (int i = 0; i < 52; i++) {
       item r = rank(deck[i]);
       item s = suit(deck[i]);
+      __attribute__((opencl_unroll_hint()))
       for (int w = 0; w < config->numWants; w++) {
         if (r == config->Wants[w].value || s == config->Wants[w].value) {
           result->ScoreWants[w] += 1;
-          if (result->ScoreWants[w] > bestScore) {
+          if (result->ScoreWants[w] > result->TotalScore) {
             result->TotalScore = result->ScoreWants[w];
           }
         }
       }
+      __attribute__((opencl_unroll_hint()))
       for (int n = 0; n < config->numNeeds; n++) {
         if (r == config->Needs[n].value || s == config->Needs[n].value) {
           ScoreNeeds[n] = true;
         }
       }
     }
-    // Add best score to the total score
-    result->TotalScore += bestScore;
   }
 
   // Search through all antes up to maxSearchAnte
+  __attribute__((opencl_unroll_hint(8)))
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
     init_unlocks(inst, ante, false);
 
@@ -81,6 +83,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     item bigBlindTag = next_tag(inst, ante);
 
     // Process vouchers and tags for needs with branchless operations
+    __attribute__((opencl_unroll_hint()))
     for (int x = 0; x < config->numNeeds; x++) {
       bool isSmallBlind = (config->Needs[x].value == smallBlindTag);
       bool isBigBlind = (config->Needs[x].value == bigBlindTag);
@@ -89,6 +92,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
 
     // Process vouchers and tags for wants with branchless operations
+    __attribute__((opencl_unroll_hint()))
     for (int x = 0; x < config->numWants; x++) {
       int isSmallBlind = (config->Wants[x].value == smallBlindTag);
       int isBigBlind = (config->Wants[x].value == bigBlindTag);
@@ -98,6 +102,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 
     // Process shop items using direct scoring
     int shCount = (ante == 1) ? 4 : 6;
+    __attribute__((opencl_unroll_hint(2)))
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
       if (shItem.value == RETRY) continue;
@@ -119,6 +124,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       result->NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
       
       // Score needs
+      __attribute__((opencl_unroll_hint()))
       for (int x = 0; x < config->numNeeds; x++) {
         // For jokers with edition check
         bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
@@ -128,7 +134,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
                            (config->Needs[x].jokeredition == shItem.joker.edition));
         
         // For regular items (non-jokers)
-        bool regularMatch = (config->Needs[x].value == shItem.value);
+        bool regularMatch = (shItem.type != ItemType_Joker && config->Needs[x].value == shItem.value);
         
         bool matched = (jokerMatch | regularMatch);
         ScoreNeeds[x] |= matched;
@@ -142,6 +148,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       }
       
       // Score wants - directly use result->ScoreWants array
+      __attribute__((opencl_unroll_hint()))
       for (int x = 0; x < config->numWants; x++) {
         // For jokers with edition check
         int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
@@ -151,7 +158,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
                           (config->Wants[x].jokeredition == shItem.joker.edition));
                           
         // For regular items (non-jokers)
-        int regularMatch = (config->Wants[x].value == shItem.value);
+        int regularMatch = (shItem.type != ItemType_Joker && config->Wants[x].value == shItem.value);
         
         result->ScoreWants[x] += (jokerMatch + regularMatch);
       }
@@ -162,7 +169,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 #ifdef _debugPrints
     printf("performing %d pack checks for ante %d\n", packChecks, ante);
 #endif
-
+    __attribute__((opencl_unroll_hint(2)))
     for (int p = 0; p < packChecks; p++) {
       pack _pack = pack_info(next_pack(inst, ante));
       
@@ -175,34 +182,15 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         for (int t = 0; t < _pack.size; t++) {
           if (tarotCards[t] == RETRY) continue;
           
-          // Score needs
-          for (int x = 0; x < config->numNeeds; x++) {
-            bool matched = (config->Needs[x].value == tarotCards[t]);
-            ScoreNeeds[x] |= matched;
-          }
-          
-          // Score wants
-          for (int x = 0; x < config->numWants; x++) {
-            result->ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
-          }
-        }
-      } 
-      else if (_pack.type == Spectral_Pack) {
-        // Process Spectral cards
-        item spectralCards[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
-        spectral_pack(spectralCards, _pack.size, inst, ante);
-        
-        for (int t = 0; t < _pack.size; t++) {
-          if (spectralCards[t] == RETRY) continue;
-          
           // Special handling for The Soul
-          if (spectralCards[t] == The_Soul) {
+          if (tarotCards[t] == The_Soul) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
             
             // Count negative joker with branchless operation
             result->NegativeJokers += (soulJoker.edition == Negative);
             
             // Score needs for both The_Soul itself and the created joker
+            __attribute__((opencl_unroll_hint()))
             for (int x = 0; x < config->numNeeds; x++) {
               bool soulMatch = (config->Needs[x].value == The_Soul);
               bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
@@ -214,6 +202,60 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
             }
             
             // Score wants for both The_Soul itself and the created joker
+            __attribute__((opencl_unroll_hint()))
+            for (int x = 0; x < config->numWants; x++) {
+              int soulMatch = (config->Wants[x].value == The_Soul);
+              int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
+                               (config->Wants[x].value == soulJoker.joker) && 
+                               ((config->Wants[x].jokeredition == No_Edition) || 
+                                (config->Wants[x].jokeredition == soulJoker.edition));
+              
+              result->ScoreWants[x] += (soulMatch + jokerMatch);
+            }
+          } else {
+            // Score needs
+            for (int x = 0; x < config->numNeeds; x++) {
+              bool matched = (config->Needs[x].value == tarotCards[t]);
+              ScoreNeeds[x] |= matched;
+            }
+            
+            // Score wants
+            for (int x = 0; x < config->numWants; x++) {
+              result->ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
+            }
+          } 
+        }
+      } 
+      else if (_pack.type == Spectral_Pack) {
+        // Process Spectral cards
+        item spectralCards[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
+        spectral_pack(spectralCards, _pack.size, inst, ante);
+        
+        __attribute__((opencl_unroll_hint()))
+        for (int t = 0; t < _pack.size; t++) {
+          if (spectralCards[t] == RETRY) continue;
+          
+          // Special handling for The Soul
+          if (spectralCards[t] == The_Soul) {
+            jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
+            
+            // Count negative joker with branchless operation
+            result->NegativeJokers += (soulJoker.edition == Negative);
+            
+            // Score needs for both The_Soul itself and the created joker
+            __attribute__((opencl_unroll_hint()))
+            for (int x = 0; x < config->numNeeds; x++) {
+              bool soulMatch = (config->Needs[x].value == The_Soul);
+              bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
+                                (config->Needs[x].value == soulJoker.joker) && 
+                                ((config->Needs[x].jokeredition == No_Edition) || 
+                                 (config->Needs[x].jokeredition == soulJoker.edition));
+              
+              ScoreNeeds[x] |= (soulMatch | jokerMatch);
+            }
+            
+            // Score wants for both The_Soul itself and the created joker
+            __attribute__((opencl_unroll_hint()))
             for (int x = 0; x < config->numWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
               int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
@@ -241,6 +283,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         jokerdata buffoonJokers[5];
         buffoon_pack_detailed(buffoonJokers, _pack.size, inst, ante);
         
+        __attribute__((opencl_unroll_hint()))
         for (int t = 0; t < _pack.size; t++) {
           if (buffoonJokers[t].joker == RETRY) continue;
           
@@ -251,6 +294,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
           result->NegativeJokers += (buffoonJokers[t].edition == Negative);
           
           // Score needs
+          __attribute__((opencl_unroll_hint()))
           for (int x = 0; x < config->numNeeds; x++) {
             bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                               (config->Needs[x].value == buffoonJokers[t].joker) && 
@@ -261,6 +305,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
           }
           
           // Score wants
+          __attribute__((opencl_unroll_hint()))
           for (int x = 0; x < config->numWants; x++) {
             int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
                              (config->Wants[x].value == buffoonJokers[t].joker) && 
@@ -274,6 +319,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
 
     // Check per-need ante requirements at the end of each ante
+    __attribute__((opencl_unroll_hint()))
     for (int n = 0; n < config->numNeeds; n++) {
       bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && !ScoreNeeds[n];
       
@@ -293,18 +339,22 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         printf("\n");
       #endif
         result->TotalScore = 0;
+        // Copy the seed to the result
+        text s_str = s_to_string(&inst->seed);
+        __attribute__((opencl_unroll_hint()))
+        for (int i = 0; i < 9; i++) {
+          result->seed[i] = s_str.str[i];
+        }
         return;
       }
     }
   } // End of ante loop
 
-  // If all needs were met, ensure score is at least 1 (valid)
-  // Base value of 1 indicates "valid" (all needs met)
-  result->TotalScore = 1;
+  result->TotalScore += 1;
   
   // Add final debug output to see the score before return
   //printf("Final score before bonus: %d\n", result->TotalScore);
-  
+  __attribute__((opencl_unroll_hint()))
   for (int w = 0; w < config->numWants && w < MAX_DESIRES_KERNEL; w++) {
     // Branchless way to add 2 points if want was found (ScoreWants > 0)
     result->TotalScore += (result->ScoreWants[w] > 0) * 1;
@@ -316,6 +366,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 
   // Copy the seed to the result
   text s_str = s_to_string(&inst->seed);
+  __attribute__((opencl_unroll_hint()))
   for (int i = 0; i < 9; i++) {
     result->seed[i] = s_str.str[i];
   }
