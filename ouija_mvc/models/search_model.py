@@ -43,15 +43,18 @@ class SearchModel:
         self.process_finished_callback = None
         self.cutoff = None  # Add cutoff
         self.gpu_batch = None  # Add gpu_batch
-    
     def build_command(self, config_path, starting_seed, thread_groups, number_of_seeds):
         """Build the command to execute with proper arguments"""
         # Construct the base command
         command_parts = [".\\Ouija.exe"]
         
-        # Add starting seed
-        command_parts.extend(["-s", starting_seed])
-        
+        # Add starting seed - handle both "random" and user-entered seeds
+        # Convert to uppercase for consistency with Balatro's seed format
+        if starting_seed.lower() == "random" or not starting_seed.strip():
+            command_parts.extend(["-s", "random"])
+        else:
+            command_parts.extend(["-s", starting_seed.upper()])
+            
         # Add thread groups
         thread_groups_value = self.THREAD_GROUP_MAP.get(thread_groups, "32")
         command_parts.extend(["-g", thread_groups_value])

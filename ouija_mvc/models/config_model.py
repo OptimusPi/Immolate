@@ -127,7 +127,15 @@ class ConfigModel:
         except Exception as e:
             print(f"Error loading configuration: {e}")
             return False
-    
+        
+    def calculate_max_search_ante(self):
+        """Calculate the maximum search ante based on desires."""
+        max_ante = 0  # Default value
+        for need in self.needs_list:
+            if "desireByAnte" in need and isinstance(need["desireByAnte"], int):
+                max_ante = max(max_ante, need["desireByAnte"])
+        return max_ante
+
     def save_config(self, file_path=None):
         """Save the current configuration to file"""
         if not self.config_name:
@@ -146,7 +154,8 @@ class ConfigModel:
                 "numWants": len(self.wants_list),
                 "Needs": self.needs_list,
                 "Wants": self.wants_list,
-                "maxSearchAnte": 8,  # Default to searching all antes
+                "maxSearchAnte": self.calculate_max_search_ante(),
+                # Default to searching all antes
                 "deck": self.deck.replace(' ', '_'),  # Convert to internal format
                 "stake": self.stake.replace(' ', '_')  # Convert to internal format
             }
