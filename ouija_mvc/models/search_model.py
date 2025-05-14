@@ -171,8 +171,8 @@ class SearchModel:
                     line = line_bytes.decode('latin-1', errors='replace')
 
                 # Parse CSV header
-                if not header_found and line.strip().startswith("Seed,"):
-                    header_columns = [col.strip() for col in line.strip().split(",") if col.strip() != ""]
+                if not header_found and line.strip().startswith("+Seed,"):
+                    header_columns = [col.strip() for col in line.replace("+Seed", "Seed").strip().split(",") if col.strip() != ""]
                     header_found = True
 
                     # Create table in database
