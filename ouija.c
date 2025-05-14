@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
                 printf_s("Needs:\n");
                 for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
                     printf_s("  - Item %i by ante %d\n", 
-                            config.Needs[i].value, config.Needs[i].desireByAnte);
+                        config.Needs[i].value, config.Needs[i].desireByAnte);
                 }
             }
             
@@ -220,8 +220,9 @@ int main(int argc, char **argv) {
             if (config.numWants > 0) {
                 printf_s("Wants:\n");
                 for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item ");
+                    printf_s("  - ");
                     print_item_host(config.Wants[i].value);
+                    printf("\n");
                 }
             }
         }
