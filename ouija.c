@@ -211,8 +211,14 @@ int main(int argc, char **argv) {
             if (config.numNeeds > 0) {
                 printf_s("Needs:\n");
                 for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
-                    printf_s("  - Item %i by ante %d\n", 
-                        config.Needs[i].value, config.Needs[i].desireByAnte);
+                    printf_s("  - ");
+                    if (config.Needs[0].jokeredition != RETRY && config.Needs[0].jokeredition != No_Edition) {
+                        print_item_host(config.Needs[i].value);
+                        printf(" ");
+                    }
+                    print_item_host(config.Needs[i].value);
+                    printf_s(" by ante %d\n", config.Needs[i].desireByAnte);
+                    printf("\n");
                 }
             }
             
