@@ -213,8 +213,10 @@ found_path_or_continue_parsing:
                         size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
                         strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
                         edition_name[edition_len] = '\0';
-                        // Validate that the item is a joker before assigning a jokeredition
-                        if (config->Needs[need_index].value >= J_BEGIN && config->Needs[need_index].value <= J_C_END) {
+                        // Map "No_Edition" to the No_Edition enum
+                        if (strcmp(edition_name, "No_Edition") == 0) {
+                            config->Needs[need_index].jokeredition = No_Edition;
+                        } else if (config->Needs[need_index].value >= J_BEGIN && config->Needs[need_index].value <= J_C_END) {
                             config->Needs[need_index].jokeredition = parse_item(edition_name);
                         } else {
                             config->Needs[need_index].jokeredition = RETRY;

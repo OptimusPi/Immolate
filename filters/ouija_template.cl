@@ -1,6 +1,6 @@
 #include "lib/ouija.cl"
 #define CACHE_SIZE 256
-//#define _debugPrints 1
+#define _debugPrints 1
 
 void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
 #ifdef _debugPrints
@@ -100,7 +100,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
 
     // Process shop items using direct scoring
-    int shCount = (ante == 1) ? 4 : 6;
+    int shCount = (ante == 1) ? 4 : ante*2;
     __attribute__((opencl_unroll_hint(2)))
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
@@ -171,6 +171,11 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     __attribute__((opencl_unroll_hint(2)))
     for (int p = 0; p < packChecks; p++) {
       pack _pack = pack_info(next_pack(inst, ante));
+#ifdef _debugPrints
+      printf("Pack %d type:", p);
+      print_item(_pack.type);
+      printf("\n");
+#endif
       
       // Handle different pack types - optimized for branchless where possible
       if (_pack.type == Arcana_Pack) {
@@ -179,11 +184,25 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         arcana_pack(tarotCards, _pack.size, inst, ante);
         
         for (int t = 0; t < _pack.size; t++) {
+#ifdef _debugPrints
+          printf("Arcana card %d: ", t);
+          print_item(tarotCards[t]);
+          printf("\n");
+#endif
           if (tarotCards[t] == RETRY) continue;
           
           // Special handling for The Soul
           if (tarotCards[t] == The_Soul) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
+            #ifdef _debugPrints
+            printf("The Soul joker: ");
+            if (soulJoker.edition != No_Edition) {
+              print_item(soulJoker.edition);
+            } 
+            printf(" ");
+            print_item(soulJoker.joker);
+            printf("\n");
+            #endif
             
             // Count negative joker with branchless operation
             result->NegativeJokers += (soulJoker.edition == Negative);
@@ -191,11 +210,43 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
             // Score needs for both The_Soul itself and the created joker
             __attribute__((opencl_unroll_hint()))
             for (int x = 0; x < config->numNeeds; x++) {
+              #ifdef _debugPrints
+              printf("Checking need %d for The Soul\n", x);
+              #endif
+
               bool soulMatch = (config->Needs[x].value == The_Soul);
+
+              #ifdef _debugPrints
+              if (soulMatch) {
+                printf("Matched The Soul need %d\n", x);
+              }
+              #endif
+
               bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                                 (config->Needs[x].value == soulJoker.joker) && 
                                 ((config->Needs[x].jokeredition == No_Edition) || 
                                  (config->Needs[x].jokeredition == soulJoker.edition));
+
+              #ifdef _debugPrints
+              if (jokerMatch) {
+                printf("Matched joker need %d\n", x);
+              } else {
+                printf("Did not match joker need %d\n", x);
+                printf("Need value: ");
+                print_item(config->Needs[x].value);
+                printf("\n");
+                printf("Joker value: ");
+                print_item(soulJoker.joker);
+                printf("\n");
+                printf("Joker edition: ");
+                print_item(soulJoker.edition);
+                printf("\n");
+                printf("Need joker edition: ");
+                print_item(config->Needs[x].jokeredition);
+                printf("\n");
+
+              }
+              #endif
               
               ScoreNeeds[x] |= (soulMatch | jokerMatch);
             }
@@ -232,11 +283,13 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         
         __attribute__((opencl_unroll_hint()))
         for (int t = 0; t < _pack.size; t++) {
+#ifdef _debugPrints
+          printf("Spectral card %d: %d\n", t, spectralCards[t]);
+#endif
           if (spectralCards[t] == RETRY) continue;
           
           // Special handling for The Soul
           if (spectralCards[t] == The_Soul) {
-            bool soulMatch = (config->Needs[x].value == The_Soul);
             
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
             
@@ -247,6 +300,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
             __attribute__((opencl_unroll_hint()))
             for (int x = 0; x < config->numNeeds; x++) {
               
+              bool soulMatch = (config->Needs[x].value == The_Soul);
               bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                                 (config->Needs[x].value == soulJoker.joker) && 
                                 ((config->Needs[x].jokeredition == No_Edition) || 
@@ -286,6 +340,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         
         __attribute__((opencl_unroll_hint()))
         for (int t = 0; t < _pack.size; t++) {
+#ifdef _debugPrints
+          printf("Buffoon joker %d: %d\n", t, buffoonJokers[t].joker);
+#endif
           if (buffoonJokers[t].joker == RETRY) continue;
           
           // Update showman_active and count negative jokers with branchless operations
@@ -322,7 +379,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     // Check per-need ante requirements at the end of each ante
     __attribute__((opencl_unroll_hint()))
     for (int n = 0; n < config->numNeeds; n++) {
-      bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && !ScoreNeeds[n];
+      bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
       
       // Debug output for needs validation
     #ifdef _debugPrints
