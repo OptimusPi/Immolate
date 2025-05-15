@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
                 for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
                     printf_s("  - ");
                     if (config.Needs[0].jokeredition != RETRY && config.Needs[0].jokeredition != No_Edition) {
-                        print_item_host(config.Needs[i].value);
+                        print_item_host(config.Needs[i].jokeredition);
                         printf(" ");
                     }
                     print_item_host(config.Needs[i].value);
@@ -227,6 +227,10 @@ int main(int argc, char **argv) {
                 printf_s("Wants:\n");
                 for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
                     printf_s("  - ");
+                    if (config.Wants[0].jokeredition != RETRY && config.Wants[0].jokeredition != No_Edition) {
+                        print_item_host(config.Wants[i].jokeredition);
+                        printf(" ");
+                    }
                     print_item_host(config.Wants[i].value);
                     printf("\n");
                 }
@@ -556,10 +560,9 @@ int main(int argc, char **argv) {
         printf_s(",");
 
         // Only add edition for actual jokers (not Tarot/Spectral cards)
-        if (config.Wants[w].value >= J_BEGIN && config.Wants[w].value <= J_C_END && 
-            config.Wants[w].jokeredition != No_Edition && config.Wants[w].jokeredition != RETRY) {
+        if (config.Wants[w].jokeredition != No_Edition && config.Wants[w].jokeredition != RETRY) {
             print_item_host(config.Wants[w].jokeredition);
-            printf_s(" ");
+            printf_s("_");
         }
         print_item_host(config.Wants[w].value);
     }

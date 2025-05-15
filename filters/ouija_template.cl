@@ -31,10 +31,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
   bool ScoreNeeds[MAX_DESIRES_KERNEL] = {false};
   result->TotalScore = 0;
   result->NegativeJokers = 0;
-  for (int i = 1; i < MAX_DESIRES_KERNEL; i++) {
+  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
     result->ScoreWants[i] = 0;
   }
-
   // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte;
 
@@ -237,6 +236,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
           
           // Special handling for The Soul
           if (spectralCards[t] == The_Soul) {
+            bool soulMatch = (config->Needs[x].value == The_Soul);
+            
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
             
             // Count negative joker with branchless operation
@@ -245,7 +246,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
             // Score needs for both The_Soul itself and the created joker
             __attribute__((opencl_unroll_hint()))
             for (int x = 0; x < config->numNeeds; x++) {
-              bool soulMatch = (config->Needs[x].value == The_Soul);
+              
               bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                                 (config->Needs[x].value == soulJoker.joker) && 
                                 ((config->Needs[x].jokeredition == No_Edition) || 
@@ -301,7 +302,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
                               ((config->Needs[x].jokeredition == No_Edition) || 
                                (config->Needs[x].jokeredition == buffoonJokers[t].edition));
             
-            ScoreNeeds[x] |= jokerMatch;
+            ScoreNeeds[x] = ScoreNeeds[x] ? ScoreNeeds[x] : jokerMatch;
           }
           
           // Score wants
@@ -339,12 +340,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         printf("\n");
       #endif
         result->TotalScore = 0;
-        // Copy the seed to the result
-        text s_str = s_to_string(&inst->seed);
-        __attribute__((opencl_unroll_hint()))
-        for (int i = 0; i < 9; i++) {
-          result->seed[i] = s_str.str[i];
-        }
         return;
       }
     }
