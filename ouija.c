@@ -550,15 +550,14 @@ int main(int argc, char **argv) {
     cl_long seed_offset_for_kernel = 0;      // Starting seed offset for the current kernel dispatch
     cl_long num_seeds_this_dispatch = 0;     // Number of seeds for the kernel dispatch being prepared
     cl_long num_seeds_last_dispatch = 0;     // Number of seeds processed by the completed kernel whose results are being read
-
-
     // Print the CSV header for any consuming applications such as the python mvc.
     printf_s("+Seed,Score,Negative Jokers");
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
         printf_s(",");
 
-        // Add edition information if it's not No_Edition and not RETRY
-        if (config.Wants[w].jokeredition != No_Edition && config.Wants[w].jokeredition != RETRY) {
+        // Only add edition for actual jokers (not Tarot/Spectral cards)
+        if (config.Wants[w].value >= J_BEGIN && config.Wants[w].value <= J_C_END && 
+            config.Wants[w].jokeredition != No_Edition && config.Wants[w].jokeredition != RETRY) {
             print_item_host(config.Wants[w].jokeredition);
             printf_s(" ");
         }

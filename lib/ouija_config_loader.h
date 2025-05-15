@@ -222,7 +222,12 @@ found_path_or_continue_parsing:
                     } else {
                         config->Needs[need_index].jokeredition = RETRY;
                     }
+                } else {
+                    config->Needs[need_index].jokeredition = RETRY;
                 }
+            } else {
+                // Always set jokeredition to RETRY if not specified or if item is not a joker
+                config->Needs[need_index].jokeredition = RETRY;
             }
             // Find desireByAnte
             char* ante_str = strstr(need_start, "\"desireByAnte\"");
@@ -278,12 +283,20 @@ found_path_or_continue_parsing:
                         size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
                         strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
                         edition_name[edition_len] = '\0';
-                        config->Wants[want_index].jokeredition = parse_item(edition_name);
+                        // Only set jokeredition for actual jokers
+                        if (config->Wants[want_index].value >= J_BEGIN && config->Wants[want_index].value <= J_C_END) {
+                            config->Wants[want_index].jokeredition = parse_item(edition_name);
+                        } else {
+                            config->Wants[want_index].jokeredition = RETRY;
+                        }
                     } else {
                         config->Wants[want_index].jokeredition = RETRY;
                     }
+                } else {
+                    config->Wants[want_index].jokeredition = RETRY;
                 }
             } else {
+                // Always set jokeredition to RETRY if not specified or if item is not a joker
                 config->Wants[want_index].jokeredition = RETRY;
             }
 

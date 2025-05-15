@@ -1,0 +1,45 @@
+{
+    "name": "pi",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 1,
+        "numWants": 7,
+        "Needs": [
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Negative_Tag"
+            },
+            {
+                "value": "Double_Tag"
+            },
+            {
+                "value": "Cryptid"
+            },
+            {
+                "value": "Baron",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Anaglyph_Deck",
+        "stake": "White_Stake"
+    }
+}

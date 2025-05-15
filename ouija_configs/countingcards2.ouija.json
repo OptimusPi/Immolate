@@ -1,0 +1,54 @@
+{
+    "name": "CountingCards2",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 0,
+        "numWants": 13,
+        "Needs": [],
+        "Wants": [
+            {
+                "value": "Ace"
+            },
+            {
+                "value": "2"
+            },
+            {
+                "value": "3"
+            },
+            {
+                "value": "4"
+            },
+            {
+                "value": "5"
+            },
+            {
+                "value": "6"
+            },
+            {
+                "value": "7"
+            },
+            {
+                "value": "8"
+            },
+            {
+                "value": "9"
+            },
+            {
+                "value": "10"
+            },
+            {
+                "value": "Jack"
+            },
+            {
+                "value": "Queen"
+            },
+            {
+                "value": "King"
+            }
+        ],
+        "maxSearchAnte": 0,
+        "deck": "Erratic_Deck",
+        "stake": "White_Stake"
+    }
+}
