@@ -26,8 +26,8 @@ class SearchModel:
     }
     
     SEED_COUNT_MAP = {
-        "Single (1)": "1",
-        "Default (All Seeds)": None,  # Use None to indicate omitting the argument
+        "All": None,  # Use None to indicate omitting the argument
+        "1 Single Seed": "1",
         "1K": "1000",
         "100K": "100000",
         "1M": "1000000",
@@ -63,6 +63,7 @@ class SearchModel:
         number_of_seeds_value = self.SEED_COUNT_MAP.get(number_of_seeds)
         if number_of_seeds_value is not None:
             command_parts.extend(["-n", number_of_seeds_value])
+        # Skip adding -n if number_of_seeds_value is None (for 'All')
         
         # Add config path if provided
         if config_path:
@@ -172,7 +173,13 @@ class SearchModel:
 
                 # Parse CSV header
                 if not header_found and line.strip().startswith("+Seed,"):
+                    # Validate headers to ensure they are distinct and valid
                     header_columns = [col.strip() for col in line.replace("+Seed", "Seed").strip().split(",") if col.strip() != ""]
+                    if len(header_columns) != len(set(header_columns)):
+                        raise ValueError(f"Duplicate headers found: {header_columns}")
+                    if any(not col.isidentifier() for col in header_columns):
+                        raise ValueError(f"Invalid header names found: {header_columns}")
+
                     header_found = True
 
                     # Create table in database

@@ -34,16 +34,21 @@ class DatabaseModel:
         if self.conn:
             self.conn.close()
             self.conn = None
-        
+
         # Get new db path
         db_path = self.get_db_path_from_config(config_path)
         if not db_path:
             return False
-        
+
         try:
             # Connect to DuckDB
             self.conn = duckdb.connect(db_path)
             self.current_db_path = db_path
+
+            # Ensure the results table exists
+            if not self.table_exists():
+                self.create_table(["Seed", "Score"])
+
             return True
         except Exception as e:
             print(f"Error connecting to database: {e}")
@@ -57,15 +62,15 @@ class DatabaseModel:
             self.current_db_path = None
     
     def create_table(self, columns):
-        """Create the results table with the given columns"""
+        """Forcefully create the results table with the given columns."""
         if not self.conn:
             return False
-            
+
         try:
-            # Drop the table if it exists - we're enforcing a rigid schema
+            # Drop the table if it exists
             if self.table_exists():
-                self.conn.execute("DROP TABLE results")
-            
+                self.conn.execute("DROP TABLE IF EXISTS results")
+
             # Create the table with a strict schema:
             # - Seed is VARCHAR PRIMARY KEY
             # - All other columns are INTEGER
@@ -75,53 +80,74 @@ class DatabaseModel:
                     columns_def.append(f'"{col}" VARCHAR PRIMARY KEY')
                 else:
                     columns_def.append(f'"{col}" INTEGER')
-            
+
             # Create the table
             self.conn.execute(f"CREATE TABLE results ({', '.join(columns_def)});")
-            
+
             # Create an index on the Score column for faster sorting
-            try:
-                self.conn.execute('CREATE INDEX IF NOT EXISTS idx_score ON results ("Score");')
-            except Exception:
-                # Index creation might fail if Score column doesn't exist
-                pass
-            
+            if "Score" in columns:
+                try:
+                    self.conn.execute('CREATE INDEX IF NOT EXISTS idx_score ON results ("Score");')
+                except Exception:
+                    pass
+
             return True
         except Exception as e:
-            print(f"Error creating table: {e}")
+            print(f"Error forcefully creating table: {e}")
             return False
-    
+
+    def ensure_columns_exist(self, columns):
+        """Ensure all specified columns exist in the results table."""
+        if not self.conn or not self.table_exists():
+            return False
+
+        try:
+            # Get existing columns
+            existing_columns = [row[0] for row in self.conn.execute("PRAGMA table_info(results)").fetchall()]
+
+            # Add missing columns or recreate the table if a conflict occurs
+            for col in columns:
+                if col not in existing_columns:
+                    try:
+                        self.conn.execute(f'ALTER TABLE results ADD COLUMN "{col}" INTEGER;')
+                    except Exception as e:
+                        if "already exists" in str(e):
+                            print("Column conflict detected. Recreating the table.")
+                            self.create_table(columns)
+                            break
+
+            return True
+        except Exception as e:
+            print(f"Error ensuring columns exist: {e}")
+            self.create_table(columns)  # Recreate the table on error
+            return False
+
     def insert_result(self, columns, values):
         """Insert a result row into the database"""
         if not self.conn:
             return False
-            
+
         try:
+            # Ensure all columns exist in the table
+            if not self.table_exists():
+                print("Table 'results' does not exist. Recreating the table.")
+                self.create_table(columns)
+
+            self.ensure_columns_exist(columns)
+
             # Use Seed column as the unique key for upsert
             seed_value = values[0] if values else None
             if not seed_value:
                 return False
-                
+
             # Create column names and placeholder values for the SQL statement
             column_names = ', '.join([f'"{col}"' for col in columns])
             placeholders = ', '.join(['?'] * len(values))
-            
-            try:
-                # First try INSERT OR REPLACE
-                query = f'INSERT OR REPLACE INTO results ({column_names}) VALUES ({placeholders})'
-                self.conn.execute(query, values)
-            except Exception as e:
-                if "ON CONFLICT is a no-op" in str(e):
-                    # If INSERT OR REPLACE fails, try a DELETE + INSERT approach
-                    delete_query = f'DELETE FROM results WHERE "Seed" = ?'
-                    self.conn.execute(delete_query, [seed_value])
-                    
-                    insert_query = f'INSERT INTO results ({column_names}) VALUES ({placeholders})'
-                    self.conn.execute(insert_query, values)
-                else:
-                    # Re-raise if it's another error
-                    raise
-            
+
+            # Insert or replace the row
+            query = f'INSERT OR REPLACE INTO results ({column_names}) VALUES ({placeholders})'
+            self.conn.execute(query, values)
+
             return True
         except Exception as e:
             print(f"Error upserting result: {e}")

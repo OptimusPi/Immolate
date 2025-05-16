@@ -272,7 +272,7 @@ found_path_or_continue_parsing:
             value_name[value_len] = '\0';
             config->Wants[want_index].value = parse_item(value_name);
 
-            // Find the "jokeredition" field (flat, not nested)
+            // Ensure jokeredition is loaded for all items, even if not a joker
             char* edition_section = strstr(want_start, "\"jokeredition\"");
             if (edition_section) {
                 edition_section = strchr(edition_section, ':');
@@ -285,12 +285,7 @@ found_path_or_continue_parsing:
                         size_t edition_len = (edition_end - edition_section < 49) ? (edition_end - edition_section) : 49;
                         strncpy_s(edition_name, sizeof(edition_name), edition_section, edition_len);
                         edition_name[edition_len] = '\0';
-                        // Only set jokeredition for actual jokers
-                        if (config->Wants[want_index].value >= J_BEGIN && config->Wants[want_index].value <= J_C_END) {
-                            config->Wants[want_index].jokeredition = parse_item(edition_name);
-                        } else {
-                            config->Wants[want_index].jokeredition = RETRY;
-                        }
+                        config->Wants[want_index].jokeredition = parse_item(edition_name);
                     } else {
                         config->Wants[want_index].jokeredition = RETRY;
                     }
@@ -298,7 +293,6 @@ found_path_or_continue_parsing:
                     config->Wants[want_index].jokeredition = RETRY;
                 }
             } else {
-                // Always set jokeredition to RETRY if not specified or if item is not a joker
                 config->Wants[want_index].jokeredition = RETRY;
             }
 
@@ -319,6 +313,21 @@ found_path_or_continue_parsing:
             want_start = strstr(want_start, "},");
             if (!want_start) break;
             want_start += 2;
+        }
+
+        // Validate and remove duplicate entries in the Wants array
+        for (int i = 0; i < want_index; i++) {
+            for (int j = i + 1; j < want_index; j++) {
+                if (config->Wants[i].value == config->Wants[j].value &&
+                    config->Wants[i].jokeredition == config->Wants[j].jokeredition) {
+                    // Shift remaining entries to remove the duplicate
+                    for (int k = j; k < want_index - 1; k++) {
+                        config->Wants[k] = config->Wants[k + 1];
+                    }
+                    want_index--;
+                    j--; // Recheck the current index after shifting
+                }
+            }
         }
     }
 

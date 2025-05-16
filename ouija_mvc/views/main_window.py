@@ -204,7 +204,7 @@ class MainWindow:
         self.number_of_seeds_dropdown = ttk.Combobox(self.search_settings_frame, 
                                                    textvariable=self.number_of_seeds_var, state="readonly", 
                                                    font=("m6x11", 12))
-        self.number_of_seeds_dropdown['values'] = ["All", "Single",
+        self.number_of_seeds_dropdown['values'] = ["All", "1 Single Seed",
                                                 "100K", "1M", "100M", "1B"]
         self.number_of_seeds_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>", self.on_number_of_seeds_changed)
@@ -218,7 +218,7 @@ class MainWindow:
         self.thread_groups_dropdown = ttk.Combobox(self.search_settings_frame, 
                                                  textvariable=self.thread_groups_var, state="readonly", 
                                                  font=("m6x11", 12))
-        self.thread_groups_dropdown['values'] = ["Single", "16", "32", "48", "56", "64", "96", "112", "128", "224", "256"]
+        self.thread_groups_dropdown['values'] = ["Single", "16", "32", "64", "128", "256"]
         self.thread_groups_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.thread_groups_dropdown.bind("<<ComboboxSelected>>", self.on_thread_groups_changed)
         row += 1
@@ -240,7 +240,7 @@ class MainWindow:
         self.gpu_batch_dropdown = ttk.Combobox(self.search_settings_frame,
                                                textvariable=self.gpu_batch_var, state="readonly",
                                                font=("m6x11", 12))
-        self.gpu_batch_dropdown['values'] = ["1", "2", "4", "8", "16", "32", "64", "128", "256"]
+        self.gpu_batch_dropdown['values'] = ["1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048", "4096", "8192"]
         self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.gpu_batch_dropdown.bind("<<ComboboxSelected>>", self.on_gpu_batch_changed)
         row += 1
@@ -331,7 +331,7 @@ class MainWindow:
         """Create results table section with more vertical space"""
         self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results", 
                                          padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.results_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
+        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
         # Make results table take up more vertical space
         self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),

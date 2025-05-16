@@ -558,11 +558,10 @@ int main(int argc, char **argv) {
     printf_s("+Seed,Score,Negative Jokers");
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
         printf_s(",");
-
         // Only add edition for actual jokers (not Tarot/Spectral cards)
-        if (config.Wants[w].jokeredition != No_Edition && config.Wants[w].jokeredition != RETRY) {
+        if (config.Wants[w].jokeredition != RETRY && config.Wants[w].jokeredition != No_Edition) {
             print_item_host(config.Wants[w].jokeredition);
-            printf_s("_");
+            printf_s(" ");
         }
         print_item_host(config.Wants[w].value);
     }
