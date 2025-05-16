@@ -1,6 +1,6 @@
 #include "lib/ouija.cl"
-#define CACHE_SIZE 256
-#define _debugPrints 1
+#define CACHE_SIZE 314
+//#define _debugPrints 1
 
 void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
 #ifdef _debugPrints
