@@ -555,13 +555,13 @@ int main(int argc, char **argv) {
     cl_long num_seeds_this_dispatch = 0;     // Number of seeds for the kernel dispatch being prepared
     cl_long num_seeds_last_dispatch = 0;     // Number of seeds processed by the completed kernel whose results are being read
     // Print the CSV header for any consuming applications such as the python mvc.
-    printf_s("+Seed,Score,Negative Jokers");
+    printf_s("+Seed,Score,Negative_Jokers");
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
         printf_s(",");
         // Only add edition for actual jokers (not Tarot/Spectral cards)
         if (config.Wants[w].jokeredition != RETRY && config.Wants[w].jokeredition != No_Edition) {
             print_item_host(config.Wants[w].jokeredition);
-            printf_s(" ");
+            printf_s("_"); // Replace space with underscore
         }
         print_item_host(config.Wants[w].value);
     }

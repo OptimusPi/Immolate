@@ -55,7 +55,7 @@ class MainWindow:
         # Create widgets in each section
         self.create_config_section()
         self.create_criteria_section()    
-        self.create_run_settings_section() 
+        self.create_run_settings_section()
         self.create_results_section()
         
         # Create status bar
@@ -205,7 +205,7 @@ class MainWindow:
                                                    textvariable=self.number_of_seeds_var, state="readonly", 
                                                    font=("m6x11", 12))
         self.number_of_seeds_dropdown['values'] = ["All", "1 Single Seed",
-                                                "100K", "1M", "100M", "1B"]
+                                                "1K", "100K", "1M", "100M", "1B", "10B", "100B"]
         self.number_of_seeds_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>", self.on_number_of_seeds_changed)
         row += 1
@@ -370,7 +370,7 @@ class MainWindow:
         """Set up the results table to refresh immediately and then every 1000ms."""
         def refresh_loop():
             self.refresh_results_table()
-            self.root.after(1000, refresh_loop)
+            self.root.after(2000, refresh_loop)
         # Call once immediately, then start the loop
         self.refresh_results_table()
 

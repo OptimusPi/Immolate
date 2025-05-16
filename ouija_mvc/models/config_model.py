@@ -25,8 +25,8 @@ class ConfigModel:
         self.loaded_config_path = None
         self.thread_groups = "32"
         self.starting_seed = "random"
-        self.number_of_seeds = "All"
-        self.cutoff = ""  # Default to empty, meaning no cutoff
+        self.number_of_seeds = "All Seeds"
+        self.cutoff = "1"
         self.gpu_batch = "16" # Default GPU batch size
         
         # Create config directory if it doesn't exist

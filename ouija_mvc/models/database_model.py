@@ -16,6 +16,7 @@ class DatabaseModel:
         """Initialize the database model"""
         self.conn = None
         self.current_db_path = None
+        self.header_columns = None  # Store the header columns once established
         
         # Ensure database directory exists
         os.makedirs(self.DB_DIR, exist_ok=True)
@@ -45,9 +46,7 @@ class DatabaseModel:
             self.conn = duckdb.connect(db_path)
             self.current_db_path = db_path
 
-            # Ensure the results table exists
-            if not self.table_exists():
-                self.create_table(["Seed", "Score"])
+            # Remove default table creation logic here
 
             return True
         except Exception as e:
@@ -98,29 +97,23 @@ class DatabaseModel:
 
     def ensure_columns_exist(self, columns):
         """Ensure all specified columns exist in the results table."""
-        if not self.conn or not self.table_exists():
+        if not self.conn:
             return False
 
-        try:
-            # Get existing columns
-            existing_columns = [row[0] for row in self.conn.execute("PRAGMA table_info(results)").fetchall()]
+        if self.header_columns is None:
+            # Establish the header columns on the first call
+            self.header_columns = columns
+            print(f"Header established: {self.header_columns}")
 
-            # Add missing columns or recreate the table if a conflict occurs
-            for col in columns:
-                if col not in existing_columns:
-                    try:
-                        self.conn.execute(f'ALTER TABLE results ADD COLUMN "{col}" INTEGER;')
-                    except Exception as e:
-                        if "already exists" in str(e):
-                            print("Column conflict detected. Recreating the table.")
-                            self.create_table(columns)
-                            break
+            # Create the table dynamically based on the received header
+            self.create_table(columns)
+        else:
+            # Validate that the columns match the established header
+            if set(columns) != set(self.header_columns):
+                print("Error: Attempted to modify schema after it was established.")
+                return False
 
-            return True
-        except Exception as e:
-            print(f"Error ensuring columns exist: {e}")
-            self.create_table(columns)  # Recreate the table on error
-            return False
+        return True
 
     def insert_result(self, columns, values):
         """Insert a result row into the database"""

@@ -12,27 +12,23 @@ class SearchModel:
     
     # Maps for dropdown values to command-line arguments
     THREAD_GROUP_MAP = {
-        "Single": "1",
-        "Default (16)": "16",
+        "1": "1",
         "32": "32",
-        "48": "48",
-        "56": "56",
         "64": "64",
-        "96": "96",
-        "112": "112",
         "128": "128",
-        "224": "224",
         "256": "256"
     }
     
     SEED_COUNT_MAP = {
-        "All": None,  # Use None to indicate omitting the argument
-        "1 Single Seed": "1",
+        "All Seeds": None,  # Use None to indicate omitting the argument
+        "1": "1",
         "1K": "1000",
         "100K": "100000",
         "1M": "1000000",
         "100M": "100000000",
-        "1B": "1000000000"
+        "1B": "1000000000",
+        "10B": "10000000000",
+        "100B": "100000000000",
     }
     
     def __init__(self):
@@ -174,11 +170,17 @@ class SearchModel:
                 # Parse CSV header
                 if not header_found and line.strip().startswith("+Seed,"):
                     # Validate headers to ensure they are distinct and valid
-                    header_columns = [col.strip() for col in line.replace("+Seed", "Seed").strip().split(",") if col.strip() != ""]
+                    header_columns = [col.strip() for col in line.replace("+Seed", "Seed").strip().replace(" ","_").replace("!","").split(",") if col.strip() != ""]
+                    
+                    # Relax header validation to allow duplicates but log a warning
                     if len(header_columns) != len(set(header_columns)):
-                        raise ValueError(f"Duplicate headers found: {header_columns}")
-                    if any(not col.isidentifier() for col in header_columns):
-                        raise ValueError(f"Invalid header names found: {header_columns}")
+                        if self.console_callback:
+                            self.console_callback(f"Warning: Duplicate headers found: {header_columns}\n")
+                    # Validate header names but do not raise an error for invalid ones
+                    invalid_headers = [col for col in header_columns if not col.isidentifier()]
+                    if invalid_headers:
+                        if self.console_callback:
+                            self.console_callback(f"Warning: Invalid header names found: {invalid_headers}\n")
 
                     header_found = True
 
