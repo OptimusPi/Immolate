@@ -92,46 +92,56 @@ class MainWindow:
         self.table_font_size = 16
     
     def create_layout(self):
-        """Create the main layout frames with better proportioning"""
+        """Create the main layout with proper 50/50 split"""
         # Main container frame
         self.main_container = tk.Frame(self.root, bg=BACKGROUND)
-        self.main_container.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.main_container.pack(fill=tk.BOTH, expand=True)
         
-        # Top frame (for control panels) - allow it to expand
-        self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND)
-        self.settings_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        # Create top section (50% of window height)
+        self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND, height=self.root.winfo_height()//2)
+        self.settings_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
+        self.settings_frame.pack_propagate(False)  # Fix the height
         
-        # Create columns within the settings_frame
-        self.config_column_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=280) 
-        self.config_column_frame.pack_propagate(False)
-        self.config_column_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
-
-        self.deck_column_frame = tk.Frame(self.settings_frame, bg=BACKGROUND, width=200) # Adjusted width
-        self.deck_column_frame.pack_propagate(False)
-        self.deck_column_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+        # Create three equal columns in the top section
+        column_width = self.root.winfo_width() // 3
+        self.left_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
+        self.left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Bottom frame (for results table) - take more vertical space
+        self.middle_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
+        self.middle_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        self.right_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
+        self.right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Bottom section (remaining height)
         self.bottom_frame = tk.Frame(self.main_container, bg=BACKGROUND)
-        self.bottom_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-    
+        self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        
+        # Add window resize handler to maintain the proportions
+        self.root.bind("<Configure>", self._on_window_resize)
+
+    def _on_window_resize(self, event):
+        """Handle window resize events to maintain proportions"""
+        if event.widget == self.root:
+            # Update top section height to be 50% of window
+            self.settings_frame.config(height=event.height//2)
+
     def create_config_section(self):
-        """Create the configuration section with a more streamlined layout"""
-        # self.left_frame is replaced by self.config_column_frame defined in create_layout
+        """Create the configuration section with optimized spacing"""
+        # Config frame
+        self.config_frame = tk.LabelFrame(self.left_column, text="Configuration", 
+                                        padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.config_frame.pack(fill=tk.X, expand=False, padx=1, pady=(1, 0))
         
-        # ===== Save/Load Frame =====
-        self.config_frame = tk.LabelFrame(self.config_column_frame, text="Configuration", 
-                                        padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.config_frame.pack(fill=tk.X, expand=False, padx=2, pady=2)
-        
-        # Config name entry
+        # Config name entry - tighter padding
         self.config_name_var = tk.StringVar()
         self.config_name_entry = tk.Entry(self.config_frame, textvariable=self.config_name_var, font=("m6x11", 13))
-        self.config_name_entry.pack(fill=tk.X, pady=2)
+        self.config_name_entry.pack(fill=tk.X, pady=1)
         self.config_name_var.trace_add("write", self.on_config_name_changed)
         
-        # Button rows
+        # Button rows with tighter layout
         button_frame = tk.Frame(self.config_frame, bg=BACKGROUND)
-        button_frame.pack(fill=tk.X, pady=2)
+        button_frame.pack(fill=tk.X, pady=1)
         
         self.save_button = tk.Button(button_frame, text="Save", 
                                    command=self.on_save_direct, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
@@ -146,9 +156,9 @@ class MainWindow:
         self.load_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(1,0))
         
         # ===== Search Settings Frame =====
-        self.search_settings_frame = tk.LabelFrame(self.config_column_frame, text="Search Settings", 
-                                                 padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.search_settings_frame.pack(fill=tk.X, expand=True, padx=2, pady=2)
+        self.search_settings_frame = tk.LabelFrame(self.left_column, text="Search Settings", 
+                                                 padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.search_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         
         # Create a grid layout for more compact controls
         row = 0
@@ -247,12 +257,16 @@ class MainWindow:
         
         # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
-    
+        
+        # Make the grid rows more compact
+        for row in range(8):  # Assuming we have about 8 rows in the grid
+            self.search_settings_frame.grid_rowconfigure(row, pad=1)  # Minimal row padding
+
     def create_criteria_section(self):
-        """Create the criteria selection section with deck settings included"""
-        self.criteria_frame = tk.LabelFrame(self.settings_frame, text="Search Criteria", 
-                                          padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.criteria_frame.pack(fill=tk.BOTH, expand=True, side=tk.LEFT, padx=4, pady=4)
+        """Create the criteria selection section with optimized spacing"""
+        self.criteria_frame = tk.LabelFrame(self.middle_column, text="Search Criteria", 
+                                          padx=3, pady=3, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.criteria_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         
         # Criteria section - split into left (deck settings) and right (criteria list)
         criteria_left = tk.Frame(self.criteria_frame, bg=BACKGROUND)
@@ -289,9 +303,9 @@ class MainWindow:
                 command=lambda: self.on_add_need("Suits")).pack(side=tk.LEFT, padx=1)
         
         # Criteria list
-        self.criteria_list = tk.Listbox(criteria_right, height=4, bg=DARK_BACKGROUND, fg=LIGHT_TEXT,
+        self.criteria_list = tk.Listbox(criteria_right, bg=DARK_BACKGROUND, fg=LIGHT_TEXT,
                                      selectmode=tk.SINGLE, font=("m6x11", 12))
-        self.criteria_list.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.criteria_list.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         
         # Criteria action buttons
         self.criteria_buttons_frame = tk.Frame(criteria_right, bg=BACKGROUND)
@@ -303,44 +317,54 @@ class MainWindow:
                 command=self.on_remove_selected, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=1)
     
     def create_run_settings_section(self):
-        """Create the run settings and console output section with adjusted width"""
-        self.run_settings_frame = tk.LabelFrame(self.settings_frame, text="Run", 
-                                              padx=6, pady=6, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        # Make this frame narrower by setting width explicitly and prevent children from resizing it
-        self.run_settings_frame.config(width=320) # Adjusted width
-        self.run_settings_frame.pack_propagate(False) # Prevent children from resizing this frame
-        self.run_settings_frame.pack(fill=tk.Y, expand=False, side=tk.LEFT, padx=4, pady=4) # Changed fill to tk.Y
+        """Create the run settings section with the button properly positioned"""
+        self.run_settings_frame = tk.LabelFrame(self.right_column, text="Run", 
+                                              padx=3, pady=3, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.run_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         
-        # Console output at top now
-        console_frame = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
-        console_frame.pack(fill=tk.BOTH, expand=True)
+        # Create a container frame with proper layout
+        run_container = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
+        run_container.pack(fill=tk.BOTH, expand=True)
         
-        self.output_text = tk.Text(console_frame, wrap=tk.WORD, height=5,
+        # Configure rows to ensure proper distribution
+        run_container.grid_rowconfigure(0, weight=1)  # Console gets all extra space
+        run_container.grid_rowconfigure(1, weight=0)  # Button row has fixed height
+        run_container.grid_columnconfigure(0, weight=1)  # Full width
+        
+        # Console output at top now, using grid
+        console_frame = tk.Frame(run_container, bg=BACKGROUND)
+        console_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        
+        self.output_text = tk.Text(console_frame, wrap=tk.WORD,
                                  bg=DARK_BACKGROUND, fg=LIGHT_TEXT, 
                                  font=("m6x11", 13), insertbackground='white')
-        self.output_text.pack(fill=tk.BOTH, expand=True)
+        self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
         
-        # Move run button to bottom
-        self.run_button = tk.Button(self.run_settings_frame, text="Let Jimbo Cook!", 
+        # Button at bottom with fixed height
+        button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
+        button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5,0))
+        button_frame.grid_propagate(False)  # Prevent shrinking
+        
+        self.run_button = tk.Button(button_frame, text="Let Jimbo Cook!", 
                                   command=self.on_run_search, 
                                   bg=BLUE, fg=LIGHT_TEXT, 
                                   font=("m6x11", 16))
-        self.run_button.pack(fill=tk.X, pady=(10, 0), padx=5)
-    
+        self.run_button.pack(fill=tk.BOTH, expand=True)
+
     def create_results_section(self):
-        """Create results table section with more vertical space"""
+        """Create results table section with optimized spacing"""
         self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results", 
-                                         padx=4, pady=4, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+                                         padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         
-        # Make results table take up more vertical space
+        # Table with no wasted space
         self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),
                        showtoolbar=False, showstatusbar=False,
                        font=self.table_font_family,
                        fontsize=self.table_font_size,
                        headerfont=(self.table_font_family, self.table_font_size))
         
-        # Show the table and set it to expand fully
+        # Show the table with tight packing
         self.pt.show()
         
         # Set default precision for numeric columns
