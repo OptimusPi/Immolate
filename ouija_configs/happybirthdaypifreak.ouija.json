@@ -1,0 +1,55 @@
+{
+    "name": "HappyBirthdayPifreak",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 8,
+        "Needs": [
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Ectoplasm"
+            },
+            {
+                "value": "Negative_Tag"
+            }
+        ],
+        "maxSearchAnte": 2,
+        "deck": "Anaglyph_Deck",
+        "stake": "White_Stake"
+    }
+}

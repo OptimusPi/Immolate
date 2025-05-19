@@ -1,0 +1,78 @@
+{
+    "name": "DiceOnly",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 5,
+        "numWants": 10,
+        "Needs": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Triboulet",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 3
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 3
+            },
+            {
+                "value": "DNA",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Ankh"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Baron",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Triboulet",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "Negative"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

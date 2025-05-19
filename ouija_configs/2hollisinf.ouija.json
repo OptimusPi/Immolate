@@ -1,0 +1,77 @@
+{
+    "name": "2hollisINF",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 9,
+        "numWants": 5,
+        "Needs": [
+            {
+                "value": "Hack",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Ectoplasm",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            },
+            {
+                "value": "DNA",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 7
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Lucky_Cat",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 6
+            },
+            {
+                "value": "Sock_and_Buskin",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Sixth_Sense",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 7
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Hack",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Ace"
+            },
+            {
+                "value": "2"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Erratic_Deck",
+        "stake": "White_Stake"
+    }
+}

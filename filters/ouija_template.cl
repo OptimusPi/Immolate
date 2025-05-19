@@ -1,52 +1,59 @@
 #include "lib/ouija.cl"
-#define CACHE_SIZE 314
+//#define CACHE_SIZE 500
 //#define _debugPrints 1
 
 void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
-#ifdef _debugPrints
-  printf("Starting filter\n");
-  printf("Deck id: %d\n", config->deck);
-  printf("Stake id: %d\n", config->stake);
-  printf("Deck: ");
-  print_item(config->deck);
-  printf("\n");
-  printf("Stake: ");
-  print_item(config->stake);
-  printf("\n");
 
-  printf("Num Needs: %d\n", config->numNeeds);
-  printf("Num Wants: %d\n", config->numWants);
-  printf("Max Search Ante: %d\n", config->maxSearchAnte);
+  // int gid = get_global_id(0);
+  // printf("[Ouija] Kernel start, global_id=%d\n", gid);
+  // text debug_Seed = s_to_string(&inst->seed);
+  // printf("[Ouija] Seed: [%s]\n", debug_Seed.str);
+
+  // Defensive: zero all result fields at the start
+  result->TotalScore = 0;
+  result->NegativeJokers = 0;
+  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
+    result->ScoreWants[i] = 0;
+  }
+  for (int i = 0; i < 9; i++) {
+    result->seed[i] = 0;
+  }
+
+  // Clamp numNeeds and numWants defensively
+  int clampedNumNeeds = config->numNeeds;
+  int clampedNumWants = config->numWants;
+  if (clampedNumNeeds > MAX_DESIRES_KERNEL) clampedNumNeeds = MAX_DESIRES_KERNEL;
+  if (clampedNumNeeds < 0) clampedNumNeeds = 0;
+  if (clampedNumWants > MAX_DESIRES_KERNEL) clampedNumWants = MAX_DESIRES_KERNEL;
+  if (clampedNumWants < 0) clampedNumWants = 0;
+
+#ifdef _debugPrints
+  printf("[Ouija] Starting filter\n");
+  printf("[Ouija] Deck id: %d\n", config->deck);
+  printf("[Ouija] Stake id: %d\n", config->stake);
+  printf("[Ouija] Num Needs: %d (clamped: %d)\n", config->numNeeds, clampedNumNeeds);
+  printf("[Ouija] Num Wants: %d (clamped: %d)\n", config->numWants, clampedNumWants);
+  printf("[Ouija] Max Search Ante: %d\n", config->maxSearchAnte);
   text debug_Seed = s_to_string(&inst->seed);
-  printf("my seed is [%s]\n", debug_Seed.str);
+  printf("[Ouija] Seed: [%s]\n", debug_Seed.str);
 #endif
 
   set_deck(inst, config->deck);
   set_stake(inst, config->stake);
   init_locks(inst, 1, false, true);
 
-  // Declare and initialize ante
-  int ante = 0; // Default value, update as needed
-  // Initialize ScoreNeeds and ScoreWants
+  int ante = 0;
   bool ScoreNeeds[MAX_DESIRES_KERNEL] = {false};
-  result->TotalScore = 0;
-  result->NegativeJokers = 0;
-  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
-    result->ScoreWants[i] = 0;
-  }
-  // Default max search ante if config doesn't specify individual antes
   int maxSearchAnte = config->maxSearchAnte;
 
   if (config->deck == Erratic_Deck) {
     item deck[52];
     init_deck(inst, deck);
     int bestScore = 0;
-    __attribute__((opencl_unroll_hint(4)))
     for (int i = 0; i < 52; i++) {
       item r = rank(deck[i]);
       item s = suit(deck[i]);
-      __attribute__((opencl_unroll_hint()))
-      for (int w = 0; w < config->numWants; w++) {
+      for (int w = 0; w < clampedNumWants; w++) {
         if (r == config->Wants[w].value || s == config->Wants[w].value) {
           result->ScoreWants[w] += 1;
           if (result->ScoreWants[w] > result->TotalScore) {
@@ -54,8 +61,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
           }
         }
       }
-      __attribute__((opencl_unroll_hint()))
-      for (int n = 0; n < config->numNeeds; n++) {
+      for (int n = 0; n < clampedNumNeeds; n++) {
         if (r == config->Needs[n].value || s == config->Needs[n].value) {
           ScoreNeeds[n] = true;
         }
@@ -63,313 +69,217 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
   }
 
-  // Search through all antes up to maxSearchAnte
-  __attribute__((opencl_unroll_hint(8)))
   for (int ante = 1; ante <= maxSearchAnte; ante++) {
     init_unlocks(inst, ante, false);
-
     item voucher = next_voucher(inst, ante);
 #ifdef _debugPrints
-    printf("Ante %d Voucher: ", ante);
+    printf("[Ouija] Ante %d Voucher: ", ante);
     print_item(voucher);
     printf("\n");
 #endif
     if (ante > 1 && voucher != Hieroglyph && voucher != Petroglyph) {
       activate_voucher(inst, voucher);
     }
-
     item smallBlindTag = next_tag(inst, ante);
     item bigBlindTag = next_tag(inst, ante);
-
-    // Process vouchers and tags for needs with branchless operations
-    __attribute__((opencl_unroll_hint()))
-    for (int x = 0; x < config->numNeeds; x++) {
+    for (int x = 0; x < clampedNumNeeds; x++) {
       bool isSmallBlind = (config->Needs[x].value == smallBlindTag);
       bool isBigBlind = (config->Needs[x].value == bigBlindTag);
       bool isVoucher = (config->Needs[x].value == voucher);
       ScoreNeeds[x] |= (isSmallBlind | isBigBlind | isVoucher);
     }
-
-    // Process vouchers and tags for wants with branchless operations
-    __attribute__((opencl_unroll_hint()))
-    for (int x = 0; x < config->numWants; x++) {
+    for (int x = 0; x < clampedNumWants; x++) {
       int isSmallBlind = (config->Wants[x].value == smallBlindTag);
       int isBigBlind = (config->Wants[x].value == bigBlindTag);
       int isVoucher = (config->Wants[x].value == voucher);
       result->ScoreWants[x] += (isSmallBlind + isBigBlind + isVoucher);
     }
-
-    // Process shop items using direct scoring
     int shCount = (ante == 1) ? 4 : ante*2;
-    __attribute__((opencl_unroll_hint(2)))
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
       if (shItem.value == RETRY) continue;
-      
 #ifdef _debugPrints
-      printf("Shop item %d: ", sh);
+      printf("[Ouija] Shop item %d: ", sh);
       print_item(shItem.value);
       if (shItem.type == ItemType_Joker) {
         printf(" (Edition ID: %d)", shItem.joker.edition);
       }
       printf("\n");
 #endif
-
-      // Update showman_active flag (optimization: single assignment)
       if (shItem.value == Showman)
         inst->params.showman = true;
-      
-      // Count negative jokers with branchless operation
       result->NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
-      
-      // Score needs
-      __attribute__((opencl_unroll_hint()))
-      for (int x = 0; x < config->numNeeds; x++) {
-        // For jokers with edition check
+      for (int x = 0; x < clampedNumNeeds; x++) {
         bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                           (shItem.type == ItemType_Joker) && 
                           (config->Needs[x].value == shItem.value) && 
                           ((config->Needs[x].jokeredition == No_Edition) || 
                            (config->Needs[x].jokeredition == shItem.joker.edition));
-        
-        // For regular items (non-jokers)
         bool regularMatch = (shItem.type != ItemType_Joker && config->Needs[x].value == shItem.value);
-        
         bool matched = (jokerMatch | regularMatch);
         ScoreNeeds[x] |= matched;
-        
-        // Debug print when we match a need
-      #ifdef _debugPrints
+#ifdef _debugPrints
         if (matched) {
-          printf("Need %d matched in ante %d\n", x, ante);
+          printf("[Ouija] Need %d matched in ante %d\n", x, ante);
         }
-      #endif
+#endif
       }
-      
-      // Score wants - directly use result->ScoreWants array
-      __attribute__((opencl_unroll_hint()))
-      for (int x = 0; x < config->numWants; x++) {
-        // For jokers with edition check
+      for (int x = 0; x < clampedNumWants; x++) {
         int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
                          (shItem.type == ItemType_Joker) && 
                          (config->Wants[x].value == shItem.value) && 
                          ((config->Wants[x].jokeredition == No_Edition) || 
                           (config->Wants[x].jokeredition == shItem.joker.edition));
-                          
-        // For regular items (non-jokers)
         int regularMatch = (shItem.type != ItemType_Joker && config->Wants[x].value == shItem.value);
-        
-        result->ScoreWants[x] += (jokerMatch + regularMatch);
+        result->ScoreWants[x] += (jokerMatch && (result->ScoreWants[x] == 0 || inst->params.showman == true));
+        result->ScoreWants[x] += regularMatch;
       }
     }
-
-    // Process packs
     int packChecks = (ante == 1) ? 4 : 6;
 #ifdef _debugPrints
-    printf("performing %d pack checks for ante %d\n", packChecks, ante);
+    printf("[Ouija] performing %d pack checks for ante %d\n", packChecks, ante);
 #endif
-    __attribute__((opencl_unroll_hint(2)))
     for (int p = 0; p < packChecks; p++) {
       pack _pack = pack_info(next_pack(inst, ante));
 #ifdef _debugPrints
-      printf("Pack %d type:", p);
+      printf("[Ouija] Pack %d type:", p);
       print_item(_pack.type);
       printf("\n");
 #endif
-      
-      // Handle different pack types - optimized for branchless where possible
       if (_pack.type == Arcana_Pack) {
-        // Process Arcana cards (tarot cards)
         item tarotCards[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
         arcana_pack(tarotCards, _pack.size, inst, ante);
-        
         for (int t = 0; t < _pack.size; t++) {
 #ifdef _debugPrints
-          printf("Arcana card %d: ", t);
+          printf("[Ouija] Arcana card %d: ", t);
           print_item(tarotCards[t]);
           printf("\n");
 #endif
           if (tarotCards[t] == RETRY) continue;
-          
-          // Special handling for The Soul
           if (tarotCards[t] == The_Soul) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
-            #ifdef _debugPrints
-            printf("The Soul joker: ");
+#ifdef _debugPrints
+            printf("[Ouija] The Soul joker: ");
             if (soulJoker.edition != No_Edition) {
               print_item(soulJoker.edition);
-            } 
+            }
             printf(" ");
             print_item(soulJoker.joker);
             printf("\n");
-            #endif
-            
-            // Count negative joker with branchless operation
+#endif
             result->NegativeJokers += (soulJoker.edition == Negative);
-            
-            // Score needs for both The_Soul itself and the created joker
-            __attribute__((opencl_unroll_hint()))
-            for (int x = 0; x < config->numNeeds; x++) {
-              #ifdef _debugPrints
-              printf("Checking need %d for The Soul\n", x);
-              #endif
-
+            for (int x = 0; x < clampedNumNeeds; x++) {
+#ifdef _debugPrints
+              printf("[Ouija] Checking need %d for The Soul\n", x);
+#endif
               bool soulMatch = (config->Needs[x].value == The_Soul);
-
-              #ifdef _debugPrints
+#ifdef _debugPrints
               if (soulMatch) {
-                printf("Matched The Soul need %d\n", x);
+                printf("[Ouija] Matched The Soul need %d\n", x);
               }
-              #endif
-
+#endif
               bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                                 (config->Needs[x].value == soulJoker.joker) && 
                                 ((config->Needs[x].jokeredition == No_Edition) || 
                                  (config->Needs[x].jokeredition == soulJoker.edition));
-
-              #ifdef _debugPrints
+#ifdef _debugPrints
               if (jokerMatch) {
-                printf("Matched joker need %d\n", x);
+                printf("[Ouija] Matched joker need %d\n", x);
               } else {
-                printf("Did not match joker need %d\n", x);
-                printf("Need value: ");
+                printf("[Ouija] Did not match joker need %d\n", x);
+                printf("[Ouija] Need value: ");
                 print_item(config->Needs[x].value);
                 printf("\n");
-                printf("Joker value: ");
+                printf("[Ouija] Joker value: ");
                 print_item(soulJoker.joker);
                 printf("\n");
-                printf("Joker edition: ");
+                printf("[Ouija] Joker edition: ");
                 print_item(soulJoker.edition);
                 printf("\n");
-                printf("Need joker edition: ");
+                printf("[Ouija] Need joker edition: ");
                 print_item(config->Needs[x].jokeredition);
                 printf("\n");
-
               }
-              #endif
-              
+#endif
               ScoreNeeds[x] |= (soulMatch | jokerMatch);
             }
-            
-            // Score wants for both The_Soul itself and the created joker
-            __attribute__((opencl_unroll_hint()))
-            for (int x = 0; x < config->numWants; x++) {
+            for (int x = 0; x < clampedNumWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
               int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
                                (config->Wants[x].value == soulJoker.joker) && 
                                ((config->Wants[x].jokeredition == No_Edition) || 
                                 (config->Wants[x].jokeredition == soulJoker.edition));
-              
               result->ScoreWants[x] += (soulMatch + jokerMatch);
             }
           } else {
-            // Score needs
-            for (int x = 0; x < config->numNeeds; x++) {
+            for (int x = 0; x < clampedNumNeeds; x++) {
               bool matched = (config->Needs[x].value == tarotCards[t]);
               ScoreNeeds[x] |= matched;
             }
-            
-            // Score wants
-            for (int x = 0; x < config->numWants; x++) {
+            for (int x = 0; x < clampedNumWants; x++) {
               result->ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
             }
-          } 
+          }
         }
-      } 
-      else if (_pack.type == Spectral_Pack) {
-        // Process Spectral cards
+      } else if (_pack.type == Spectral_Pack) {
         item spectralCards[5] = {RETRY, RETRY, RETRY, RETRY, RETRY};
         spectral_pack(spectralCards, _pack.size, inst, ante);
-        
-        __attribute__((opencl_unroll_hint()))
         for (int t = 0; t < _pack.size; t++) {
 #ifdef _debugPrints
-          printf("Spectral card %d: %d\n", t, spectralCards[t]);
+          printf("[Ouija] Spectral card %d: %d\n", t, spectralCards[t]);
 #endif
           if (spectralCards[t] == RETRY) continue;
-          
-          // Special handling for The Soul
           if (spectralCards[t] == The_Soul) {
-            
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
-            
-            // Count negative joker with branchless operation
             result->NegativeJokers += (soulJoker.edition == Negative);
-            
-            // Score needs for both The_Soul itself and the created joker
-            __attribute__((opencl_unroll_hint()))
-            for (int x = 0; x < config->numNeeds; x++) {
-              
+            for (int x = 0; x < clampedNumNeeds; x++) {
               bool soulMatch = (config->Needs[x].value == The_Soul);
               bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                                 (config->Needs[x].value == soulJoker.joker) && 
                                 ((config->Needs[x].jokeredition == No_Edition) || 
                                  (config->Needs[x].jokeredition == soulJoker.edition));
-              
               ScoreNeeds[x] |= (soulMatch | jokerMatch);
             }
-            
-            // Score wants for both The_Soul itself and the created joker
-            __attribute__((opencl_unroll_hint()))
-            for (int x = 0; x < config->numWants; x++) {
+            for (int x = 0; x < clampedNumWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
               int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
                                (config->Wants[x].value == soulJoker.joker) && 
                                ((config->Wants[x].jokeredition == No_Edition) || 
                                 (config->Wants[x].jokeredition == soulJoker.edition));
-              
               result->ScoreWants[x] += (soulMatch + jokerMatch);
             }
-          } 
-          else {
-            // Regular spectral card
-            for (int x = 0; x < config->numNeeds; x++) {
+          } else {
+            for (int x = 0; x < clampedNumNeeds; x++) {
               ScoreNeeds[x] |= (config->Needs[x].value == spectralCards[t]);
             }
-            
-            for (int x = 0; x < config->numWants; x++) {
+            for (int x = 0; x < clampedNumWants; x++) {
               result->ScoreWants[x] += (config->Wants[x].value == spectralCards[t]);
             }
           }
         }
-      } 
-      else if (_pack.type == Buffoon_Pack) {
-        // Process Buffoon pack (jokers)
+      } else if (_pack.type == Buffoon_Pack) {
         jokerdata buffoonJokers[5];
         buffoon_pack_detailed(buffoonJokers, _pack.size, inst, ante);
-        
-        __attribute__((opencl_unroll_hint()))
         for (int t = 0; t < _pack.size; t++) {
 #ifdef _debugPrints
-          printf("Buffoon joker %d: %d\n", t, buffoonJokers[t].joker);
+          printf("[Ouija] Buffoon joker %d: %d\n", t, buffoonJokers[t].joker);
 #endif
           if (buffoonJokers[t].joker == RETRY) continue;
-          
-          // Update showman_active and count negative jokers with branchless operations
           if (buffoonJokers[t].joker == Showman)
             inst->params.showman = true;
-            
           result->NegativeJokers += (buffoonJokers[t].edition == Negative);
-          
-          // Score needs
-          __attribute__((opencl_unroll_hint()))
-          for (int x = 0; x < config->numNeeds; x++) {
+          for (int x = 0; x < clampedNumNeeds; x++) {
             bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
                               (config->Needs[x].value == buffoonJokers[t].joker) && 
                               ((config->Needs[x].jokeredition == No_Edition) || 
                                (config->Needs[x].jokeredition == buffoonJokers[t].edition));
-            
             ScoreNeeds[x] = ScoreNeeds[x] ? ScoreNeeds[x] : jokerMatch;
           }
-          
-          // Score wants
-          __attribute__((opencl_unroll_hint()))
-          for (int x = 0; x < config->numWants; x++) {
+          for (int x = 0; x < clampedNumWants; x++) {
             int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
                              (config->Wants[x].value == buffoonJokers[t].joker) && 
                              ((config->Wants[x].jokeredition == No_Edition) || 
                               (config->Wants[x].jokeredition == buffoonJokers[t].edition));
-            
             result->ScoreWants[x] += jokerMatch && (result->ScoreWants[x] == 0 || inst->params.showman == true);
           }
         }
@@ -377,51 +287,58 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
 
     // Check per-need ante requirements at the end of each ante
-    __attribute__((opencl_unroll_hint()))
-    for (int n = 0; n < config->numNeeds; n++) {
+    for (int n = 0; n < clampedNumNeeds; n++) {
       bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
       
-      // Debug output for needs validation
-    #ifdef _debugPrints
+#ifdef _debugPrints
       if (ante == config->Needs[n].desireByAnte) {
         printf("Checking need %d at ante %d: needed=%d, found=%d\n", 
                n, ante, config->Needs[n].desireByAnte, ScoreNeeds[n]);
       }
-    #endif
+#endif
 
-      // If a need isn't met by its required ante, set score to 0 (invalid)
       if (needNotMetByRequiredAnte) {
-      #ifdef _debugPrints    
+#ifdef _debugPrints    
         printf("Returning invalid result because need %d not found by its required ante %d\n", n, config->Needs[n].desireByAnte);
         print_item(config->Needs[n].value);
         printf("\n");
-      #endif
+        printf("[Ouija] Early return: unmet need. Seed: [%s]\n", debug_Seed.str);
+#endif
+        // Defensive: zero all result fields on early return
         result->TotalScore = 0;
+        result->NegativeJokers = 0;
+        for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
+          result->ScoreWants[i] = 0;
+        }
+        for (int i = 0; i < 9; i++) {
+          result->seed[i] = 0;
+        }
         return;
       }
     }
   } // End of ante loop
 
   result->TotalScore += 1;
-  
-  // Add final debug output to see the score before return
-  //printf("Final score before bonus: %d\n", result->TotalScore);
-  __attribute__((opencl_unroll_hint()))
-  for (int w = 0; w < config->numWants && w < MAX_DESIRES_KERNEL; w++) {
-    // Branchless way to add 2 points if want was found (ScoreWants > 0)
+
+#ifdef _debugPrints
+  if (isnan((float)result->TotalScore) || isinf((float)result->TotalScore)) {
+    printf("[Ouija] WARNING: NaN or Inf in TotalScore! Seed: [%s]\n", debug_Seed.str);
+  }
+#endif
+
+  for (int w = 0; w < clampedNumWants; w++) {
     result->TotalScore += (result->ScoreWants[w] > 0) * 1;
     result->TotalScore += result->ScoreWants[w];
   }
 
-  // Add bonus points for negative jokers
   result->TotalScore += result->NegativeJokers;
 
-  // Copy the seed to the result
   text s_str = s_to_string(&inst->seed);
-  __attribute__((opencl_unroll_hint()))
   for (int i = 0; i < 9; i++) {
     result->seed[i] = s_str.str[i];
   }
-
+#ifdef _debugPrints
+  printf("[Ouija] Kernel end, global_id=%d\n", get_global_id(0));
+#endif
   return;
 }

@@ -1,0 +1,70 @@
+{
+    "name": "DiceOnlyOnlyOnly2",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 7,
+        "numWants": 6,
+        "Needs": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Coupon_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Double_Tag",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Showman",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Canio",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Chicot",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Triboulet",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Yorick",
+                "jokeredition": "No_Edition"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

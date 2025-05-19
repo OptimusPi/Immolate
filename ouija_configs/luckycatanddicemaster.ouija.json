@@ -1,0 +1,65 @@
+{
+    "name": "LuckyCatAndDiceMaster",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 4,
+        "numWants": 8,
+        "Needs": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            },
+            {
+                "value": "The_Magician",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Invisible_Joker",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Baron",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Negative_Tag"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Anaglyph_Deck",
+        "stake": "White_Stake"
+    }
+}

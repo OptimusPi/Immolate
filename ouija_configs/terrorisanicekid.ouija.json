@@ -1,0 +1,31 @@
+{
+    "name": "TERRORisAniceKID",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 2,
+        "Needs": [
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 4
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Negative_Tag"
+            },
+            {
+                "value": "Cryptid"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

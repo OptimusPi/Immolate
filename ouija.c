@@ -6,6 +6,7 @@
 
 #include <time.h>
 #include <CL/cl.h>
+#include <assert.h>
 
 #define NUM_RESULT_BUFFERS 2 // For double buffering
 #define DEFAULT_BATCH_MULTIPLIER 1 // Default batch size multiplier (workgroup * warp * multiplier)
@@ -238,6 +239,26 @@ int main(int argc, char **argv) {
         }
     }
 
+    assert(config.numNeeds <= MAX_DESIRES_HOST);
+    assert(config.numWants <= MAX_DESIRES_HOST);
+
+    // Clamp numNeeds and numWants to MAX_DESIRES_HOST for safety before sending to device
+    if (config.numNeeds > MAX_DESIRES_HOST) {
+        printf_s("Warning: numNeeds (%d) > MAX_DESIRES_HOST (%d), clamping!\n", config.numNeeds, MAX_DESIRES_HOST);
+        config.numNeeds = MAX_DESIRES_HOST;
+    }
+    if (config.numWants > MAX_DESIRES_HOST) {
+        printf_s("Warning: numWants (%d) > MAX_DESIRES_HOST (%d), clamping!\n", config.numWants, MAX_DESIRES_HOST);
+        config.numWants = MAX_DESIRES_HOST;
+    }
+    // Optionally zero out unused entries for safety
+    for (int i = config.numNeeds; i < MAX_DESIRES_HOST; ++i) {
+        memset(&config.Needs[i], 0, sizeof(config.Needs[i]));
+    }
+    for (int i = config.numWants; i < MAX_DESIRES_HOST; ++i) {
+        memset(&config.Wants[i], 0, sizeof(config.Wants[i]));
+    }
+
     // --- Platform and Device Setup ---
     cl_uint numPlatforms;
     err = clGetPlatformIDs(0, NULL, &numPlatforms);
@@ -318,6 +339,7 @@ int main(int argc, char **argv) {
     char include_path[MAX_PATH+6];
     char kernel_path[MAX_PATH+12];
     char binary_path[MAX_PATH];
+    char build_options[1024];
     getExecutableDir(executable_dir);
 
     strcpy_s(include_path, sizeof include_path, "-I \"");
@@ -415,9 +437,8 @@ int main(int argc, char **argv) {
     }
     printf_s("Building OpenCL Program...\n");
 
-    // Add -cl-mad-enable to build options, and also testing out fast relaxed math right now!
-    char build_options[1024];
-    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-unsafe-math-optimizations -cl-no-signed-zeros", include_path);
+    // Remove -cl-unsafe-math-optimizations from build options for safety and compatibility
+    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-no-signed-zeros", include_path);
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t logLength = 0;
@@ -573,6 +594,14 @@ int main(int argc, char **argv) {
         num_seeds_this_dispatch = (numSeeds > batch_capacity) ? batch_capacity : numSeeds;
         seed_offset_for_kernel = 0; // First batch starts at offset 0 from startingSeed
 
+        // Host-side debug print for initial batch
+        printf_s("[HOST] Launching initial kernel batch: batch_idx=0, seed_offset=%lld, num_seeds=%lld\n", seed_offset_for_kernel, num_seeds_this_dispatch);
+        printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
+        char seedStr[9] = {0};
+        for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
+        printf_s("[HOST] Starting seed: %s\n", seedStr);
+        fflush(stdout);
+
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);
         clErrCheck(err, "clSetKernelArg - Setting starting seed for initial batch");
         err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &num_seeds_this_dispatch);
@@ -591,7 +620,6 @@ int main(int argc, char **argv) {
         if (global_work_size_init == 0 && num_seeds_this_dispatch > 0) global_work_size_init = localWorkSize; // Ensure it's not 0 if seeds > 0
         size_t local_work_size_init = (size_t)localWorkSize;
         if (num_seeds_this_dispatch == 0) global_work_size_init = 0; // No work if no seeds
-
 
         if (num_seeds_this_dispatch > 0) {
              err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size_init, &local_work_size_init, 0, NULL, &kernel_events[current_buffer_idx]);
@@ -630,13 +658,11 @@ int main(int argc, char **argv) {
         }
         
         if (num_seeds_last_dispatch > 0) { // Only map and process if the last dispatch had seeds
-            //printf_s("Batch %lld/%lld (Processing results for %lld seeds)\n", batch_idx, total_potential_batches, num_seeds_last_dispatch);
-            //fflush(stdout);
-
+            printf_s("[HOST] Processing batch %lld/%lld (results for %lld seeds)\n", batch_idx, total_potential_batches, num_seeds_last_dispatch);
+            fflush(stdout);
             OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[results_buffer_idx], CL_TRUE,
                                                CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);
             clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");
-            
             for (cl_long i = 0; i < num_seeds_last_dispatch; ++i) {
                 OuijaHostResult* result = &mapped_results[i];
                 if (result->seed[0] == '\0') continue; // Skip if kernel returned empty seed (e.g. error or no actual processing)
@@ -653,7 +679,6 @@ int main(int argc, char **argv) {
                 printf_s("\n");
             }
             fflush(stdout);
-            
             err = clEnqueueUnmapMemObject(queue, resultBuf_dev[results_buffer_idx], mapped_results, 0, NULL, NULL);
             clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer");
         }
@@ -672,6 +697,14 @@ int main(int argc, char **argv) {
         if (remaining_overall_seeds <= 0) break; // Should be caught by earlier check, but as a safeguard
 
         num_seeds_this_dispatch = (remaining_overall_seeds > batch_capacity) ? batch_capacity : remaining_overall_seeds;
+
+        // Host-side debug print for next batch
+        char seedStr[9] = {0};
+        for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
+        printf_s("[HOST] Launching kernel batch: batch_idx=%lld, seed_offset=%lld, num_seeds=%lld\n", batch_idx+1, seed_offset_for_kernel, num_seeds_this_dispatch);
+        printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
+        printf_s("[HOST] Starting seed: %s\n", seedStr);
+        fflush(stdout);
 
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);  
         clErrCheck(err, "clSetKernelArg - Setting starting seed for current batch");

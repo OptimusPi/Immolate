@@ -1,0 +1,34 @@
+{
+    "name": "2hollisClassic",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 1,
+        "Needs": [
+            {
+                "value": "Wee_Joker",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Hack",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "value": "2"
+            }
+        ],
+        "maxSearchAnte": 2,
+        "deck": "Erratic_Deck",
+        "stake": "White_Stake"
+    }
+}

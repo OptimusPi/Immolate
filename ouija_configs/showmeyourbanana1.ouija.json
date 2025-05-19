@@ -1,0 +1,21 @@
+{
+    "name": "ShowMeYourBanana1",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 0,
+        "numWants": 2,
+        "Needs": [],
+        "Wants": [
+            {
+                "value": "Gros_Michel"
+            },
+            {
+                "value": "Cavendish"
+            }
+        ],
+        "maxSearchAnte": 0,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

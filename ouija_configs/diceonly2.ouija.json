@@ -1,0 +1,41 @@
+{
+    "name": "DiceOnly2",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 3,
+        "Needs": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Lucky_Cat",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Ankh"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "Negative"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

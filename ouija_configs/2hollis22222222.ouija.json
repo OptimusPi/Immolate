@@ -1,0 +1,42 @@
+{
+    "name": "2hollis22222222",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 5,
+        "numWants": 1,
+        "Needs": [
+            {
+                "value": "Wee_Joker",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Hack",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Even_Steven",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Rare_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "value": "2"
+            }
+        ],
+        "maxSearchAnte": 2,
+        "deck": "Erratic_Deck",
+        "stake": "White_Stake"
+    }
+}

@@ -1,0 +1,39 @@
+{
+    "name": "NegativeRare",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 4,
+        "numWants": 2,
+        "Needs": [
+            {
+                "value": "Rare_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Ankh"
+            },
+            {
+                "value": "Cryptid"
+            }
+        ],
+        "maxSearchAnte": 2,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

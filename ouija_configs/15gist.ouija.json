@@ -1,0 +1,37 @@
+{
+    "name": "15GIST\n",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 4,
+        "numWants": 1,
+        "Needs": [
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 4
+            },
+            {
+                "value": "Diet_Cola",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 4
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Ankh"
+            }
+        ],
+        "maxSearchAnte": 4,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

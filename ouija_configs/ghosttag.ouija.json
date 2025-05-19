@@ -1,0 +1,68 @@
+{
+    "name": "GhostTag",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 10,
+        "Needs": [
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 5
+            },
+            {
+                "value": "Baron",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Lucky_Cat",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Business_Card",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Negative_Tag"
+            },
+            {
+                "value": "Double_Tag"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Sock_and_Buskin",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Hanging_Chad",
+                "jokeredition": "No_Edition"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

@@ -3,20 +3,12 @@
     "description": "Filter configuration created by Ouija GUI",
     "author": "Ouija GUI User",
     "filter_config": {
-        "numNeeds": 3,
-        "numWants": 4,
+        "numNeeds": 1,
+        "numWants": 2,
         "Needs": [
             {
                 "value": "Gros_Michel",
                 "desireByAnte": 1
-            },
-            {
-                "value": "Showman",
-                "desireByAnte": 1
-            },
-            {
-                "value": "Ankh",
-                "desireByAnte": 8
             }
         ],
         "Wants": [
@@ -25,15 +17,9 @@
             },
             {
                 "value": "Cavendish"
-            },
-            {
-                "value": "Oops_All_6s"
-            },
-            {
-                "value": "Ankh"
             }
         ],
-        "maxSearchAnte": 8,
+        "maxSearchAnte": 1,
         "deck": "Yellow_Deck",
         "stake": "Red_Stake"
     }

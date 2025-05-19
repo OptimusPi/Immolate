@@ -1,0 +1,101 @@
+{
+    "name": "BloodstoneCheckered3",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 7,
+        "numWants": 14,
+        "Needs": [
+            {
+                "value": "Bloodstone",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 3
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Lusty_Joker",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 3
+            },
+            {
+                "value": "Smeared_Joker",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Antimatter",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Blank",
+                "desireByAnte": 7
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Showman",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Greedy_Joker",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Negative_Tag"
+            },
+            {
+                "value": "Rare_Tag"
+            },
+            {
+                "value": "Voucher_Tag"
+            },
+            {
+                "value": "Double_Tag"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Invisible_Joker",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Canio",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Triboulet",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Rough_Gem",
+                "jokeredition": "No_Edition"
+            }
+        ],
+        "maxSearchAnte": 8,
+        "deck": "Checkered_Deck",
+        "stake": "White_Stake"
+    }
+}

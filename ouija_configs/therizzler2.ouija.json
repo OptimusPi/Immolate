@@ -1,0 +1,99 @@
+{
+    "name": "TheRizzler2",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 4,
+        "numWants": 16,
+        "Needs": [
+            {
+                "value": "Showman",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 4
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Ankh",
+                "desireByAnte": 1
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Baron",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Sock_and_Buskin",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Baron",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Lucky_Cat",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Space_Joker",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Space_Joker",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Burnt_Joker",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Canio",
+                "jokeredition": "No_Edition"
+            }
+        ],
+        "maxSearchAnte": 4,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

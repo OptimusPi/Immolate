@@ -1,0 +1,79 @@
+{
+    "name": "anaglyphNegativesINF3",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 14,
+        "Needs": [
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 3
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Blueprint",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Brainstorm",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Sock_and_Buskin",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Canio",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Triboulet",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Chicot",
+                "jokeredition": "Negative"
+            },
+            {
+                "value": "Ectoplasm"
+            },
+            {
+                "value": "Negative_Tag"
+            },
+            {
+                "value": "Double_Tag"
+            },
+            {
+                "value": "Lucky_Cat",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Baron",
+                "jokeredition": "No_Edition"
+            },
+            {
+                "value": "Mime",
+                "jokeredition": "No_Edition"
+            }
+        ],
+        "maxSearchAnte": 3,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}

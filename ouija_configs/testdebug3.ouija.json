@@ -1,0 +1,25 @@
+{
+    "name": "testdebug3",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 2,
+        "numWants": 0,
+        "Needs": [
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Invisible_Joker",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [],
+        "maxSearchAnte": 2,
+        "deck": "Anaglyph_Deck",
+        "stake": "White_Stake"
+    }
+}

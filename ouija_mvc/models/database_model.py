@@ -31,22 +31,24 @@ class DatabaseModel:
     
     def connect(self, config_path):
         """Connect to the database for a given configuration"""
-        # Close any existing connection
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-
         # Get new db path
         db_path = self.get_db_path_from_config(config_path)
         if not db_path:
             return False
+            
+        # If we're already connected to this database, just return True
+        if self.current_db_path == db_path and self.conn:
+            return True
+            
+        # Close any existing connection if we're switching databases
+        if self.conn and self.current_db_path != db_path:
+            self.conn.close()
+            self.conn = None
 
         try:
             # Connect to DuckDB
             self.conn = duckdb.connect(db_path)
             self.current_db_path = db_path
-
-            # Remove default table creation logic here
 
             return True
         except Exception as e:
@@ -60,16 +62,31 @@ class DatabaseModel:
             self.conn = None
             self.current_db_path = None
     
+    def table_exists(self):
+        """Check if the results table exists in the current database"""
+        if not self.conn:
+            return False
+            
+        try:
+            # Single query execution and result fetch
+            result = self.conn.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'results'").fetchone()
+            # Only check the first element if result is not None
+            return result is not None and result[0] > 0
+        except Exception:
+            # Don't print any error message, just return False
+            return False
+
     def create_table(self, columns):
-        """Forcefully create the results table with the given columns."""
+        """Create the results table with the given columns if it doesn't exist."""
         if not self.conn:
             return False
 
         try:
-            # Drop the table if it exists
+            # Check if table exists first
             if self.table_exists():
-                self.conn.execute("DROP TABLE IF EXISTS results")
-
+                # Table exists, don't drop it - just return
+                return True
+                
             # Create the table with a strict schema:
             # - Seed is VARCHAR PRIMARY KEY
             # - All other columns are INTEGER
@@ -92,7 +109,9 @@ class DatabaseModel:
 
             return True
         except Exception as e:
-            print(f"Error forcefully creating table: {e}")
+            # Only print if it's not an "already exists" error
+            if "already exists" not in str(e).lower():
+                print(f"Error creating table: {e}")
             return False
 
     def ensure_columns_exist(self, columns):
@@ -123,11 +142,10 @@ class DatabaseModel:
         try:
             # Ensure all columns exist in the table
             if not self.table_exists():
-                print("Table 'results' does not exist. Recreating the table.")
                 self.create_table(columns)
 
             self.ensure_columns_exist(columns)
-
+            
             # Use Seed column as the unique key for upsert
             seed_value = values[0] if values else None
             if not seed_value:
@@ -154,39 +172,22 @@ class DatabaseModel:
             descending: Sort in descending order (default: True)
             limit: Maximum number of results to return (default: 1000)
         """
-        if not self.conn:
+        if not self.conn or not self.table_exists():
             return None
             
         try:
-            # Check if the results table exists
-            table_exists = self.conn.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'results'").fetchone()[0]
-            if not table_exists:
-                return None
-                
             # Query with optional sorting, limited to top 1000 results by default
             direction = "DESC" if descending else "ASC"
-            result = self.conn.execute(f'SELECT * FROM results ORDER BY "{sort_column}" {direction} LIMIT {limit}').fetch_df()
-            return result
-        except Exception as e:
-            print(f"Error querying results: {e}")
+            result = self.conn.execute(f'SELECT * FROM results ORDER BY "{sort_column}" {direction} LIMIT {limit}')
+            return result.fetch_df() if result else None
+        except Exception:
+            # Silent failure, just return None
             return None
     
     def get_dataframe(self):
         """Get results as a pandas DataFrame"""
         return self.query_results()
     
-    def table_exists(self):
-        """Check if the results table exists in the current database"""
-        if not self.conn:
-            return False
-            
-        try:
-            result = self.conn.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'results'").fetchone()[0]
-            return result > 0
-        except Exception as e:
-            print(f"Error checking table existence: {e}")
-            return False
-
     def process_csv_line(self, line, header_columns=None):
         """Process a CSV line directly from string"""
         if not self.conn:

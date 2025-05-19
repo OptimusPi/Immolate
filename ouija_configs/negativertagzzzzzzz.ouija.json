@@ -1,0 +1,34 @@
+{
+    "name": "negativertagzzzzzzz",
+    "description": "Filter configuration created by Ouija GUI",
+    "author": "Ouija GUI User",
+    "filter_config": {
+        "numNeeds": 3,
+        "numWants": 2,
+        "Needs": [
+            {
+                "value": "Double_Tag",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 2
+            },
+            {
+                "value": "Rare_Tag",
+                "desireByAnte": 2
+            }
+        ],
+        "Wants": [
+            {
+                "value": "Double_Tag"
+            },
+            {
+                "value": "Negative_Tag"
+            }
+        ],
+        "maxSearchAnte": 2,
+        "deck": "Ghost_Deck",
+        "stake": "White_Stake"
+    }
+}
