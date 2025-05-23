@@ -10,7 +10,7 @@ from ..utils.game_data import AVAILABLE_ITEMS, JOKER_EDITIONS, get_internal_name
 class ItemSelectorDialog(tk.Toplevel):
     """Dialog window for selecting an item (joker, tarot, etc.)"""
     
-    def __init__(self, parent, title, category="Jokers", is_need=True):
+    def __init__(self, parent, title, category="Jokers", is_need=True, edit_mode=False, existing_item=None):
         """Initialize the dialog window
         
         Args:
@@ -18,44 +18,46 @@ class ItemSelectorDialog(tk.Toplevel):
             title: Dialog title
             category: Item category to choose from ("Jokers", "Tarots", etc.)
             is_need: Whether this item is a Need (required) or Want
+            edit_mode: Whether this is an edit operation
+            existing_item: Existing item data to pre-fill (for edit mode)
         """
         super().__init__(parent)
         self.title(title)
         self.geometry("700x750")  # Initial size
         self.resizable(True, True)  # Allow resizing
         self.configure(bg=BACKGROUND)
-        
         self.category = category
         self.is_need = is_need  # Initial context from MainWindow
         self.selected_item = None
         self.result = None  # Will store the final result on selection
         self.is_rank_or_suit = self.category in ["Ranks", "Suits"]
-        
-        # Main container frame
+        self.edit_mode = edit_mode
+        self.existing_item = existing_item
+          # Main container frame
         self.main_frame = tk.Frame(self, bg=BACKGROUND)
-        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        self.main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
         # Title showing the current category
         category_label = tk.Label(self.main_frame, text=f"Selecting: {category}", 
                                  font=("m6x11", 16), bg=BACKGROUND, fg="white")
-        category_label.pack(fill="x", padx=5, pady=5)
+        category_label.pack(fill="x", padx=10, pady=10)
         
         # Search field
         self.search_frame = tk.Frame(self.main_frame, bg=BACKGROUND)
-        self.search_frame.pack(fill="x", padx=5, pady=5)
+        self.search_frame.pack(fill="x", padx=10, pady=10)
         
-        tk.Label(self.search_frame, text="Search:", bg=BACKGROUND, fg="white").pack(side="left", padx=5)
+        tk.Label(self.search_frame, text="Search:", bg=BACKGROUND, fg="white").pack(side="left", padx=10)
         self.search_var = tk.StringVar()
         self.search_var.trace("w", self.filter_items)
         self.search_entry = tk.Entry(self.search_frame, textvariable=self.search_var)
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=5)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=10)
         
         # Items listbox with scrollbar
         self.items_frame = tk.LabelFrame(self.main_frame, text="Items", bg=BACKGROUND, fg="white")
-        self.items_frame.pack(fill="x", expand=True, padx=5, pady=5)
+        self.items_frame.pack(fill="x", expand=True, padx=10, pady=10)
         
         self.listbox_frame = tk.Frame(self.items_frame, bg=BACKGROUND)
-        self.listbox_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.listbox_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         self.item_scrollbar = tk.Scrollbar(self.listbox_frame)
         self.item_scrollbar.pack(side="right", fill="y")
@@ -119,21 +121,36 @@ class ItemSelectorDialog(tk.Toplevel):
                 rb = ttk.Radiobutton(edition_container, text=edition, 
                                     variable=self.edition_var, value=edition)
                 rb.grid(row=i, column=0, padx=5, pady=2, sticky="w")
-        
-        # Buttons
+          # Buttons
         self.button_frame = tk.Frame(self.main_frame, bg=BACKGROUND)
-        self.button_frame.pack(side=tk.BOTTOM, fill="x", padx=5, pady=5)
+        self.button_frame.pack(side=tk.BOTTOM, fill="x", padx=10, pady=10)
         
         self.select_button = tk.Button(self.button_frame, text="Select", command=self.on_select,
                                      width=15, height=2, bg=BLUE, fg="white")
-        self.select_button.pack(side="right", padx=20, pady=5)
+        self.select_button.pack(side="right", padx=25, pady=10)
         
         self.cancel_button = tk.Button(self.button_frame, text="Cancel", command=self.destroy,
                                      width=15, height=2, bg=RED, fg="white")
-        self.cancel_button.pack(side="left", padx=20, pady=5)
-        
-        # Initialize items list with the pre-selected category
+        self.cancel_button.pack(side="left", padx=25, pady=10)
+          # Initialize items list with the pre-selected category
         self.update_items_list()
+        
+        # If in edit mode, pre-select the existing item and set other values
+        if edit_mode and existing_item:
+            # Pre-select item in the list
+            self.pre_select_existing_item(existing_item)
+            
+            # Set Ante value for standard items
+            if not self.is_rank_or_suit and self.is_need and "desireByAnte" in existing_item:
+                self.ante_var.set(existing_item["desireByAnte"])
+            
+            # Set Need/Want for Rank/Suit
+            if self.is_rank_or_suit:
+                self.is_need_for_rank_suit_var.set(self.is_need)
+            
+            # Set edition for Jokers
+            if self.category == "Jokers" and "jokeredition" in existing_item:
+                self.edition_var.set(existing_item["jokeredition"])
         
         # Make dialog modal
         self.transient(parent)
@@ -155,7 +172,25 @@ class ItemSelectorDialog(tk.Toplevel):
         for item in AVAILABLE_ITEMS.get(self.category, []):
             if search_term == "" or search_term in item.lower():
                 self.items_listbox.insert(tk.END, item)
-    
+
+    def pre_select_existing_item(self, existing_item):
+        """Pre-select the existing item in the list for editing
+        
+        Args:
+            existing_item: The existing item data
+        """
+        # Get the display name from the internal value
+        from ..utils.game_data import get_display_name
+        item_value = existing_item.get("value", "")
+        display_name = get_display_name(item_value)
+        
+        # Find and select the item in the list
+        for i in range(self.items_listbox.size()):
+            if self.items_listbox.get(i) == display_name:
+                self.items_listbox.selection_set(i)
+                self.items_listbox.see(i)
+                break
+                
     def on_select(self):
         """Handle item selection"""
         if not self.items_listbox.curselection():
@@ -195,10 +230,8 @@ class ItemSelectorDialog(tk.Toplevel):
             }
         
         self.destroy()
-        return True
-    
-    @staticmethod
-    def show_dialog(parent, title, category="Jokers", is_need=True):
+        return True    @staticmethod
+    def show_dialog(parent, title, category="Jokers", is_need=True, edit_mode=False, existing_item=None):
         """Show the dialog and return the result
         
         Args:
@@ -206,10 +239,12 @@ class ItemSelectorDialog(tk.Toplevel):
             title: Dialog title
             category: Item category to choose from
             is_need: Whether this item is a Need
+            edit_mode: Whether this is an edit operation
+            existing_item: Existing item data to pre-fill (for edit mode)
             
         Returns:
             Dict with the selected item details or None if cancelled
         """
-        dialog = ItemSelectorDialog(parent, title, category, is_need)
+        dialog = ItemSelectorDialog(parent, title, category, is_need, edit_mode, existing_item)
         parent.wait_window(dialog)
         return getattr(dialog, 'result', None)

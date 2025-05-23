@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
                 printf_s("Needs:\n");
                 for (int i = 0; i < config.numNeeds && i < MAX_DESIRES_HOST; i++) {
                     printf_s("  - ");
-                    if (config.Needs[0].jokeredition != RETRY && config.Needs[0].jokeredition != No_Edition) {
+                    if (config.Needs[i].jokeredition != RETRY && config.Needs[i].jokeredition != No_Edition) {
                         print_item_host(config.Needs[i].jokeredition);
                         printf(" ");
                     }
@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
                 printf_s("Wants:\n");
                 for (int i = 0; i < config.numWants && i < MAX_DESIRES_HOST; i++) {
                     printf_s("  - ");
-                    if (config.Wants[0].jokeredition != RETRY && config.Wants[0].jokeredition != No_Edition) {
+                    if (config.Wants[i].jokeredition != RETRY && config.Wants[i].jokeredition != No_Edition) {
                         print_item_host(config.Wants[i].jokeredition);
                         printf(" ");
                     }
@@ -438,6 +438,7 @@ int main(int argc, char **argv) {
     printf_s("Building OpenCL Program...\n");
 
     // Remove -cl-unsafe-math-optimizations from build options for safety and compatibility
+    //snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-no-signed-zeros", include_path);
     snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-no-signed-zeros", include_path);
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
@@ -589,19 +590,34 @@ int main(int argc, char **argv) {
     printf_s("\n");
     fflush(stdout);
 
+    clock_t start_time = clock();
+    clock_t ticker = clock();
+    if (numSeeds > 0) { // Only print if we are actually searching
+        printf_s("Starting seed search...\n");
+        fflush(stdout);
+    } else {
+        printf_s("No seeds to search. Exiting.\n");
+        free(devices);
+        free(platforms);
+        clReleaseCommandQueue(queue);
+        clReleaseContext(ctx);
+        exit(0);
+    }   
+
     // --- Initial Kernel Launch ---
     if (numSeeds > 0) {
         num_seeds_this_dispatch = (numSeeds > batch_capacity) ? batch_capacity : numSeeds;
         seed_offset_for_kernel = 0; // First batch starts at offset 0 from startingSeed
 
         // Host-side debug print for initial batch
-        printf_s("[HOST] Launching initial kernel batch: batch_idx=0, seed_offset=%lld, num_seeds=%lld\n", seed_offset_for_kernel, num_seeds_this_dispatch);
-        printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
+        // printf_s("[HOST] Launching initial kernel batch: batch_idx=0, seed_offset=%lld, num_seeds=%lld\n", seed_offset_for_kernel, num_seeds_this_dispatch);
+        // printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
         char seedStr[9] = {0};
         for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
         printf_s("[HOST] Starting seed: %s\n", seedStr);
         fflush(stdout);
-
+        
+        printf_s("Setting params for initial batch...\n");
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);
         clErrCheck(err, "clSetKernelArg - Setting starting seed for initial batch");
         err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &num_seeds_this_dispatch);
@@ -622,26 +638,30 @@ int main(int argc, char **argv) {
         if (num_seeds_this_dispatch == 0) global_work_size_init = 0; // No work if no seeds
 
         if (num_seeds_this_dispatch > 0) {
-             err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size_init, &local_work_size_init, 0, NULL, &kernel_events[current_buffer_idx]);
-             clErrCheck(err, "clEnqueueNDRangeKernel - Initial kernel execution");
+            err = clEnqueueNDRangeKernel(queue, ssKernel, 1, NULL, &global_work_size_init, &local_work_size_init, 0, NULL, &kernel_events[current_buffer_idx]);
+            clErrCheck(err, "clEnqueueNDRangeKernel - Initial kernel execution");
         } else {
             kernel_events[current_buffer_idx] = NULL; // No kernel launched
         }
         dispatched_kernel_seeds[current_buffer_idx] = num_seeds_this_dispatch; // ADDED: Store seeds for this launch
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
+    } else {
+        printf_s("No seeds to process. Exiting.\n");
+        free(devices);
+        free(platforms);
+        clReleaseCommandQueue(queue);
+        clReleaseContext(ctx);
+        exit(3);
     }
     // --- End of Initial Kernel Launch ---
-
-    clock_t start_time = clock();
-    clock_t ticker = clock();
-    if (numSeeds > 0) { // Only print if we are actually searching
-        printf_s("Starting seed search...\n");
-        fflush(stdout);
-    }
     
     // Main processing loop
+    printf_s("[HOST] total_potential_batches: %lld\n", total_potential_batches);
+    fflush(stdout);
+
     for (cl_long batch_idx = 0; batch_idx < total_potential_batches; ++batch_idx) {
-        if (num_seeds_this_dispatch == 0 && batch_idx ==0) { // Handles -n 0 case or if first dispatch was 0 seeds
+        if (num_seeds_this_dispatch == 0 && batch_idx == 0) { // Handles -n 0 case or if first dispatch was 0 seeds
+            printf("[HOST] exiting main loop num_seeds_this_dispatch=0 and batch_idx=0\n");
             break;
         }
         // MODIFIED: Determine results buffer and seed count for it
@@ -649,6 +669,7 @@ int main(int argc, char **argv) {
         num_seeds_last_dispatch = dispatched_kernel_seeds[results_buffer_idx];
 
         if (kernel_events[results_buffer_idx] != NULL) {
+            printf_s("[HOST] kernel_events[results_buffer_idx] != NULL. Will process!\n");
             err = clWaitForEvents(1, &kernel_events[results_buffer_idx]);
             clErrCheck(err, "clWaitForEvents - Waiting for kernel completion");
             clReleaseEvent(kernel_events[results_buffer_idx]);
@@ -658,7 +679,7 @@ int main(int argc, char **argv) {
         }
         
         if (num_seeds_last_dispatch > 0) { // Only map and process if the last dispatch had seeds
-            printf_s("[HOST] Processing batch %lld/%lld (results for %lld seeds)\n", batch_idx, total_potential_batches, num_seeds_last_dispatch);
+            printf_s("[HOST] Processing batch %lld/%lld (results for %lld seeds)\n", batch_idx+1, total_potential_batches, num_seeds_last_dispatch);
             fflush(stdout);
             OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[results_buffer_idx], CL_TRUE,
                                                CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);
@@ -755,6 +776,7 @@ int main(int argc, char **argv) {
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
         // --- End of Prepare and Launch Next Kernel ---
     }
+    printf_s("[HOST] main loop finished.\n");
 
     // After the loop, ensure any final outstanding kernel event is handled
     for (int i = 0; i < NUM_RESULT_BUFFERS; i++) {

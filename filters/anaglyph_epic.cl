@@ -392,6 +392,7 @@ long filter(instance *inst) {
 
     // Anaglyph Deck Bonus: Gain 1 Double Tag after defeating the Boss Blind
     // (end of ante)
+    
     double_tags++;
 #ifdef _debugPrints
     printf(

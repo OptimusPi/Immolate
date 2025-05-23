@@ -8,13 +8,18 @@
 
 #include "lib/ouija.cl" // Include the necessary headers for item and jokerdata types
 
-// IMPORTANT: This struct must match the memory layout of OuijaHostResult in ouija_host_result.h EXACTLY!
-typedef struct {
-    char seed[9]; // 8 bytes for the seed + 1 byte for null terminator
-    ushort TotalScore; // Use 16-bit unsigned integer for scores (max value: 65,535)
-    uchar NegativeJokers; // Use 8-bit unsigned integer for small values (max value: 255)
-    uchar ScoreWants[MAX_DESIRES_KERNEL]; // Use 8-bit unsigned integers for wants
-    // valid field removed - using TotalScore > 0 as validity indicator
+/* 
+ * Define the structure with explicit padding and memory layout to match host side.
+ * The __attribute__ directive ensures correct memory alignment across devices.
+ */
+typedef struct __attribute__((packed)) {
+    char seed[9];           // Bytes 0-8
+    uchar _padding0;        // Byte 9 (explicit padding)
+    ushort TotalScore;      // Bytes 10-11
+    uchar NegativeJokers;   // Byte 12
+    uchar ScoreWants[MAX_DESIRES_KERNEL]; // Bytes 13 onwards
+    int pad1;
+    char pad2;
 } OuijaResult;
 
 #endif
