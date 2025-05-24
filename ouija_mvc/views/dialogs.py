@@ -228,9 +228,10 @@ class ItemSelectorDialog(tk.Toplevel):
                 "type": "Standard",
                 "is_need": is_item_actually_a_need
             }
+            self.destroy()
+        return True
         
-        self.destroy()
-        return True    @staticmethod
+    @staticmethod
     def show_dialog(parent, title, category="Jokers", is_need=True, edit_mode=False, existing_item=None):
         """Show the dialog and return the result
         

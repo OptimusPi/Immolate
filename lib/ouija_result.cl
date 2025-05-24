@@ -8,11 +8,7 @@
 
 #include "lib/ouija.cl" // Include the necessary headers for item and jokerdata types
 
-/* 
- * Define the structure with explicit padding and memory layout to match host side.
- * The __attribute__ directive ensures correct memory alignment across devices.
- */
-typedef struct __attribute__((packed)) {
+typedef struct {
     char seed[9];           // Bytes 0-8
     uchar _padding0;        // Byte 9 (explicit padding)
     ushort TotalScore;      // Bytes 10-11

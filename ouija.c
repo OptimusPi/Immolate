@@ -565,7 +565,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
         resultBuf_dev[i] = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, 
-                                       sizeof(OuijaHostResult) * batch_capacity, NULL, &err); // Use batch_capacity
+                                       sizeof(OuijaHostResult) *                                     if (num_seeds_for_this_dispatch > 1000000) { // 1 million seeds per batch limit, NULL, &err); // Use batch_capacity
         clErrCheck(err, "clCreateBuffer - Creating result buffer on device");
     }
 
@@ -610,12 +610,12 @@ int main(int argc, char **argv) {
         seed_offset_for_kernel = 0; // First batch starts at offset 0 from startingSeed
 
         // Host-side debug print for initial batch
-        // printf_s("[HOST] Launching initial kernel batch: batch_idx=0, seed_offset=%lld, num_seeds=%lld\n", seed_offset_for_kernel, num_seeds_this_dispatch);
-        // printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
+        //printf_s("[HOST] Launching initial kernel batch: batch_idx=0, seed_offset=%lld, num_seeds=%lld\n", seed_offset_for_kernel, num_seeds_this_dispatch);
+        //printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
         char seedStr[9] = {0};
         for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
-        printf_s("[HOST] Starting seed: %s\n", seedStr);
-        fflush(stdout);
+        //printf_s("[HOST] Starting seed: %s\n", seedStr);
+        //fflush(stdout);
         
         printf_s("Setting params for initial batch...\n");
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);
@@ -656,7 +656,7 @@ int main(int argc, char **argv) {
     // --- End of Initial Kernel Launch ---
     
     // Main processing loop
-    printf_s("[HOST] total_potential_batches: %lld\n", total_potential_batches);
+    //printf_s("[HOST] total_potential_batches: %lld\n", total_potential_batches);
     fflush(stdout);
 
     for (cl_long batch_idx = 0; batch_idx < total_potential_batches; ++batch_idx) {
@@ -669,7 +669,7 @@ int main(int argc, char **argv) {
         num_seeds_last_dispatch = dispatched_kernel_seeds[results_buffer_idx];
 
         if (kernel_events[results_buffer_idx] != NULL) {
-            printf_s("[HOST] kernel_events[results_buffer_idx] != NULL. Will process!\n");
+           //printf_s("[HOST] kernel_events[results_buffer_idx] != NULL. Will process!\n");
             err = clWaitForEvents(1, &kernel_events[results_buffer_idx]);
             clErrCheck(err, "clWaitForEvents - Waiting for kernel completion");
             clReleaseEvent(kernel_events[results_buffer_idx]);
@@ -679,8 +679,8 @@ int main(int argc, char **argv) {
         }
         
         if (num_seeds_last_dispatch > 0) { // Only map and process if the last dispatch had seeds
-            printf_s("[HOST] Processing batch %lld/%lld (results for %lld seeds)\n", batch_idx+1, total_potential_batches, num_seeds_last_dispatch);
-            fflush(stdout);
+            //printf_s("[HOST] Processing batch %lld/%lld (results for %lld seeds)\n", batch_idx+1, total_potential_batches, num_seeds_last_dispatch);
+            //fflush(stdout);
             OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[results_buffer_idx], CL_TRUE,
                                                CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);
             clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");

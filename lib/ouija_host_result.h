@@ -11,11 +11,6 @@
 #define MAX_DESIRES_HOST 16
 #endif
 
-// Ensure memory layout matches exactly between host and device
-#ifdef _MSC_VER
-#pragma pack(push, 1) // Use byte alignment for MSVC
-#endif
-
 typedef struct {
     cl_char seed[9];        // Bytes 0-8
     cl_uchar _padding0;     // Byte 9 (explicit padding)
@@ -24,10 +19,6 @@ typedef struct {
     cl_uchar ScoreWants[MAX_DESIRES_HOST]; // Bytes 13 onwards
     cl_int pad1;
     cl_char pad2;
-} __attribute__((packed)) OuijaHostResult; // Use packed attribute for GCC/Clang
-
-#ifdef _MSC_VER
-#pragma pack(pop) // Restore default packing
-#endif
+} OuijaHostResult; // Use packed attribute only for GCC/Clang
 
 #endif

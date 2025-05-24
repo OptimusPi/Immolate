@@ -293,19 +293,18 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
       
       if (needNotMetByRequiredAnte) {
-        barrier(CLK_GLOBAL_MEM_FENCE); // Synchronize all work items in the work group
+        // Use memory fence only (no barrier) to avoid workgroup deadlocks
         mem_fence(CLK_GLOBAL_MEM_FENCE); // Ensure memory consistency
         valid = false;
         result->TotalScore = 0;
         earlyExit = true; // Set the flag instead of using break
-        mem_fence(CLK_GLOBAL_MEM_FENCE); // Ensure the flag is visible to all threads
       }
     }
-    if (earlyExit) break; // This never executes because earlyExit is never set to true
   } // End of ante loop
 
   // Ensure all memory operations from the ante loop are completed before proceeding
-  mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+  mem_fence(CLK_GLOBAL_MEM_FENCE);
+  mem_fence(CLK_LOCAL_MEM_FENCE);
 
   text s_str = s_to_string(&inst->seed);
   for (int i = 0; i < 9; i++) {
@@ -315,26 +314,16 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 
   if (valid)
     result->TotalScore += 1;
+  else 
+    result->TotalScore = 0;
 
-#ifdef _debugPrints1
-  if (isnan((float)result->TotalScore) || isinf((float)result->TotalScore)) {
-    printf("[Kernel] WARNING: NaN or Inf in TotalScore! Seed: [%s]\n", debug_Seed.str);
-  }
-#endif
-
-  for (int w = 0; w < clampedNumWants; w++) {
+  for (int w = 0; valid && w < clampedNumWants; w++) {
     result->TotalScore += (result->ScoreWants[w] > 0) * 1;
     result->TotalScore += result->ScoreWants[w];
   }
 
-  result->TotalScore += result->NegativeJokers;
-#ifdef _debugPrints
-  printf("[Kernel] TotalScore: %d\n", result->TotalScore);
-#endif
-  
-#ifdef _debugPrints
-  printf("[Kernel] Kernel end, global_id=%d\n", get_global_id(0));
-#endif
+  if (valid)
+   result->TotalScore += result->NegativeJokers;
 
   // Ensure all memory updates are visible to other workgroups before returning
   mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
