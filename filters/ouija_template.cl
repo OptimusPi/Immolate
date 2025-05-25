@@ -1,8 +1,8 @@
 #include "lib/ouija.cl"
-#define CACHE_SIZE 800
+//#define CACHE_SIZE 800
 #define _debugPrintsMAGIC
 
-void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
+void ouija_filter(instance *inst, __constant OuijaConfig *config, OuijaResult *result) {
 
   int gid = get_global_id(0);
   // printf("[Kernel] Kernel start, global_id=%d\n", gid);
@@ -312,10 +312,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
   }
 
 
-  if (valid)
-    result->TotalScore += 1;
-  else 
-    result->TotalScore = 0;
+  result->TotalScore += 1;
 
   for (int w = 0; valid && w < clampedNumWants; w++) {
     result->TotalScore += (result->ScoreWants[w] > 0) * 1;
@@ -324,6 +321,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 
   if (valid)
    result->TotalScore += result->NegativeJokers;
+  else
+    result->TotalScore = 0;
 
   // Ensure all memory updates are visible to other workgroups before returning
   mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
