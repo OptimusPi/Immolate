@@ -2,7 +2,7 @@
 //#define CACHE_SIZE 800
 #define _debugPrintsMAGIC
 
-void ouija_filter(instance *inst, __constant OuijaConfig *config, OuijaResult *result) {
+void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
 
   int gid = get_global_id(0);
   // printf("[Kernel] Kernel start, global_id=%d\n", gid);
