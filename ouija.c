@@ -346,9 +346,7 @@ int main(int argc, char **argv) {
     strcat_s(include_path, sizeof include_path, executable_dir);
     strcat_s(include_path, sizeof include_path, "\"");
 
-    createBinaryPath(executable_dir, filter, binary_path, MAX_PATH);
-
-    err = fopen_s(&fp, binary_path, "rb");
+    createBinaryPath(executable_dir, filter, binary_path, MAX_PATH);    err = fopen_s(&fp, binary_path, "rb");
     if (err == 0 && fp != NULL) {
         printf_s("Found pre-compiled kernel binary: %s\n", binary_path);
         fseek(fp, 0, SEEK_END);
@@ -363,10 +361,7 @@ int main(int argc, char **argv) {
                 fprintf_s(stderr, "Failed to read kernel binary.\n");
                 free(program_binary);
                 fclose(fp);
-                exit(1);
-            }
-            else
-            {
+            } else {
                 fclose(fp);
                 cl_int binary_status;
                 ssKernelProgram = clCreateProgramWithBinary(ctx, 1, &device, &binary_size, (const unsigned char**)&program_binary, &binary_status, &err);
@@ -377,11 +372,13 @@ int main(int argc, char **argv) {
                     loaded_from_binary = 1;
                 } else {
                     fprintf_s(stderr, "Failed to create program from binary (err: %d, status: %d). Compiling from source...\n", err, binary_status);
+                    loaded_from_binary = 0;  // Ensure we fall through to source compilation
                 }
             }
         }
     } else {
         printf_s("No pre-compiled kernel binary found.\n");
+        loaded_from_binary = 0;  // Ensure we fall through to source compilation
     }
 
     if (!loaded_from_binary) {
@@ -484,33 +481,38 @@ int main(int argc, char **argv) {
     if (ssKernelCode != NULL) {
         free(ssKernelCode);
         ssKernelCode = NULL;
-    }
-
-    if (!loaded_from_binary) {
+    }    if (!loaded_from_binary) {
         printf_s("Saving compiled kernel to binary: %s\n", binary_path);
         size_t binary_size;
         err = clGetProgramInfo(ssKernelProgram, CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &binary_size, NULL);
         clErrCheck(err, "clGetProgramInfo - Getting binary size");
-
+        
         if (binary_size > 0) {
+            printf_s("Binary size: %zu bytes\n", binary_size);
             unsigned char *program_binary = (unsigned char*)malloc(binary_size);
+            
             if (!program_binary) {
                 fprintf_s(stderr, "Failed to allocate memory for saving kernel binary.\n");
             } else {
-                unsigned char* p_binary = program_binary;
-                err = clGetProgramInfo(ssKernelProgram, CL_PROGRAM_BINARIES, sizeof(unsigned char*), &p_binary, NULL);
-                clErrCheck(err, "clGetProgramInfo - Getting program binary");
-
-                errno_t fopen_err = fopen_s(&fp, binary_path, "wb");
-                if (fopen_err != 0) {
-                    fprintf_s(stderr, "Failed to open binary file for writing: %s (error code: %d)\n", binary_path, fopen_err);
+                // Create array of pointers for binaries (only one in our case)
+                unsigned char* binaries[1] = { program_binary };
+                
+                // Get the actual binary data
+                err = clGetProgramInfo(ssKernelProgram, CL_PROGRAM_BINARIES, sizeof(unsigned char*), binaries, NULL);
+                if (err != CL_SUCCESS) {
+                    fprintf_s(stderr, "Failed to get program binary (err: %d)\n", err);
                 } else {
-                    if (fwrite(program_binary, 1, binary_size, fp) != binary_size) {
-                        fprintf_s(stderr, "Failed to write kernel binary to file.\n");
+                    errno_t fopen_err = fopen_s(&fp, binary_path, "wb");
+                    if (fopen_err != 0) {
+                        fprintf_s(stderr, "Failed to open binary file for writing: %s (error code: %d)\n", binary_path, fopen_err);
                     } else {
-                        printf_s("Successfully saved kernel binary.\n");
+                        if (fwrite(program_binary, 1, binary_size, fp) != binary_size) {
+                            fprintf_s(stderr, "Failed to write kernel binary to file.\n");
+                        } else {
+                            printf_s("Successfully saved kernel binary.\n");
+                        }
+                        fclose(fp);
                     }
-                    fclose(fp);
                 }
                 free(program_binary);
             }
@@ -560,12 +562,22 @@ int main(int argc, char **argv) {
     cl_long batch_capacity = numGroups * compute_units * batchMultiplier;
     if (batch_capacity == 0) batch_capacity = 1; // Ensure batch_capacity is at least 1
 
+    // Cap batch_capacity to avoid OOM on most GPUs
+    const cl_long MAX_SAFE_BATCH_CAPACITY = 100000; // You can tune this for your GPU
+    if (batch_capacity > MAX_SAFE_BATCH_CAPACITY) {
+        printf_s("Warning: batch_capacity (%lld) > MAX_SAFE_BATCH_CAPACITY (%lld), clamping!\n", batch_capacity, MAX_SAFE_BATCH_CAPACITY);
+        batch_capacity = MAX_SAFE_BATCH_CAPACITY;
+    }
+
     // Create result buffers for alternating between batches, sized by batch_capacity
     cl_mem* resultBuf_dev = (cl_mem*)malloc(NUM_RESULT_BUFFERS * sizeof(cl_mem));
-
     for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
         resultBuf_dev[i] = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, 
-                                       sizeof(OuijaHostResult) *                                     if (num_seeds_for_this_dispatch > 1000000) { // 1 million seeds per batch limit, NULL, &err); // Use batch_capacity
+                                       sizeof(OuijaHostResult) * batch_capacity, NULL, &err); // Use batch_capacity
+        if (!resultBuf_dev[i] || err != CL_SUCCESS) {
+            fprintf_s(stderr, "Fatal: Failed to allocate result buffer %d (size: %zu bytes, err: %d)\n", i, sizeof(OuijaHostResult) * batch_capacity, err);
+            exit(1);
+        }
         clErrCheck(err, "clCreateBuffer - Creating result buffer on device");
     }
 
@@ -709,7 +721,7 @@ int main(int argc, char **argv) {
             break; 
         }
 
-        // --- Prepare and Launch Next Kernel ---
+    // --- Prepare and Launch Next Kernel ---
         current_buffer_idx = (current_buffer_idx + 1) % NUM_RESULT_BUFFERS; // Advance for the next launch
 
         seed_offset_for_kernel = cumulative_seeds_dispatched;
@@ -719,6 +731,9 @@ int main(int argc, char **argv) {
 
         num_seeds_this_dispatch = (remaining_overall_seeds > batch_capacity) ? batch_capacity : remaining_overall_seeds;
 
+        // Ensure all previous operations are complete before launching a new kernel
+        err = clFinish(queue);
+        clErrCheck(err, "clFinish - Ensuring previous operations are complete");
         // Host-side debug print for next batch
         char seedStr[9] = {0};
         for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
