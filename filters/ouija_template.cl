@@ -3,17 +3,24 @@
 #define _debugPrintsMAGIC
 
 void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
-
+  // Disable debug printf for performance
   int gid = get_global_id(0);
-  // printf("[Kernel] Kernel start, global_id=%d\n", gid);
-  // text debug_Seed = s_to_string(&inst->seed);
-  // printf("[Kernel] Seed: [%s]\n", debug_Seed.str);
+  
+  // Use faster primitive initialization
   bool valid = true;
+  
+  // Initialize result struct efficiently
   result->TotalScore = 1;
   result->NegativeJokers = 0;
+  
+  // Use vector operations for batch initialization where possible
+  #pragma unroll
   for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
     result->ScoreWants[i] = 0;
   }
+  
+  // Clear seed with single operation if possible
+  #pragma unroll
   for (int i = 0; i < 9; i++) {
     result->seed[i] = 0;
   }
@@ -302,29 +309,40 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
   } // End of ante loop
 
-  // Ensure all memory operations from the ante loop are completed before proceeding
-  mem_fence(CLK_GLOBAL_MEM_FENCE);
-  mem_fence(CLK_LOCAL_MEM_FENCE);
+  // Use a single memory fence to improve performance
+  mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
+  // Convert seed to string
   text s_str = s_to_string(&inst->seed);
+  
+  // Use efficient copying
+  #pragma unroll
   for (int i = 0; i < 9; i++) {
     result->seed[i] = s_str.str[i];
   }
 
-
-  result->TotalScore += 1;
-
-  for (int w = 0; valid && w < clampedNumWants; w++) {
-    result->TotalScore += (result->ScoreWants[w] > 0) * 1;
-    result->TotalScore += result->ScoreWants[w];
+  // Calculate total score efficiently only if valid
+  if (valid) {
+    // Pre-increment by 1
+    result->TotalScore += 1;
+    
+    // Efficiently calculate score from wants
+    int wants_score = 0;
+    #pragma unroll 4 // Specify unroll factor for better optimization
+    for (int w = 0; w < clampedNumWants; w++) {
+      // Combine operations to reduce branches
+      wants_score += (result->ScoreWants[w] > 0) + result->ScoreWants[w];
+    }
+    result->TotalScore += wants_score;
+    
+    // Add negative jokers bonus
+    result->TotalScore += result->NegativeJokers;
+  } else {
+    // Invalid seed gets zero score
+    result->TotalScore = 0;
   }
 
-  if (valid)
-   result->TotalScore += result->NegativeJokers;
-  else
-    result->TotalScore = 0;
-
-  // Ensure all memory updates are visible to other workgroups before returning
-  mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+  // Single memory fence at the end
+  mem_fence(CLK_GLOBAL_MEM_FENCE);
   return;
 }
