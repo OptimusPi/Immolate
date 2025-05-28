@@ -8,7 +8,7 @@
     #define GAME_VERSION
 #endif
 
-#define MAX_DESIRES_KERNEL 16
+#define MAX_DESIRES_KERNEL 32
 
 #include "lib/util.cl" // Contains utility functions
 #include "lib/seed.cl" // Contains seed/seed list info

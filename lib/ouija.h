@@ -39,7 +39,7 @@
 void clErrCheck(cl_int err, char* msg) {
     if (err != CL_SUCCESS) {
         printf_s("Fatal CL Error %d when trying to execute %s\n", err, msg);
-        //exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
     }
 }
 

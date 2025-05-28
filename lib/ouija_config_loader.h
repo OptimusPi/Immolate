@@ -8,7 +8,7 @@
 #ifndef __OUIJA_CONFIG_LOADER_H_
 #define __OUIJA_CONFIG_LOADER_H_
 
-#define MAX_DESIRES_HOST 16 // Changed from 10 to 16 to match MAX_DESIRES_KERNEL
+#define MAX_DESIRES_HOST 32 // Changed from 10 to 16 to match MAX_DESIRES_KERNEL
 #define F_OK 0  // File exists flag
 
 // Define PATH_SEPARATOR based on OS
@@ -33,6 +33,7 @@ typedef struct {
     cl_int maxSearchAnte;  // Maximum ante to search through
     item deck;
     item stake;
+    char filter[64];  // Filter/template name
 } OuijaConfig;
 
 // Load configuration from JSON file
@@ -400,6 +401,29 @@ found_path_or_continue_parsing:
     printf_s("loaded stake: ");
     print_item_host(config->stake);
     printf_s("\n");
+
+    // Extract filter/template
+    char* filter_str = strstr(filter_config, "\"filter\"");
+    if (filter_str) {
+        filter_str = strchr(filter_str, ':');
+        if (filter_str) {
+            filter_str++;
+            while (*filter_str && (*filter_str == ' ' || *filter_str == '"')) filter_str++;
+            char* end = strchr(filter_str, '"');
+            if (end) {
+                size_t len = (end - filter_str < 63) ? (end - filter_str) : 63;
+                strncpy_s(config->filter, sizeof(config->filter), filter_str, len);
+                config->filter[len] = '\0';
+                printf_s("loaded filter: %s\n", config->filter);
+            } else {
+                strcpy_s(config->filter, sizeof(config->filter), "ouija_template");
+            }
+        } else {
+            strcpy_s(config->filter, sizeof(config->filter), "ouija_template");
+        }
+    } else {
+        strcpy_s(config->filter, sizeof(config->filter), "ouija_template");
+    }
 
     free(json_content);
     printf_s("Successfully loaded configuration from %s\n", config_path);

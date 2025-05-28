@@ -8,7 +8,7 @@
 #define OUIJA_RESULT_H
 
 #ifndef MAX_DESIRES_HOST
-#define MAX_DESIRES_HOST 16
+#define MAX_DESIRES_HOST 32
 #endif
 
 typedef struct {
