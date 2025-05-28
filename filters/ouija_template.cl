@@ -2,7 +2,7 @@
 //#define CACHE_SIZE 800
 #define _debugPrintsMAGIC
 
-void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
+void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result, int cutoff) {
   // Disable debug printf for performance
   int gid = get_global_id(0);
   
@@ -13,17 +13,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
   result->TotalScore = 1;
   result->NegativeJokers = 0;
   
-  // Use vector operations for batch initialization where possible
-  #pragma unroll
-  for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
-    result->ScoreWants[i] = 0;
-  }
-  
-  // Clear seed with single operation if possible
-  #pragma unroll
-  for (int i = 0; i < 9; i++) {
-    result->seed[i] = 0;
-  }
+  // Host already clears the entire buffer with clEnqueueFillBuffer - no need to clear arrays in kernel
 
   // Clamp numNeeds and numWants defensively
   int clampedNumNeeds = config->numNeeds;
@@ -269,9 +259,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         jokerdata buffoonJokers[5];
         buffoon_pack_detailed(buffoonJokers, _pack.size, inst, ante);
         for (int t = 0; t < _pack.size; t++) {
-#ifdef _debugPrints1
-          printf("[Kernel] Buffoon joker %d: %d\n", t, buffoonJokers[t].joker);
-#endif
           if (buffoonJokers[t].joker == RETRY) continue;
           if (buffoonJokers[t].joker == Showman)
             inst->params.showman = true;
@@ -295,31 +282,16 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     }
 
     // Check per-need ante requirements at the end of each ante
-    bool earlyExit = false;
-    for (int n = 0; n < clampedNumNeeds && !earlyExit; n++) {
+    for (int n = 0; n < clampedNumNeeds; n++) {
       bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
       
       if (needNotMetByRequiredAnte) {
-        // Use memory fence only (no barrier) to avoid workgroup deadlocks
-        mem_fence(CLK_GLOBAL_MEM_FENCE); // Ensure memory consistency
         valid = false;
         result->TotalScore = 0;
-        earlyExit = true; // Set the flag instead of using break
+        return;
       }
     }
   } // End of ante loop
-
-  // Use a single memory fence to improve performance
-  mem_fence(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
-
-  // Convert seed to string
-  text s_str = s_to_string(&inst->seed);
-  
-  // Use efficient copying
-  #pragma unroll
-  for (int i = 0; i < 9; i++) {
-    result->seed[i] = s_str.str[i];
-  }
 
   // Calculate total score efficiently only if valid
   if (valid) {
@@ -337,12 +309,23 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     
     // Add negative jokers bonus
     result->TotalScore += result->NegativeJokers;
+
+    if (result->TotalScore < cutoff) {
+      return;
+    }
+
+    // Score meets cutoff - perform expensive seed string conversion
+    text s_str = s_to_string(&inst->seed);
+    
+    // Use efficient copying
+    #pragma unroll
+    for (int i = 0; i < 9; i++) {
+      result->seed[i] = s_str.str[i];
+    }
   } else {
     // Invalid seed gets zero score
     result->TotalScore = 0;
   }
 
-  // Single memory fence at the end
-  mem_fence(CLK_GLOBAL_MEM_FENCE);
   return;
 }
