@@ -134,8 +134,7 @@ class ApplicationController:
             self.database_model.connect(config_path)
             self.database_model.close()
         # Connect to the database
-        self.database_model.connect(config_path)
-        # Start the search
+        self.database_model.connect(config_path)        # Start the search
         success = self.search_model.start_search(
             config_path=config_path,
             starting_seed=self.config_model.starting_seed,
@@ -143,7 +142,8 @@ class ApplicationController:
             number_of_seeds=self.config_model.number_of_seeds,
             db_model=self.database_model,
             cutoff=self.config_model.cutoff,  # Pass cutoff
-            gpu_batch=self.config_model.gpu_batch  # Pass gpu_batch
+            gpu_batch=self.config_model.gpu_batch,  # Pass gpu_batch
+            template=self.config_model.template  # Pass template
         )
         # Update UI state if successful
         if success and self.current_view:
@@ -259,7 +259,8 @@ class ApplicationController:
             'deck': 'deck',
             'stake': 'stake',
             'cutoff': 'cutoff',
-            'gpu_batch': 'gpu_batch'
+            'gpu_batch': 'gpu_batch',
+            'template': 'template'
         }
         
         if key in settings_map:
@@ -276,7 +277,8 @@ class ApplicationController:
             'deck': 'deck',
             'stake': 'stake',
             'cutoff': 'cutoff',
-            'gpu_batch': 'gpu_batch'
+            'gpu_batch': 'gpu_batch',
+            'template': 'template'
         }
         
         if key in settings_map:

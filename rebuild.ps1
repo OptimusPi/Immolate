@@ -15,9 +15,15 @@ if (Test-Path ".\build") {
 Write-Host "Checking cached template binary..." -ForegroundColor Yellow
 if (Test-Path ".\filters\ouija_template.bin") {
     Remove-Item .\filters\ouija_template.bin
-    Write-Host "Template binary removed." -ForegroundColor Green
+    Write-Host "Template binary 'ouija_template' removed." -ForegroundColor Green
 } else {
-    Write-Host "Template binary already does not exist." -ForegroundColor Green
+    Write-Host "Template binary 'ouija_template' already does not exist." -ForegroundColor Green
+}
+if (Test-Path ".\filters\ouija_template_erratic_ranks.bin") {
+    Remove-Item .\filters\ouija_template_erratic_ranks.bin
+    Write-Host "Template binary 'ouija_template_erratic_ranks' removed." -ForegroundColor Green
+} else {
+    Write-Host "Template binary 'ouija_template_erratic_ranks' already does not exist." -ForegroundColor Green
 }
 
 # Run CMake to configure the project

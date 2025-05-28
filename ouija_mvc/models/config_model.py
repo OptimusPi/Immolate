@@ -12,7 +12,7 @@ class ConfigModel:
     
     USER_CONF_PATH = "ouija_user.conf"
     CONFIG_DIR = "ouija_configs"
-    
+
     def __init__(self):
         """Initialize config model with default values"""
         self.needs_list = []
@@ -28,6 +28,7 @@ class ConfigModel:
         self.number_of_seeds = "All Seeds"
         self.cutoff = "1"
         self.gpu_batch = "16" # Default GPU batch size
+        self.template = "ouija_template" # Default template filter
         
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)
@@ -57,12 +58,14 @@ class ConfigModel:
                     self.cutoff = conf["cutoff"]
                 if conf.get("gpu_batch_size"): # Load GPU batch size
                     self.gpu_batch = conf["gpu_batch_size"]
+                if conf.get("template"): # Load template
+                    self.template = conf["template"]
                 if conf.get("last_config_path") and os.path.exists(conf["last_config_path"]):
                     self.load_config_from_path(conf["last_config_path"])
                 return True
             except Exception as e:
                 print(f"Error loading user configuration: {e}")
-        return False
+                return False
     
     def save_user_conf(self):
         """Save current user configuration preferences"""
@@ -74,7 +77,8 @@ class ConfigModel:
             "last_stake": self.stake,
             "last_number_of_seeds": self.number_of_seeds,
             "cutoff": self.cutoff, # Save cutoff
-            "gpu_batch_size": self.gpu_batch # Save GPU batch size
+            "gpu_batch_size": self.gpu_batch, # Save GPU batch size
+            "template": self.template # Save template
         }
         
         try:

@@ -39,10 +39,15 @@ class SearchModel:
         self.process_finished_callback = None
         self.cutoff = None  # Add cutoff
         self.gpu_batch = None  # Add gpu_batch
-    def build_command(self, config_path, starting_seed, thread_groups, number_of_seeds):
+        
+    def build_command(self, config_path, starting_seed, thread_groups, number_of_seeds, template=None):
         """Build the command to execute with proper arguments"""
         # Construct the base command
         command_parts = [".\\Ouija.exe"]
+        
+        # Add template filter if provided
+        if template:
+            command_parts.extend(["-f", template])
         
         # Add starting seed - handle both "random" and user-entered seeds
         # Convert to uppercase for consistency with Balatro's seed format
@@ -83,11 +88,11 @@ class SearchModel:
         self.console_callback = console_callback
         self.process_finished_callback = process_finished_callback
     
-    def start_search(self, config_path, starting_seed, thread_groups, number_of_seeds, db_model, cutoff=None, gpu_batch=None):
-        """Start the search process with the given parameters, including cutoff and gpu_batch."""
+    def start_search(self, config_path, starting_seed, thread_groups, number_of_seeds, db_model, cutoff=None, gpu_batch=None, template=None):
+        """Start the search process with the given parameters, including cutoff, gpu_batch, and template."""
         self.cutoff = cutoff
         self.gpu_batch = gpu_batch
-        command = self.build_command(config_path, starting_seed, thread_groups, number_of_seeds)
+        command = self.build_command(config_path, starting_seed, thread_groups, number_of_seeds, template)
         
         # Log the command
         if self.console_callback:

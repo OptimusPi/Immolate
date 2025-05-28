@@ -254,6 +254,18 @@ class MainWindow:
         self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.gpu_batch_dropdown.bind("<<ComboboxSelected>>", self.on_gpu_batch_changed)
         row += 1
+
+        # Template selector dropdown
+        tk.Label(self.search_settings_frame, text="Template:",
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.template_var = tk.StringVar()
+        self.template_dropdown = ttk.Combobox(self.search_settings_frame,
+                                              textvariable=self.template_var, state="readonly",
+                                              font=("m6x11", 12))
+        self.template_dropdown['values'] = ["ouija_template", "ouija_template_erratic_ranks", "ouija_template_anaglyph"]
+        self.template_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.template_dropdown.bind("<<ComboboxSelected>>", self.on_template_changed)
+        row += 1
           # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
         
@@ -324,22 +336,19 @@ class MainWindow:
         # Create a container frame with proper layout
         run_container = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
         run_container.pack(fill=tk.BOTH, expand=True)
-        
-        # Configure rows to ensure proper distribution
+          # Configure rows to ensure proper distribution
         run_container.grid_rowconfigure(0, weight=1)  # Console gets all extra space
         run_container.grid_rowconfigure(1, weight=0)  # Button row has fixed height
         run_container.grid_columnconfigure(0, weight=1)  # Full width
         
-        # Console output at top now, using grid
+        # Console output at top, using grid
         console_frame = tk.Frame(run_container, bg=BACKGROUND)
         console_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         
         self.output_text = tk.Text(console_frame, wrap=tk.WORD,
                                  bg=DARK_BACKGROUND, fg=LIGHT_TEXT, 
                                  font=("m6x11", 13), insertbackground='white')
-        self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
-        
-        # Button at bottom with fixed height
+        self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)          # Button at bottom with fixed height
         button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
         button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5,0))
         button_frame.grid_propagate(False)  # Prevent shrinking
@@ -400,6 +409,8 @@ class MainWindow:
     def update_results_table(self, dataframe):
         self.latest_df = dataframe
         if dataframe is not None:
+            # Ensure DataFrame index is continuous for pandastable
+            dataframe = dataframe.reset_index(drop=True)
             # Ensure numeric columns display as integers
             for col in dataframe.columns:
                 if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
@@ -408,11 +419,9 @@ class MainWindow:
                         if col not in self.pt.columnformats:
                             self.pt.columnformats[col] = {}
                         self.pt.columnformats[col]['precision'] = 0
-            
             self.pt.model.df = dataframe
         else:
             self.pt.model.df = pd.DataFrame()  # Ensure empty df if None
-            
         self.pt.redraw()  # Redraw with new data (or empty)
         self._adjust_table_column_widths()  # Adjust widths
         self._search_results_count = len(dataframe) if dataframe is not None else 0
@@ -536,6 +545,10 @@ class MainWindow:
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
         self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
+
+    def on_template_changed(self, event=None):
+        """Handle template selection changes"""
+        self.controller.set_setting('template', self.template_var.get())
 
     def on_random_seed(self):
         """Set the search seed to random, ouija.exe handles this"""
@@ -737,8 +750,7 @@ class MainWindow:
         
         # Then do the general cleanup
         self.controller.cleanup()
-        
-        # Finally destroy the root window
+          # Finally destroy the root window
         self.root.destroy()
 
     def update_config_display(self):
@@ -752,6 +764,7 @@ class MainWindow:
         self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'All'))
         self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
         self.gpu_batch_var.set(self.controller.get_setting('gpu_batch', '16'))
+        self.template_var.set(self.controller.get_setting('template', 'ouija_template'))
 
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""
