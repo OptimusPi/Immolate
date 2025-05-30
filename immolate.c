@@ -240,11 +240,18 @@ int main(int argc, char **argv) {
 
     // Create a program from kernel source
     cl_program ssKernelProgram = clCreateProgramWithSource(ctx, 1, (const char**)&ssKernelCode, (const size_t*)&ssKernelSize, &err);
-    clErrCheck(err, "clCreateProgramWithSource - Creating OpenCL program");
-
-    // Build the program
+    clErrCheck(err, "clCreateProgramWithSource - Creating OpenCL program");    // Build the program with optimization flags
     printf_s("Building program...\n");
-    err = clBuildProgram(ssKernelProgram, 1, &device, include_path, NULL, NULL);
+    
+    // Create build options string with OpenCL optimizations
+    char build_options[MAX_PATH + 256];
+    #ifdef _DEBUG
+        snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-no-signed-zeros", include_path);
+    #else
+        snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -cl-no-signed-zeros -cl-fast-relaxed-math -cl-single-precision-constant -cl-denorms-are-zero", include_path);
+    #endif
+    
+    err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) { //print build log on error
         size_t logLength = 0;
         err = clGetProgramBuildInfo(ssKernelProgram, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &logLength);

@@ -5,10 +5,10 @@
 cd "x:\Immolate"
 
 # Run CMake to configure the project
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=".\vcpkg\scripts\buildsystems\vcpkg.cmake"
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=".\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
 
-# Build the project
-cmake --build build --config Release
+# Build the project with maximum optimizations
+cmake --build build --config Release --parallel
 
 # Copy the output executable to Ouija.exe
 $source = ".\build\Release\Ouija.exe"

@@ -432,11 +432,16 @@ int main(int argc, char **argv) {
     } else {
         printf_s("Using pre-compiled kernel binary.\n");
     }
-    printf_s("Building OpenCL Program...\n");
-
-    // Remove -cl-unsafe-math-optimizations from build options for safety and compatibility
-    //snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-no-signed-zeros", include_path);
-    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -Werror -cl-no-signed-zeros", include_path);
+    printf_s("Building OpenCL Program...\n");    // OpenCL kernel optimization flags for maximum performance
+    // -cl-mad-enable: Enable multiply-add optimizations
+    // -cl-finite-math-only: Allow finite math optimizations
+    // -cl-no-signed-zeros: Ignore distinction between -0.0 and +0.0
+    // -cl-fast-relaxed-math: Enable fast relaxed math (implies several opts)
+    // -cl-single-precision-constant: Treat double precision constants as single precision
+    // -cl-denorms-are-zero: Flush denormals to zero for performance
+    // Note: Removed -Werror for Release builds to prevent warnings from blocking optimizations
+    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -cl-no-signed-zeros -cl-fast-relaxed-math -cl-single-precision-constant -cl-denorms-are-zero", include_path);
+    
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t logLength = 0;
@@ -573,15 +578,8 @@ int main(int argc, char **argv) {
             if (!svm_result_ptrs[i]) {
                 fprintf_s(stderr, "Fatal: Failed to allocate SVM result buffer %d (size: %zu bytes)\n", i, sizeof(OuijaHostResult) * batch_capacity);
                 exit(1);
-            }
-            // Create buffer from SVM pointer
-            resultBuf_dev[i] = clCreateBuffer(ctx, CL_MEM_USE_HOST_PTR, 
-                                           sizeof(OuijaHostResult) * batch_capacity, svm_result_ptrs[i], &err);
-            if (!resultBuf_dev[i] || err != CL_SUCCESS) {
-                fprintf_s(stderr, "Fatal: Failed to create SVM buffer object %d (err: %d)\n", i, err);
-                exit(1);
-            }
-            clErrCheck(err, "clCreateBuffer - Creating SVM result buffer on device");
+            }            // For SVM, we don't create buffer objects - use direct SVM pointers
+            resultBuf_dev[i] = NULL;
         }
     } else {
         // Fallback to traditional buffer allocation
@@ -650,9 +648,13 @@ int main(int argc, char **argv) {
         err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &num_seeds_this_dispatch);
         clErrCheck(err, "clSetKernelArg - Setting num_seeds for initial batch");
         err = clSetKernelArg(ssKernel, 2, sizeof(cl_mem), &configBuf);
-        clErrCheck(err, "clSetKernelArg - Setting config buffer for initial batch");
-        err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
-        clErrCheck(err, "clSetKernelArg - Setting result buffer for initial batch");
+        clErrCheck(err, "clSetKernelArg - Setting config buffer for initial batch");        if (svm_supported) {
+            err = clSetKernelArgSVMPointer(ssKernel, 3, svm_result_ptrs[current_buffer_idx]);
+            clErrCheck(err, "clSetKernelArgSVMPointer - Setting SVM result buffer for initial batch");
+        } else {
+            err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
+            clErrCheck(err, "clSetKernelArg - Setting result buffer for initial batch");
+        }
         err = clSetKernelArg(ssKernel, 4, sizeof(cl_mem), &seedOffsetBuf);
         clErrCheck(err, "clSetKernelArg - Setting seed offset buffer for initial batch");
 
@@ -726,9 +728,7 @@ int main(int argc, char **argv) {
             for (cl_long i = 0; i < num_seeds_last_dispatch; ++i) {
                 OuijaHostResult* result = &mapped_results[i];
                 if (result->seed[0] == '\0') continue; // Skip if kernel returned empty seed (e.g. error or no actual processing)
-                seeds_processed_total++; // Count actual non-empty results processed
-                
-                // Apply cutoff filtering in host
+                seeds_processed_total++; // Count actual non-empty results processed                // Apply cutoff filtering in host
                 if (result->TotalScore >= cutoff) {
                     seeds_scored_total++;
                     printf_s("|%s,%d,%d",
@@ -783,10 +783,14 @@ int main(int argc, char **argv) {
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);  
         clErrCheck(err, "clSetKernelArg - Setting starting seed for current batch");
         err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &num_seeds_this_dispatch);
-        clErrCheck(err, "clSetKernelArg - Setting num_seeds for current batch");
-        // Config buffer (arg 2) is already set and doesn't change
-        err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
-        clErrCheck(err, "clSetKernelArg - Setting result buffer for current launch");
+        clErrCheck(err, "clSetKernelArg - Setting num_seeds for current batch");        // Config buffer (arg 2) is already set and doesn't change
+        if (svm_supported) {
+            err = clSetKernelArgSVMPointer(ssKernel, 3, svm_result_ptrs[current_buffer_idx]);
+            clErrCheck(err, "clSetKernelArgSVMPointer - Setting SVM result buffer for current launch");
+        } else {
+            err = clSetKernelArg(ssKernel, 3, sizeof(cl_mem), &resultBuf_dev[current_buffer_idx]);
+            clErrCheck(err, "clSetKernelArg - Setting result buffer for current launch");
+        }
         // Seed offset buffer (arg 4) is already set
         
         err = clEnqueueWriteBuffer(queue, seedOffsetBuf, CL_TRUE, 0, sizeof(cl_long), &seed_offset_for_kernel, 0, NULL, NULL);
@@ -870,15 +874,16 @@ int main(int argc, char **argv) {
     fflush(stdout);    // --- Cleanup ---
     if (ssKernelCode != NULL) free(ssKernelCode);
     free(devices);
-    free(platforms);
-
-    for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
+    free(platforms);    for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
         if (svm_supported && svm_result_ptrs[i] != NULL) {
             clSVMFree(ctx, svm_result_ptrs[i]);
-        } else {
+        } else if (resultBuf_dev[i] != NULL) {
             clReleaseMemObject(resultBuf_dev[i]);
         }
         if(kernel_events[i] != NULL) clReleaseEvent(kernel_events[i]);
+    }
+    if (svm_supported && svm_result_ptrs != NULL) {
+        free(svm_result_ptrs);
     }
     free(resultBuf_dev);
     clReleaseMemObject(configBuf);
