@@ -39,25 +39,22 @@ int main(int argc, char **argv) {
     cl_char8 startingSeed; // Keep as cl_char8
     for (int i = 0; i < 8; i++) {
         startingSeed.s[i] = '\0';
-    }
-    cl_long numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
+    }    cl_long numSeeds = 2318107019761; // Keep as cl_long to match OpenCL's 64-bit type
+    int cutoff = 1; // Default cutoff value for host-side filtering
     // Default config values
     OuijaConfig config;
     config.numNeeds = 0;         // Default number of needs
     config.numWants = 0;         // Default number of wants
     config.maxSearchAnte = 8;    // Default maximum ante to search through
-    int batchResultsMode = 0;    // Default: use original mode, not batching results mode
     cl_uint batchMultiplier = DEFAULT_BATCH_MULTIPLIER; // Default batch multiplier (workgroup * multiplier seeds per batch)
 
     char* filter = "ouija_template"; // Default filter
     char* config_file = NULL;  // Configuration file path
-    int fixedCutoffMode = 0; // Flag for fixed cutoff mode
-    int cutoff = 1; // Default cutoff
 
     // --- Argument Parsing Loop ---
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-h")==0) {
-            printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouija to F. Defaults to ouija_template\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for a seed to be printed to C. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Ouija run faster.\n-b <B>    Sets batch multiplier to B. Higher values process more seeds per batch. Defaults to 100.\n--config <JSON>  Load configuration from a JSON file.\n--list_devices   Lists information about the detected CL devices.\n--gui    Enables GUI streaming mode.");
+            printf_s("Valid command line arguments:\n-h        Shows this help dialog.\n-f <F>    Sets the filter used by Ouija to F. Defaults to ouija_template\n-s <S>    Sets the starting seed to S. Defaults to empty seed. Use \"random\" for a random starting seed.\n-n <N>    Sets the number of seeds to search to N. Defaults to full seed pool.\n-c <C>    Sets the cutoff score for filtering results. Only results with score >= C will be shown. Defaults to 1.\n-p <P>    Sets the platform ID of the CL device being used to P. Defaults to 0.\n-d <D>    Sets the device ID of the CL device being used to D. Defaults to 0.\n-g <G>    Sets the number of thread groups to G. Defaults to 16. Increasing this might help Ouija run faster.\n-b <B>    Sets batch multiplier to B. Higher values process more seeds per batch. Defaults to 100.\n--config <JSON>  Load configuration from a JSON file.\n--list_devices   Lists information about the detected CL devices.\n--gui    Enables GUI streaming mode.");
             return 0;
         }
         if (strcmp(argv[i], "--config")==0 && i + 1 < argc) {
@@ -70,9 +67,6 @@ int main(int argc, char **argv) {
                 batchMultiplier = (cl_uint)atoi(argv[i+1]);
                 printf_s("Batch multiplier set to %u\n", batchMultiplier);
                 i++;
-            } else {
-                batchResultsMode = 1;
-                printf_s("Batch results mode enabled. Results will be collected and processed in batches.\n");
             }
         }
         if (strcmp(argv[i],  "-p")==0) {
@@ -96,8 +90,8 @@ int main(int argc, char **argv) {
             i++;
         }
         if (strcmp(argv[i],  "-c")==0) {
-            cutoff = (int)strtoll(argv[i+1], NULL, 10);
-            fixedCutoffMode = 1;
+            cutoff = atoi(argv[i+1]);
+            printf_s("Cutoff set to %d\n", cutoff);
             i++;
         }
         if (strcmp(argv[i],  "-s")==0) {
@@ -297,10 +291,16 @@ int main(int argc, char **argv) {
     cl_device_id* devices = malloc(sizeof(cl_device_id) * numDevices);
     err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, numDevices, devices, NULL);
     clErrCheck(err, "clGetDeviceIDs - Getting list of available OpenCL devices");
-    cl_device_id device = devices[deviceID];
-
-    // Using regular OpenCL buffers for device memory operations
-    cl_bool svm_supported = CL_FALSE; // Force SVM disabled
+    cl_device_id device = devices[deviceID];    // Check for SVM support to improve memory performance
+    cl_device_svm_capabilities svm_caps;
+    err = clGetDeviceInfo(device, CL_DEVICE_SVM_CAPABILITIES, sizeof(svm_caps), &svm_caps, NULL);
+    cl_bool svm_supported = (err == CL_SUCCESS && (svm_caps & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER) != 0);
+    
+    if (svm_supported) {
+        printf_s("SVM supported - using high-performance shared virtual memory\n");
+    } else {
+        printf_s("SVM not supported - falling back to traditional buffer mapping\n");
+    }
     
     cl_context ctx = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
     clErrCheck(err, "clCreateContext - Creating OpenCL context");
@@ -561,24 +561,39 @@ int main(int argc, char **argv) {
     // Define the maximum capacity of a single batch based on device and multiplier
     cl_long batch_capacity = numGroups * compute_units * batchMultiplier;
     if (batch_capacity == 0) batch_capacity = 1; // Ensure batch_capacity is at least 1
-
-    // Cap batch_capacity to avoid OOM on most GPUs
-    const cl_long MAX_SAFE_BATCH_CAPACITY = 100000; // You can tune this for your GPU
-    if (batch_capacity > MAX_SAFE_BATCH_CAPACITY) {
-        printf_s("Warning: batch_capacity (%lld) > MAX_SAFE_BATCH_CAPACITY (%lld), clamping!\n", batch_capacity, MAX_SAFE_BATCH_CAPACITY);
-        batch_capacity = MAX_SAFE_BATCH_CAPACITY;
-    }
-
-    // Create result buffers for alternating between batches, sized by batch_capacity
     cl_mem* resultBuf_dev = (cl_mem*)malloc(NUM_RESULT_BUFFERS * sizeof(cl_mem));
-    for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
-        resultBuf_dev[i] = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, 
-                                       sizeof(OuijaHostResult) * batch_capacity, NULL, &err); // Use batch_capacity
-        if (!resultBuf_dev[i] || err != CL_SUCCESS) {
-            fprintf_s(stderr, "Fatal: Failed to allocate result buffer %d (size: %zu bytes, err: %d)\n", i, sizeof(OuijaHostResult) * batch_capacity, err);
-            exit(1);
+    OuijaHostResult** svm_result_ptrs = NULL; // SVM pointers for direct access
+    
+    if (svm_supported) {
+        // Use SVM buffers for zero-copy memory access
+        svm_result_ptrs = (OuijaHostResult**)malloc(NUM_RESULT_BUFFERS * sizeof(OuijaHostResult*));
+        for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
+            svm_result_ptrs[i] = (OuijaHostResult*)clSVMAlloc(ctx, CL_MEM_READ_WRITE, 
+                                                            sizeof(OuijaHostResult) * batch_capacity, 0);
+            if (!svm_result_ptrs[i]) {
+                fprintf_s(stderr, "Fatal: Failed to allocate SVM result buffer %d (size: %zu bytes)\n", i, sizeof(OuijaHostResult) * batch_capacity);
+                exit(1);
+            }
+            // Create buffer from SVM pointer
+            resultBuf_dev[i] = clCreateBuffer(ctx, CL_MEM_USE_HOST_PTR, 
+                                           sizeof(OuijaHostResult) * batch_capacity, svm_result_ptrs[i], &err);
+            if (!resultBuf_dev[i] || err != CL_SUCCESS) {
+                fprintf_s(stderr, "Fatal: Failed to create SVM buffer object %d (err: %d)\n", i, err);
+                exit(1);
+            }
+            clErrCheck(err, "clCreateBuffer - Creating SVM result buffer on device");
         }
-        clErrCheck(err, "clCreateBuffer - Creating result buffer on device");
+    } else {
+        // Fallback to traditional buffer allocation
+        for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
+            resultBuf_dev[i] = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, 
+                                           sizeof(OuijaHostResult) * batch_capacity, NULL, &err);
+            if (!resultBuf_dev[i] || err != CL_SUCCESS) {
+                fprintf_s(stderr, "Fatal: Failed to allocate result buffer %d (size: %zu bytes, err: %d)\n", i, sizeof(OuijaHostResult) * batch_capacity, err);
+                exit(1);
+            }
+            clErrCheck(err, "clCreateBuffer - Creating result buffer on device");
+        }
     }
 
     // Calculate the total number of batches potentially required
@@ -673,7 +688,7 @@ int main(int argc, char **argv) {
 
     for (cl_long batch_idx = 0; batch_idx < total_potential_batches; ++batch_idx) {
         if (num_seeds_this_dispatch == 0 && batch_idx == 0) { // Handles -n 0 case or if first dispatch was 0 seeds
-            printf("[HOST] exiting main loop num_seeds_this_dispatch=0 and batch_idx=0\n");
+            //printf("[HOST] exiting main loop num_seeds_this_dispatch=0 and batch_idx=0\n");
             break;
         }
         // MODIFIED: Determine results buffer and seed count for it
@@ -689,31 +704,54 @@ int main(int argc, char **argv) {
         } else if (num_seeds_last_dispatch > 0) { // Only warn if we expected an event
             printf_s("Warning: No event to wait for for buffer index %d, but expected %lld seeds.\n", results_buffer_idx, num_seeds_last_dispatch);
         }
-        
-        if (num_seeds_last_dispatch > 0) { // Only map and process if the last dispatch had seeds
+          if (num_seeds_last_dispatch > 0) { // Only map and process if the last dispatch had seeds
             //printf_s("[HOST] Processing batch %lld/%lld (results for %lld seeds)\n", batch_idx+1, total_potential_batches, num_seeds_last_dispatch);
             //fflush(stdout);
-            OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[results_buffer_idx], CL_TRUE,
-                                               CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);
-            clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");
+            
+            OuijaHostResult* mapped_results;
+            if (svm_supported) {
+                // Direct SVM access - no mapping needed
+                mapped_results = svm_result_ptrs[results_buffer_idx];
+                // Map SVM pointer for host access if needed
+                err = clEnqueueSVMMap(queue, CL_TRUE, CL_MAP_READ, 
+                                    mapped_results, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL);
+                clErrCheck(err, "clEnqueueSVMMap - Mapping SVM result buffer");
+            } else {
+                // Traditional mapping for non-SVM systems
+                mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[results_buffer_idx], CL_TRUE,
+                                                   CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);
+                clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");
+            }
+            
             for (cl_long i = 0; i < num_seeds_last_dispatch; ++i) {
                 OuijaHostResult* result = &mapped_results[i];
                 if (result->seed[0] == '\0') continue; // Skip if kernel returned empty seed (e.g. error or no actual processing)
                 seeds_processed_total++; // Count actual non-empty results processed
-                if (result->TotalScore < cutoff) continue;
-                seeds_scored_total++;
-                printf_s("|%s,%d,%d",
-                            result->seed,
-                            result->TotalScore,
-                            result->NegativeJokers);
-                for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
-                    printf_s(",%d", (int)result->ScoreWants[w]);
+                
+                // Apply cutoff filtering in host
+                if (result->TotalScore >= cutoff) {
+                    seeds_scored_total++;
+                    printf_s("|%s,%d,%d",
+                                result->seed,
+                                result->TotalScore,
+                                result->NegativeJokers);
+                    for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
+                        printf_s(",%d", (int)result->ScoreWants[w]);
+                    }
+                    printf_s("\n");
                 }
-                printf_s("\n");
             }
             fflush(stdout);
-            err = clEnqueueUnmapMemObject(queue, resultBuf_dev[results_buffer_idx], mapped_results, 0, NULL, NULL);
-            clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer");
+            
+            if (svm_supported) {
+                // Unmap SVM pointer
+                err = clEnqueueSVMUnmap(queue, mapped_results, 0, NULL, NULL);
+                clErrCheck(err, "clEnqueueSVMUnmap - Unmapping SVM result buffer");
+            } else {
+                // Traditional unmapping
+                err = clEnqueueUnmapMemObject(queue, resultBuf_dev[results_buffer_idx], mapped_results, 0, NULL, NULL);
+                clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer");
+            }
         }
         
         // Check if all requested seeds have been dispatched
@@ -735,12 +773,12 @@ int main(int argc, char **argv) {
         err = clFinish(queue);
         clErrCheck(err, "clFinish - Ensuring previous operations are complete");
         // Host-side debug print for next batch
-        char seedStr[9] = {0};
-        for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
-        printf_s("[HOST] Launching kernel batch: batch_idx=%lld, seed_offset=%lld, num_seeds=%lld\n", batch_idx+1, seed_offset_for_kernel, num_seeds_this_dispatch);
-        printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
-        printf_s("[HOST] Starting seed: %s\n", seedStr);
-        fflush(stdout);
+       //char seedStr[9] = {0};
+        //for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
+        //printf_s("[HOST] Launching kernel batch: batch_idx=%lld, seed_offset=%lld, num_seeds=%lld\n", batch_idx+1, seed_offset_for_kernel, num_seeds_this_dispatch);
+        //printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
+        //printf_s("[HOST] Starting seed: %s\n", seedStr);
+        //fflush(stdout);
 
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);  
         clErrCheck(err, "clSetKernelArg - Setting starting seed for current batch");
@@ -757,27 +795,45 @@ int main(int argc, char **argv) {
         size_t global_work_size_next = (size_t)((num_seeds_this_dispatch + localWorkSize - 1) / localWorkSize) * localWorkSize;
         if (global_work_size_next == 0 && num_seeds_this_dispatch > 0) global_work_size_next = localWorkSize;
         size_t local_work_size_next = (size_t)localWorkSize;
-        if (num_seeds_this_dispatch == 0) global_work_size_next = 0;
-
-        // Clean the result buffer before dispatching kernel
-        OuijaHostResult* mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[current_buffer_idx], CL_TRUE,
-                                               CL_MAP_WRITE, 0, sizeof(OuijaHostResult) * num_seeds_this_dispatch, 0, NULL, NULL, &err);
-        clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer for clearing");
+        if (num_seeds_this_dispatch == 0) global_work_size_next = 0;        // Clean the result buffer before dispatching kernel
+        OuijaHostResult* mapped_results;
+        if (svm_supported) {
+            // Direct SVM access - no mapping needed
+            mapped_results = svm_result_ptrs[current_buffer_idx];
+            // Map SVM pointer for host access
+            err = clEnqueueSVMMap(queue, CL_TRUE, CL_MAP_WRITE, 
+                                mapped_results, sizeof(OuijaHostResult) * num_seeds_this_dispatch, 0, NULL, NULL);
+            clErrCheck(err, "clEnqueueSVMMap - Mapping SVM result buffer for clearing");
+        } else {
+            // Traditional mapping for non-SVM systems
+            mapped_results = (OuijaHostResult*)clEnqueueMapBuffer(queue, resultBuf_dev[current_buffer_idx], CL_TRUE,
+                                                   CL_MAP_WRITE, 0, sizeof(OuijaHostResult) * num_seeds_this_dispatch, 0, NULL, NULL, &err);
+            clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer for clearing");
+        }
+        
         for (cl_long i = 0; i < num_seeds_this_dispatch; i++) {
             memset(&mapped_results[i], 0, sizeof(OuijaHostResult));
         }
-        err = clEnqueueUnmapMemObject(queue, resultBuf_dev[current_buffer_idx], mapped_results, 0, NULL, NULL);
-        clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer after clearing");
-
-        if (clock() - ticker > 1000 && cumulative_seeds_dispatched > 0) { // Use cumulative_seeds_dispatched for progress
+        
+        if (svm_supported) {
+            // Unmap SVM pointer
+            err = clEnqueueSVMUnmap(queue, mapped_results, 0, NULL, NULL);
+            clErrCheck(err, "clEnqueueSVMUnmap - Unmapping SVM result buffer after clearing");
+        } else {
+            // Traditional unmapping
+            err = clEnqueueUnmapMemObject(queue, resultBuf_dev[current_buffer_idx], mapped_results, 0, NULL, NULL);
+            clErrCheck(err, "clEnqueueUnmapMemObject - Unmapping result buffer after clearing");
+        }
+        
+        if (clock() - ticker > 1000 && seeds_processed_total > 0) { // Use seeds_processed_total for accurate progress
             ticker = clock();
             double elapsed_time = (double)(clock() - start_time) / CLOCKS_PER_SEC;
-            double estimated_total_time = (elapsed_time / cumulative_seeds_dispatched) * numSeeds;
+            double estimated_total_time = (elapsed_time / seeds_processed_total) * numSeeds;
             double remaining_time = estimated_total_time - elapsed_time;
 
             printf_s("$Elapsed time: %.2f seconds, Estimated remaining time: %.2f seconds             $clock$%.1fK/s\n", 
                 elapsed_time, remaining_time, (elapsed_time > 0) ? 
-                    ((double)cumulative_seeds_dispatched / elapsed_time)*0.001f : 0.0);
+                    ((double)seeds_processed_total / elapsed_time)*0.001f : 0.0);
             fflush(stdout);
         }
         
@@ -791,7 +847,7 @@ int main(int argc, char **argv) {
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
         // --- End of Prepare and Launch Next Kernel ---
     }
-    printf_s("[HOST] main loop finished.\n");
+    //printf_s("[HOST] main loop finished.\n");
 
     // After the loop, ensure any final outstanding kernel event is handled
     for (int i = 0; i < NUM_RESULT_BUFFERS; i++) {
@@ -804,25 +860,24 @@ int main(int argc, char **argv) {
     }
     
     clFinish(queue); // Ensure all enqueued commands are finished
-    
-    double elaps = (double)(clock() - start_time) / CLOCKS_PER_SEC;
-    cl_long reported_total_seeds = (numSeeds == 0 && cumulative_seeds_dispatched == 0) ? 0 : min(cumulative_seeds_dispatched, numSeeds);
+      double elaps = (double)(clock() - start_time) / CLOCKS_PER_SEC;
+    cl_long reported_total_seeds = seeds_processed_total; // Use actual processed seeds for accurate reporting
     if (numSeeds > 0 && reported_total_seeds == 0 && cumulative_seeds_dispatched > 0) {
-        reported_total_seeds = cumulative_seeds_dispatched;
-    }
-
-    printf_s("$Search Complete! Found %lli viable out of %lli total seeds @%.1f seeds/s\n",
-        seeds_scored_total, reported_total_seeds,
-        (elaps > 0 && reported_total_seeds > 0) ? ((double)reported_total_seeds / elaps) : 0.0);
-    fflush(stdout);
-
-    // --- Cleanup ---
+        reported_total_seeds = cumulative_seeds_dispatched; // Fallback to dispatched if no processed seeds
+    }    printf_s("$Search Complete! Found %lli viable out of %lli total seeds @%.1f seeds/s\n",
+        seeds_scored_total, seeds_processed_total,
+        (elaps > 0 && seeds_processed_total > 0) ? ((double)seeds_processed_total / elaps) : 0.0);
+    fflush(stdout);    // --- Cleanup ---
     if (ssKernelCode != NULL) free(ssKernelCode);
     free(devices);
     free(platforms);
 
     for (int i = 0; i < NUM_RESULT_BUFFERS; ++i) {
-        clReleaseMemObject(resultBuf_dev[i]);
+        if (svm_supported && svm_result_ptrs[i] != NULL) {
+            clSVMFree(ctx, svm_result_ptrs[i]);
+        } else {
+            clReleaseMemObject(resultBuf_dev[i]);
+        }
         if(kernel_events[i] != NULL) clReleaseEvent(kernel_events[i]);
     }
     free(resultBuf_dev);

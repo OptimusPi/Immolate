@@ -2,7 +2,7 @@
 //#define CACHE_SIZE 800
 #define _debugPrintsMAGIC
 
-void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result, int cutoff) {
+void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
   // Disable debug printf for performance
   int gid = get_global_id(0);
   
@@ -287,8 +287,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       
       if (needNotMetByRequiredAnte) {
         valid = false;
-        result->TotalScore = 0;
-        return;
+        break;
       }
     }
   } // End of ante loop
@@ -306,15 +305,12 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       wants_score += (result->ScoreWants[w] > 0) + result->ScoreWants[w];
     }
     result->TotalScore += wants_score;
-    
-    // Add negative jokers bonus
-    result->TotalScore += result->NegativeJokers;
-
-    if (result->TotalScore < cutoff) {
-      return;
-    }
-
-    // Score meets cutoff - perform expensive seed string conversion
+  } else {
+    // Invalid seed gets zero score
+    result->TotalScore = 0;
+  }
+  
+      // Always perform seed string conversion since filtering is done in host
     text s_str = s_to_string(&inst->seed);
     
     // Use efficient copying
@@ -322,10 +318,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     for (int i = 0; i < 9; i++) {
       result->seed[i] = s_str.str[i];
     }
-  } else {
-    // Invalid seed gets zero score
-    result->TotalScore = 0;
-  }
 
   return;
 }

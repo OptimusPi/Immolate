@@ -2,14 +2,13 @@
 #include "lib/ouija_config.cl" 
 #include "lib/ouija_result.cl" 
 
-void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result, int cutoff);
+void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result);
 
 __kernel void ouija_search(char8 starting_seed_char8, // Renamed to avoid conflict with seed type
                            long num_seeds_for_this_dispatch, // Total seeds this kernel dispatch should handle
                            __constant OuijaConfig *config,
                            __global OuijaResult *results,
-                           __global long *batch_seed_offset, // Renamed for clarity
-                           int cutoff) { // Cutoff threshold for early exit optimization
+                           __global long *batch_seed_offset) { // Renamed for clarity
     size_t current_global_id = get_global_id(0); // Original OpenCL type: size_t
     size_t total_global_size = get_global_size(0); // Original OpenCL type: size_t
     
@@ -35,8 +34,8 @@ __kernel void ouija_search(char8 starting_seed_char8, // Renamed to avoid confli
     for (long i = loop_start_index; i < num_seeds_for_this_dispatch; i += loop_stride) {
         // i and loop_start_index are long, so %li is appropriate.
         //printf("[KERNEL-Ouija_Search] Processing seed %li for work-item %li\n", i, loop_start_index); 
-          instance inst = i_new(_seed);
-        ouija_filter(&inst, config, &results[i], cutoff); // Process the instance with cutoff for early exit
+        instance inst = i_new(_seed);
+        ouija_filter(&inst, config, &results[i]); // Process the instance
         
         // After processing, advance _seed by the stride to prepare for the next iteration (if any).
         // loop_stride is long, compatible with s_skip's int64_t.
