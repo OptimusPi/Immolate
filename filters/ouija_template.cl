@@ -1,10 +1,8 @@
 #include "lib/ouija.cl"
 //#define CACHE_SIZE 800
-#define _debugPrintsMAGIC
+//#define _debugPrintsMAGIC
 
 void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
-  // Disable debug printf for performance
-  int gid = get_global_id(0);
   
   // Use faster primitive initialization
   bool valid = true;
@@ -65,9 +63,13 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         }
       }
     }
+    if (result->TotalScore < 8) {
+      // If the score is less than 8, we can skip the ante loop
+      valid = false;
+    }
   }
 
-  for (int ante = 1; ante <= maxSearchAnte; ante++) {
+  for (int ante = 1; ante <= maxSearchAnte && valid; ante++) {
     init_unlocks(inst, ante, false);
     item voucher = next_voucher(inst, ante);
 #ifdef _debugPrints

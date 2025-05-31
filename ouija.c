@@ -759,7 +759,7 @@ int main(int argc, char **argv) {
             break; 
         }
 
-    // --- Prepare and Launch Next Kernel ---
+        // --- Prepare and Launch Next Kernel ---
         current_buffer_idx = (current_buffer_idx + 1) % NUM_RESULT_BUFFERS; // Advance for the next launch
 
         seed_offset_for_kernel = cumulative_seeds_dispatched;
@@ -769,17 +769,31 @@ int main(int argc, char **argv) {
 
         num_seeds_this_dispatch = (remaining_overall_seeds > batch_capacity) ? batch_capacity : remaining_overall_seeds;
 
-        // Ensure all previous operations are complete before launching a new kernel
-        err = clFinish(queue);
-        clErrCheck(err, "clFinish - Ensuring previous operations are complete");
-        // Host-side debug print for next batch
-       //char seedStr[9] = {0};
-        //for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++) seedStr[j] = startingSeed.s[j];
-        //printf_s("[HOST] Launching kernel batch: batch_idx=%lld, seed_offset=%lld, num_seeds=%lld\n", batch_idx+1, seed_offset_for_kernel, num_seeds_this_dispatch);
-        //printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
-        //printf_s("[HOST] Starting seed: %s\n", seedStr);
-        //fflush(stdout);
-
+        // Only wait for the specific buffer we're about to reuse
+        if (kernel_events[current_buffer_idx] != NULL) {
+            err = clWaitForEvents(1, &kernel_events[current_buffer_idx]);
+            if (err != CL_SUCCESS) {
+                printf_s("Error waiting for kernel event on buffer %d: %d\n", current_buffer_idx, err);
+                clErrCheck(err, "clWaitForEvents - Ensuring buffer is ready for reuse");
+            }
+            clReleaseEvent(kernel_events[current_buffer_idx]);
+            kernel_events[current_buffer_idx] = NULL;
+        }
+        
+        // Add validation before setting kernel args
+        if (num_seeds_this_dispatch <= 0 || seed_offset_for_kernel < 0) {
+            printf_s("Error: Invalid kernel parameters - seeds: %lld, offset: %lld\n", 
+                    num_seeds_this_dispatch, seed_offset_for_kernel);
+            break;
+        }
+        
+        // Add batch progress tracking for error diagnosis
+        if (batch_idx % 100 == 0) {
+            printf_s("Debug: Processing batch %lld, buffer %d, seeds %lld, offset %lld\n", 
+                    batch_idx, current_buffer_idx, num_seeds_this_dispatch, seed_offset_for_kernel);
+            fflush(stdout);
+        }
+        
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);  
         clErrCheck(err, "clSetKernelArg - Setting starting seed for current batch");
         err = clSetKernelArg(ssKernel, 1, sizeof(cl_long), &num_seeds_this_dispatch);
@@ -849,21 +863,15 @@ int main(int argc, char **argv) {
         }
         dispatched_kernel_seeds[current_buffer_idx] = num_seeds_this_dispatch; // ADDED: Store seeds for this launch
         cumulative_seeds_dispatched += num_seeds_this_dispatch;
+        
+        // Put clFinish back - your driver needs it to prevent -9999 errors
+        err = clFinish(queue);
+        clErrCheck(err, "clFinish - Driver synchronization to prevent -9999 errors");
         // --- End of Prepare and Launch Next Kernel ---
     }
     //printf_s("[HOST] main loop finished.\n");
 
     // After the loop, ensure any final outstanding kernel event is handled
-    for (int i = 0; i < NUM_RESULT_BUFFERS; i++) {
-        if (kernel_events[i] != NULL) {
-            printf_s("Warning: Kernel event still active for buffer %d post-loop, waiting and releasing...\n", i);
-            clWaitForEvents(1, &kernel_events[i]);
-            clReleaseEvent(kernel_events[i]);
-            kernel_events[i] = NULL;
-        }
-    }
-    
-    clFinish(queue); // Ensure all enqueued commands are finished
       double elaps = (double)(clock() - start_time) / CLOCKS_PER_SEC;
     cl_long reported_total_seeds = seeds_processed_total; // Use actual processed seeds for accurate reporting
     if (numSeeds > 0 && reported_total_seeds == 0 && cumulative_seeds_dispatched > 0) {

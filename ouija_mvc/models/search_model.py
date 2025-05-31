@@ -12,7 +12,9 @@ class SearchModel:
     
     # Maps for dropdown values to command-line arguments
     THREAD_GROUP_MAP = {
+        "Single": "1", # Added to handle "Single" from UI
         "1": "1",
+        "16": "16", # Added 16 as a valid option, assuming it's supported
         "32": "32",
         "64": "64",
         "128": "128",
@@ -20,7 +22,7 @@ class SearchModel:
     }
     
     SEED_COUNT_MAP = {
-        "All Seeds": None,  # Use None to indicate omitting the argument
+        "All": None,  # Changed "All Seeds" to "All" to match UI/config_model
         "1": "1",
         "1K": "1000",
         "100K": "100000",
@@ -51,20 +53,26 @@ class SearchModel:
         
         # Add starting seed - handle both "random" and user-entered seeds
         # Convert to uppercase for consistency with Balatro's seed format
-        if starting_seed.lower() == "random" or not starting_seed.strip():
+        if isinstance(starting_seed, str) and (starting_seed.lower() == "random" or not starting_seed.strip()):
             command_parts.extend(["-s", "random"])
         else:
-            command_parts.extend(["-s", starting_seed.upper()])
+            command_parts.extend(["-s", str(starting_seed).upper()]) # Ensure starting_seed is string
             
         # Add thread groups
-        thread_groups_value = self.THREAD_GROUP_MAP.get(thread_groups, "32")
+        thread_groups_value = self.THREAD_GROUP_MAP.get(str(thread_groups), "32") # Ensure thread_groups is string for map lookup
         command_parts.extend(["-g", thread_groups_value])
         
         # Add number of seeds if specified
-        number_of_seeds_value = self.SEED_COUNT_MAP.get(number_of_seeds)
-        if number_of_seeds_value is not None:
-            command_parts.extend(["-n", number_of_seeds_value])
-        # Skip adding -n if number_of_seeds_value is None (for 'All')
+        # number_of_seeds can be an int (calculated for Funny Seeds) or string (from dropdown)
+        if isinstance(number_of_seeds, int):
+            command_parts.extend(["-n", str(number_of_seeds)])
+        elif isinstance(number_of_seeds, str):
+            number_of_seeds_value = self.SEED_COUNT_MAP.get(number_of_seeds)
+            if number_of_seeds_value is not None:
+                command_parts.extend(["-n", number_of_seeds_value])
+            elif number_of_seeds.isdigit(): # Handle cases where it's a string number not in map
+                 command_parts.extend(["-n", number_of_seeds])
+            # Else: if it's something like "All Seeds" and maps to None, or unhandled string, -n is omitted as intended.
         
         # Add config path if provided
         if config_path:
@@ -93,11 +101,11 @@ class SearchModel:
         self.cutoff = cutoff
         self.gpu_batch = gpu_batch
         command = self.build_command(config_path, starting_seed, thread_groups, number_of_seeds, template)
-        
+
         # Log the command
         if self.console_callback:
             self.console_callback(f"Executing: {command}\n")
-        
+
         try:
             # Start the process
             process = subprocess.Popen(
@@ -106,20 +114,15 @@ class SearchModel:
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE, 
                 text=False,  # Changed to False to receive bytes instead of text
-                creationflags=subprocess.CREATE_NO_WINDOW
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
             )
-            
-            # Add to active processes
             self.active_processes.append(process)
-            
-            # Start a thread to read the output
             thread = threading.Thread(
                 target=self._read_process_output,
                 args=(process, db_model),
                 daemon=True
             )
             thread.start()
-            
             return True
         except Exception as e:
             if self.console_callback:

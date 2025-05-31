@@ -249,3 +249,96 @@ class ItemSelectorDialog(tk.Toplevel):
         dialog = ItemSelectorDialog(parent, title, category, is_need, edit_mode, existing_item)
         parent.wait_window(dialog)
         return getattr(dialog, 'result', None)
+
+
+class AdvancedSettingsDialog(tk.Toplevel):
+    """Dialog window for advanced settings (thread groups, GPU batch, cutoff, fun word, search type)."""
+    def __init__(self, parent, thread_groups, gpu_batch, cutoff, fun_word, search_type):
+        super().__init__(parent)
+        self.title("Advanced Settings")
+        self.geometry("350x250")
+        self.resizable(False, False)
+        self.configure(bg=BACKGROUND)
+        self.result = None
+
+        # Main content frame with grid layout
+        content_frame = tk.Frame(self, bg=BACKGROUND)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Configure grid columns
+        content_frame.grid_columnconfigure(0, weight=0, minsize=100)  # Labels column
+        content_frame.grid_columnconfigure(1, weight=1, minsize=180)  # Controls column
+        
+        row = 0
+        
+        # Thread Groups
+        tk.Label(content_frame, text="Thread Groups:", bg=BACKGROUND, fg="white", font=("m6x11", 12)).grid(row=row, column=0, sticky="e", padx=(0, 10), pady=5)
+        self.thread_groups_var = tk.StringVar(value=thread_groups)
+        tk.Entry(content_frame, textvariable=self.thread_groups_var, font=("m6x11", 12)).grid(row=row, column=1, sticky="ew", pady=5)
+        row += 1
+
+        # GPU Batch
+        tk.Label(content_frame, text="GPU Batch:", bg=BACKGROUND, fg="white", font=("m6x11", 12)).grid(row=row, column=0, sticky="e", padx=(0, 10), pady=5)
+        self.gpu_batch_var = tk.StringVar(value=gpu_batch)
+        tk.Entry(content_frame, textvariable=self.gpu_batch_var, font=("m6x11", 12)).grid(row=row, column=1, sticky="ew", pady=5)
+        row += 1
+
+        # Cutoff
+        tk.Label(content_frame, text="Cutoff:", bg=BACKGROUND, fg="white", font=("m6x11", 12)).grid(row=row, column=0, sticky="e", padx=(0, 10), pady=5)
+        self.cutoff_var = tk.StringVar(value=cutoff)
+        tk.Entry(content_frame, textvariable=self.cutoff_var, font=("m6x11", 12)).grid(row=row, column=1, sticky="ew", pady=5)
+        row += 1
+
+        # Fun Word
+        tk.Label(content_frame, text="Fun Word:", bg=BACKGROUND, fg="white", font=("m6x11", 12)).grid(row=row, column=0, sticky="e", padx=(0, 10), pady=5)
+        self.fun_word_var = tk.StringVar(value=fun_word)
+        tk.Entry(content_frame, textvariable=self.fun_word_var, font=("m6x11", 12)).grid(row=row, column=1, sticky="ew", pady=5)
+        row += 1
+
+        # Search Type
+        tk.Label(content_frame, text="Search Type:", bg=BACKGROUND, fg="white", font=("m6x11", 12)).grid(row=row, column=0, sticky="e", padx=(0, 10), pady=5)
+        self.search_type_var = tk.StringVar(value=search_type)
+        search_type_options = ["Default", "Key Word", "Funny List"]
+        ttk.Combobox(content_frame, textvariable=self.search_type_var, values=search_type_options, state="readonly", font=("m6x11", 12)).grid(row=row, column=1, sticky="ew", pady=5)
+        row += 1
+        
+        # Buttons
+        button_frame = tk.Frame(self, bg=BACKGROUND)
+        button_frame.pack(pady=(0, 20))
+        tk.Button(button_frame, text="OK", command=self.on_ok, bg=GREEN, fg="white", font=("m6x11", 12), width=10).pack(side="left", padx=10)
+        tk.Button(button_frame, text="Cancel", command=self.destroy, bg=RED, fg="white", font=("m6x11", 12), width=10).pack(side="right", padx=10)
+
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        # self.wait_window(self)  # <-- REMOVE from __init__
+
+    def on_ok(self):
+        self.result = {
+            "thread_groups": self.thread_groups_var.get(),
+            "gpu_batch": self.gpu_batch_var.get(),
+            "cutoff": self.cutoff_var.get(),
+            "fun_word": self.fun_word_var.get(),
+            "search_type": self.search_type_var.get(),
+        }
+        self.destroy()
+
+    @staticmethod
+    def show_dialog(parent, thread_groups, gpu_batch, cutoff, fun_word, search_type):
+        dialog = AdvancedSettingsDialog(parent, thread_groups, gpu_batch, cutoff, fun_word, search_type)
+        dialog.wait_window(dialog)
+        return dialog.result
+        self.result = {
+            "thread_groups": self.thread_groups_var.get(),
+            "gpu_batch": self.gpu_batch_var.get(),
+            "cutoff": self.cutoff_var.get(),
+            "fun_word": self.fun_word_var.get(),
+            "search_type": self.search_type_var.get(),
+        }
+        self.destroy()
+
+    @staticmethod
+    def show_dialog(parent, thread_groups, gpu_batch, cutoff, fun_word, search_type):
+        dialog = AdvancedSettingsDialog(parent, thread_groups, gpu_batch, cutoff, fun_word, search_type)
+        dialog.wait_window(dialog)
+        return dialog.result

@@ -4,12 +4,12 @@ Main Window View for Ouija Seed Finder Application
 import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, font
-from tksheet import Sheet
 import pandas as pd
 import time
 from pandastable import Table
 import sys
 import json
+import random  # for random fun/naughty words
 
 # Import from our own modules
 from .dialogs import ItemSelectorDialog
@@ -20,7 +20,11 @@ from ..utils.ui_utils import (
 from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
 from ouija_mvc.models.database_model import DatabaseModel
 
-
+# Define word lists
+FUNNY_WORDS = ["PIE", "CHEAT", "POO", "POOP", "69", "420","FART", "BUM", "BUTT", "BOOB", "NERD", "DORK", "RAD", "COOL", "BEAN", "LIPS"]
+NAUGHTY_WORDS = ["FUCK", "SHIT", "CUNT", "TWAT", "DICK", "PRICK", "SLUT", "WHORE", "CLIT", "ASS", "PISS", "69", "SEX", "420", "BLOW", "METH", "CRACK", "PUSSY", "COCK", "VAG", "FAG", "GAY"]
+# Combine for Funny List mode if desired, or keep separate for selection
+COMBINED_FUNNY_LIST = FUNNY_WORDS + NAUGHTY_WORDS
 
 
 class MainWindow:
@@ -38,29 +42,32 @@ class MainWindow:
         self.start_time = None  # Ensure this always exists
         self.search_running = False
         self._search_start_time = None
-        
+        # Advanced settings variables (always present)
+        self.thread_groups_var = tk.StringVar()
+        self.gpu_batch_var = tk.StringVar()
+        self.cutoff_var = tk.StringVar()
+        self.fun_word_entry_var = tk.StringVar()
+        self.search_type_var = tk.StringVar(value="Default") # Ensure search_type_var is initialized here
         # Define table font attributes early
         self.table_font_family = "m6x11"
         self.table_font_size = 13  # Updated font size
 
         # Register this view with the controller
         controller.register_view(self)
-        
-        # Apply custom font
+          # Apply custom font
         self.setup_font()
+        
+        # Create status bar FIRST so it gets allocated space before main content
+        self.status_bar = StatusBar(self.root)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
         # Create main layout frames
         self.create_layout()
         
         # Create widgets in each section
-        self.create_config_section()
-        self.create_criteria_section()    
-        self.create_run_settings_section()
+        self.create_deck_settings_section()    
+        self.create_criteria_section()
         self.create_results_section()
-        
-        # Create status bar
-        self.status_bar = StatusBar(self.root)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
         # Set up window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -96,27 +103,32 @@ class MainWindow:
         # Main container frame with proper padding
         self.main_container = tk.Frame(self.root, bg=BACKGROUND)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
+
         # Create top section (50% of window height)
         self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND, height=self.root.winfo_height()//2)
         self.settings_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False, pady=(0, 5))
         self.settings_frame.pack_propagate(False)  # Fix the height
-        
+
         # Create three equal columns in the top section with padding between them
         column_width = self.root.winfo_width() // 3
         self.left_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
         self.left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
+
         self.middle_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
         self.middle_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-        
+
         self.right_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
         self.right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
-        
+
+        # Place config section at the top of the right column
+        self.create_config_section(parent=self.right_column)
+        # Then place the run/console section below it
+        self.create_run_settings_section(parent=self.right_column)
+
         # Bottom section (remaining height)
         self.bottom_frame = tk.Frame(self.main_container, bg=BACKGROUND)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
-        
+
         # Add window resize handler to maintain the proportions
         self.root.bind("<Configure>", self._on_window_resize)
         
@@ -126,12 +138,13 @@ class MainWindow:
             # Update top section height to be 50% of window
             self.settings_frame.config(height=event.height//2)
             
-    def create_config_section(self):
+    def create_config_section(self, parent=None):
         """Create the configuration section with optimized spacing"""
-        # Config frame with improved padding
-        self.config_frame = tk.LabelFrame(self.left_column, text="Configuration", 
+        if parent is None:
+            parent = self.bottom_frame
+        self.config_frame = tk.LabelFrame(parent, text="Save/Load Configuration", 
                                         padx=5, pady=5, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.config_frame.pack(fill=tk.X, expand=False, padx=2, pady=(2, 5))
+        self.config_frame.pack(fill=tk.X, expand=False, padx=2, pady=(2, 5), side=tk.TOP)
         
         # Config name entry with better padding
         self.config_name_var = tk.StringVar()
@@ -155,49 +168,43 @@ class MainWindow:
                                    command=self.on_load_config, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
         self.load_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
         
-        # ===== Search Settings Frame =====
-        self.search_settings_frame = tk.LabelFrame(self.left_column, text="Search Settings", 
+    def create_deck_settings_section(self):
+        """Create the deck settings section (formerly search settings)"""
+        self.deck_settings_frame = tk.LabelFrame(self.left_column, text="Deck Settings", 
                                                  padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.search_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        
-        # Create a grid layout for more compact controls
+        self.deck_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         row = 0
-
         # Deck label and dropdown
-        tk.Label(self.search_settings_frame, text="Deck:", 
+        tk.Label(self.deck_settings_frame, text="Deck:", 
                  bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
         self.deck_var = tk.StringVar()
-        self.deck_dropdown = ttk.Combobox(self.search_settings_frame,
+        self.deck_dropdown = ttk.Combobox(self.deck_settings_frame,
                                            textvariable=self.deck_var, state="readonly",
                                            font=("m6x11", 12))
         self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
         self.deck_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
         row += 1
-
         # Stake label and dropdown
-        tk.Label(self.search_settings_frame, text="Stake:", 
+        tk.Label(self.deck_settings_frame, text="Stake:", 
                  bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
         self.stake_var = tk.StringVar()
-        self.stake_dropdown = ttk.Combobox(self.search_settings_frame,
+        self.stake_dropdown = ttk.Combobox(self.deck_settings_frame,
                                             textvariable=self.stake_var, state="readonly",
                                             font=("m6x11", 12))
         self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
         self.stake_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
         row += 1
-
         # Seed label and entry
-        tk.Label(self.search_settings_frame, text="Starting Seed:", 
-                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        seed_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
+        self.seed_row = row  # Save for show/hide
+        tk.Label(self.deck_settings_frame, text="Start Seed:", 
+                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12), name="seed_label").grid(row=row, column=0, sticky="w", pady=2)
+        seed_frame = tk.Frame(self.deck_settings_frame, bg=BACKGROUND, name="seed_frame")
         seed_frame.grid(row=row, column=1, sticky="ew", pady=2)
         self.starting_seed_var = tk.StringVar()
-
-        # Adjust the button and frame to ensure proper width
         seed_frame.columnconfigure(0, weight=1)
         seed_frame.columnconfigure(1, weight=0)
-
         self.starting_seed_entry = tk.Entry(seed_frame, textvariable=self.starting_seed_var, 
                                             font=("m6x11", 12))
         self.starting_seed_entry.grid(row=0, column=0, sticky="ew")
@@ -205,13 +212,11 @@ class MainWindow:
                                        command=self.on_random_seed, font=("m6x11", 12), width=6)
         random_seed_button.grid(row=0, column=1, padx=(8, 0))
         row += 1
-
         # Search size dropdown
-        tk.Label(self.search_settings_frame, text="Search Size:", 
+        tk.Label(self.deck_settings_frame, text="Search Size:", 
                bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        
         self.number_of_seeds_var = tk.StringVar()
-        self.number_of_seeds_dropdown = ttk.Combobox(self.search_settings_frame, 
+        self.number_of_seeds_dropdown = ttk.Combobox(self.deck_settings_frame, 
                                                    textvariable=self.number_of_seeds_var, state="readonly", 
                                                    font=("m6x11", 12))
         self.number_of_seeds_dropdown['values'] = ["All", "1 Single Seed",
@@ -219,63 +224,24 @@ class MainWindow:
         self.number_of_seeds_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>", self.on_number_of_seeds_changed)
         row += 1
-        
-        # Thread groups
-        tk.Label(self.search_settings_frame, text="Thread Groups:", 
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        
-        self.thread_groups_var = tk.StringVar()
-        self.thread_groups_dropdown = ttk.Combobox(self.search_settings_frame, 
-                                                 textvariable=self.thread_groups_var, state="readonly", 
-                                                 font=("m6x11", 12))
-        self.thread_groups_dropdown['values'] = ["Single", "16", "32", "64", "128", "256"]
-        self.thread_groups_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.thread_groups_dropdown.bind("<<ComboboxSelected>>", self.on_thread_groups_changed)
-        row += 1
-
-        # Cutoff entry
-        tk.Label(self.search_settings_frame, text="Cutoff Score:",
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        self.cutoff_var = tk.StringVar()
-        self.cutoff_entry = tk.Entry(self.search_settings_frame, textvariable=self.cutoff_var,
-                                     font=("m6x11", 12))
-        self.cutoff_entry.grid(row=row, column=1, sticky="ew", pady=2)
-        self.cutoff_var.trace_add("write", self.on_cutoff_changed)
-        row += 1
-
-        # GPU Batch dropdown
-        tk.Label(self.search_settings_frame, text="GPU Batch Size:",
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        self.gpu_batch_var = tk.StringVar()
-        self.gpu_batch_dropdown = ttk.Combobox(self.search_settings_frame,
-                                               textvariable=self.gpu_batch_var, state="readonly",
-                                               font=("m6x11", 12))
-        self.gpu_batch_dropdown['values'] = ["1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048", "4096", "8192"]
-        self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.gpu_batch_dropdown.bind("<<ComboboxSelected>>", self.on_gpu_batch_changed)
-        row += 1
-
         # Template selector dropdown
-        tk.Label(self.search_settings_frame, text="Template:",
+        tk.Label(self.deck_settings_frame, text="Template:",
                bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
         self.template_var = tk.StringVar()
-        self.template_dropdown = ttk.Combobox(self.search_settings_frame,
+        self.template_dropdown = ttk.Combobox(self.deck_settings_frame,
                                               textvariable=self.template_var, state="readonly",
                                               font=("m6x11", 12))
         self.template_dropdown['values'] = ["ouija_template", "ouija_template_erratic_ranks", "ouija_template_anaglyph"]
         self.template_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.template_dropdown.bind("<<ComboboxSelected>>", self.on_template_changed)
         row += 1
-          # Configure column weights
-        self.search_settings_frame.columnconfigure(1, weight=1)
-        
-        # Make the grid rows more compact
-        for row in range(8):  # Assuming we have about 8 rows in the grid
-            self.search_settings_frame.grid_rowconfigure(row, pad=1)  # Minimal row padding
-    
+        self.deck_settings_frame.columnconfigure(1, weight=1)
+        for r in range(row+1):
+            self.deck_settings_frame.grid_rowconfigure(r, pad=1)
+
     def create_criteria_section(self):
         """Create the criteria selection section with improved spacing"""
-        self.criteria_frame = tk.LabelFrame(self.middle_column, text="Search Criteria", 
+        self.criteria_frame = tk.LabelFrame(self.middle_column, text="Customize Filter", 
                                           padx=5, pady=5, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
         self.criteria_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
           # Criteria section - split into left (deck settings) and right (criteria list)
@@ -327,59 +293,68 @@ class MainWindow:
         tk.Button(self.criteria_buttons_frame, text="Edit Selected", 
                 command=self.on_edit_selected, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
     
-    def create_run_settings_section(self):
-        """Create the run settings section with the button properly positioned"""
-        self.run_settings_frame = tk.LabelFrame(self.right_column, text="Run", 
+    def create_run_settings_section(self, parent=None):
+        """Create the run settings section with the button properly positioned and advanced settings dialog"""
+        if parent is None:
+            parent = self.right_column
+        self.run_settings_frame = tk.LabelFrame(parent, text="Run", 
                                               padx=3, pady=3, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.run_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        
-        # Create a container frame with proper layout
+        self.run_settings_frame.pack(fill=tk.BOTH, expand=False, padx=1, pady=1)  # Not so tall
         run_container = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
         run_container.pack(fill=tk.BOTH, expand=True)
-          # Configure rows to ensure proper distribution
-        run_container.grid_rowconfigure(0, weight=1)  # Console gets all extra space
-        run_container.grid_rowconfigure(1, weight=0)  # Button row has fixed height
-        run_container.grid_columnconfigure(0, weight=1)  # Full width
-        
-        # Console output at top, using grid
+        run_container.grid_rowconfigure(0, weight=1)
+        run_container.grid_rowconfigure(1, weight=0)
+        run_container.grid_columnconfigure(0, weight=1)
         console_frame = tk.Frame(run_container, bg=BACKGROUND)
         console_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         
         self.output_text = tk.Text(console_frame, wrap=tk.WORD,
                                  bg=DARK_BACKGROUND, fg=LIGHT_TEXT, 
                                  font=("m6x11", 13), insertbackground='white')
-        self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)          # Button at bottom with fixed height
+        self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+        
+        # Button row with Run and Gear
         button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
         button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5,0))
-        button_frame.grid_propagate(False)  # Prevent shrinking
-        
+        button_frame.grid_propagate(False)
+        # Run button        
         self.run_button = tk.Button(button_frame, text="Let Jimbo Cook!",
                                   command=self.on_run_search, 
                                   bg=BLUE, fg=LIGHT_TEXT, 
                                   font=("m6x11", 16))
-        self.run_button.pack(fill=tk.BOTH, expand=True)
-
-    def create_results_section(self):
-        """Create results table section with optimized spacing"""
-        self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results", 
-                                         padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        self.run_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Table with no wasted space
-        self.pt = Table(self.results_frame, dataframe=pd.DataFrame(),
+        # Gear button for advanced settings
+        self.advanced_button = tk.Button(button_frame, text="⚙",
+                                         command=self.open_advanced_settings_dialog, 
+                                         bg=BLUE, fg=LIGHT_TEXT, 
+                                         font=("m6x11", 16), width=4,
+                                         takefocus=False, cursor="hand2")
+        self.advanced_button.pack(side=tk.LEFT, padx=(8,0), pady=0)
+        
+    def create_results_section(self):
+        """Create results table section"""
+        self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results", 
+                                         padx=5, pady=5, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.results_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+          # Add Refresh/Delete Everything buttons
+        button_row = tk.Frame(self.results_frame, bg=BACKGROUND)
+        button_row.pack(fill=tk.X, pady=(0, 5))
+        tk.Button(button_row, text="Refresh", bg=GREEN, fg=LIGHT_TEXT, font=("m6x11", 12), width=10).pack(side=tk.LEFT, padx=(0,4))
+        tk.Button(button_row, text="Delete Everything", bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12), width=16).pack(side=tk.LEFT, padx=(4,0))
+        
+        # Create a dedicated container frame for the table to isolate grid geometry manager
+        table_container = tk.Frame(self.results_frame, bg=BACKGROUND)
+        table_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Create the table in the dedicated container (pandastable uses grid internally)
+        self.pt = Table(table_container, dataframe=pd.DataFrame(),
                        showtoolbar=False, showstatusbar=False,
                        font=self.table_font_family,
                        fontsize=self.table_font_size,
                        headerfont=(self.table_font_family, self.table_font_size))
-        
-        # Show the table with tight packing
         self.pt.show()
-        
-        # Set default precision for numeric columns
-        if not hasattr(self.pt, 'columnformats'):
-            self.pt.columnformats = {}
-        self.pt.columnformats['default'] = {'precision': 0}
-        
+
         self.latest_df = None
         self._setup_initial_table()
 
@@ -402,7 +377,6 @@ class MainWindow:
         """Set up the results table to refresh immediately and then every 1000ms."""
         def refresh_loop():
             self.refresh_results_table()
-            self.root.after(2000, refresh_loop)
         # Call once immediately, then start the loop
         self.refresh_results_table()
 
@@ -554,11 +528,21 @@ class MainWindow:
         """Set the search seed to random, ouija.exe handles this"""
         self.starting_seed_entry.delete(0, tk.END)
         self.starting_seed_entry.insert(0, "random")
-    
-    def on_number_of_seeds_changed(self, event=None):
-        """Handle number of seeds selection changes"""
-        self.controller.set_setting('number_of_seeds', self.number_of_seeds_var.get())
-    
+
+    def on_random_fun(self):
+        """Pick a random PG funny word and set as fun word - Now updates dialog var if dialog is open, else main var."""
+        # This method might be deprecated if buttons are only in dialog.
+        # For now, assume it might be called if UI elements were elsewhere.
+        word = random.choice(FUNNY_WORDS)
+        self.fun_word_entry_var.set(word)
+
+
+    def on_random_naughty(self):
+        """Pick a random R-rated naughty word and set as fun word - Updates dialog/main var."""
+        # Similar to on_random_fun, may be deprecated.
+        word = random.choice(NAUGHTY_WORDS)
+        self.fun_word_entry_var.set(word)
+
     def on_save_direct(self):
         """Save directly to {config_name}.ouija.json in the config directory, no prompt."""
         config_name = self.config_name_var.get().strip()
@@ -718,25 +702,108 @@ class MainWindow:
             self.controller.clear_all_criteria()
     
     def on_run_search(self):
-        """Start or stop the search process"""
+        """Start or stop the search process, passing search type and fun word to controller/config"""
         if not hasattr(self, 'search_running'):
             self.search_running = False
             self.start_time = None
 
+        # Always update config model with current search type and fun word
+        search_type = self.search_type_var.get()
+        fun_word = self.fun_word_entry_var.get().strip().upper() # This var is now updated from dialog
+        self.controller.set_setting('search_type', search_type)
+        self.controller.set_setting('fun_word', fun_word) # fun_word is set regardless of mode
+
         if not self.search_running:
-            # Get the current seed value
-            seed_value = self.starting_seed_var.get().strip()
-            if not seed_value or seed_value.lower() == 'random':
-                seed_value = 'random'
-            
+            SEED_CHARACTERS = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            BASE = len(SEED_CHARACTERS)
+            MAX_SEED_LEN = 8
+
+            if search_type == 'Default':
+                seed_value = self.starting_seed_var.get().strip()
+                if not seed_value or seed_value.lower() == 'random':
+                    seed_value = 'random'
+                self.controller.set_setting('starting_seed', seed_value)
+
+                current_num_seeds_setting = self.number_of_seeds_var.get()
+                # Convert known shorthands to numbers if possible, else pass as string (e.g., "All")
+                num_seeds_map = {
+                    "1K": 1000, "100K": 100000, "1M": 1000000, 
+                    "100M": 100000000, "1B": 1000000000, "10B": 10000000000, "100B": 100000000000,
+                    "1 Single Seed": 1
+                }
+                if current_num_seeds_setting in num_seeds_map:
+                    self.controller.set_setting('number_of_seeds', num_seeds_map[current_num_seeds_setting])
+                elif current_num_seeds_setting.isdigit():
+                    self.controller.set_setting('number_of_seeds', int(current_num_seeds_setting))
+                else: # Assuming 'All' or other non-numeric/non-mapped
+                    self.controller.set_setting('number_of_seeds', current_num_seeds_setting)
+
+            elif search_type == 'Key Word': 
+                # fun_word is already fetched and set in config_model above
+                if not fun_word:
+                    self.write_to_console("Error: Key Word cannot be empty for Key Word search.\\n")
+                    messagebox.showerror("Input Error", "Key Word cannot be empty for Key Word search.")
+                    return
+                
+                if not all(char.upper() in SEED_CHARACTERS for char in fun_word):
+                    self.write_to_console(f"Error: Key Word '{fun_word}' contains invalid characters.\\n")
+                    messagebox.showerror("Input Error", f"Key Word '{fun_word}' contains invalid characters. Only use letters (A-Z) and digits (1-9).")
+                    return
+
+                if len(fun_word) > MAX_SEED_LEN:
+                    self.write_to_console(f"Error: Key Word '{fun_word}' is too long (max {MAX_SEED_LEN} chars).\\n")
+                    messagebox.showerror("Input Error", f"Key Word '{fun_word}' is too long (max {MAX_SEED_LEN} chars).")
+                    return
+                
+                variable_part_len = MAX_SEED_LEN - len(fun_word)
+                calculated_start_seed = fun_word + (SEED_CHARACTERS[0] * variable_part_len)
+                num_seeds_to_check = BASE ** variable_part_len
+                
+                self.controller.set_setting('starting_seed', calculated_start_seed)
+                self.controller.set_setting('number_of_seeds', num_seeds_to_check)
+                
+                if hasattr(self, 'number_of_seeds_var'):
+                    self.number_of_seeds_var.set(str(num_seeds_to_check))
+
+                self.write_to_console(f"Key Word Mode: Key Word='{fun_word}'.\\n")
+                self.write_to_console(f"Calculated Starting Seed: {calculated_start_seed}, Number of Seeds: {num_seeds_to_check}.\\n")
+
+            elif search_type == 'Funny List':
+                # Logic for Funny List will be more complex, likely involving multiple calls
+                # or a new controller method. For now, just log.
+                # The fun_word from the dialog isn't used directly here, but the lists are.
+                self.write_to_console("Funny List mode selected. Iteration logic to be handled by controller.\\n")
+                # For Funny List, number_of_seeds will be determined per word in the list by the controller.
+                # The main UI's number_of_seeds_var might show "Auto" or be disabled.
+                # For now, we can set a placeholder or the count for the first word if we were to process one.
+                # This part needs to be coordinated with controller changes.
+                # For now, let's assume the controller will handle setting appropriate number_of_seeds for each sub-search.
+                # We might set a general "Funny List" indicator for number_of_seeds in config_model.
+                self.controller.set_setting('number_of_seeds', "Funny List Mode") # Placeholder
+                if hasattr(self, 'number_of_seeds_var'):
+                    self.number_of_seeds_var.set("Auto (List)")
+
+
+            else: # Fallback for 'Funny Seeds' if it's still an option or future types
+                # Fallback for other search types if any
+                self.write_to_console(f"Warning: Search type '{search_type}' not fully configured for seed/count settings.\n")
+                seed_value = self.starting_seed_var.get().strip()
+                if not seed_value or seed_value.lower() == 'random':
+                    seed_value = 'random'
+                self.controller.set_setting('starting_seed', seed_value)
+                current_num_seeds_setting = self.number_of_seeds_var.get()
+                if current_num_seeds_setting.isdigit(): # Basic check, could expand with map like in 'Default'
+                    self.controller.set_setting('number_of_seeds', int(current_num_seeds_setting))
+                else:
+                    self.controller.set_setting('number_of_seeds', current_num_seeds_setting)
+
             self.search_running = True
             self.start_time = time.time()
-            self.run_button.config(text="STOP SEARCH", bg=RED)
-            self.controller.set_setting('starting_seed', seed_value)  # Update the controller
+            self.run_button.config(text="STOP SEARCH", bg=RED) # Assuming RED is defined
             self.controller.run_search()
         else:
             self.search_running = False
-            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
+            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE) # Assuming BLUE is defined
             self.controller.stop_search()
             if self.start_time:
                 elapsed = time.time() - self.start_time
@@ -789,3 +856,34 @@ class MainWindow:
         """Update the deck settings display with current values"""
         self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
         self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
+
+    def on_number_of_seeds_changed(self, event=None):
+        """Handle number of seeds selection changes"""
+        self.controller.set_setting('number_of_seeds', self.number_of_seeds_var.get())
+    
+    def open_advanced_settings_dialog(self):
+        """Open the Advanced Settings dialog (thread groups, GPU batch, cutoff, fun word, search type)."""
+        from .dialogs import AdvancedSettingsDialog
+        result = AdvancedSettingsDialog.show_dialog(
+            self.root,
+            self.thread_groups_var.get(),
+            self.gpu_batch_var.get(),
+            self.cutoff_var.get(),
+            self.fun_word_entry_var.get(),
+            self.search_type_var.get(),
+        )
+        if result:
+            self.thread_groups_var.set(result["thread_groups"])
+            self.gpu_batch_var.set(result["gpu_batch"])
+            self.cutoff_var.set(result["cutoff"])
+            self.fun_word_entry_var.set(result["fun_word"])
+            self.search_type_var.set(result["search_type"])
+            # Propagate changes to controller/settings as needed
+            self.controller.set_setting('thread_groups', result["thread_groups"])
+            self.controller.set_setting('gpu_batch', result["gpu_batch"])
+            self.controller.set_setting('cutoff', result["cutoff"])
+            self.controller.set_setting('fun_word', result["fun_word"])
+            self.controller.set_setting('search_type', result["search_type"])
+        
+        # Clear focus from the gear button to prevent visual state issues
+        self.root.focus_set()

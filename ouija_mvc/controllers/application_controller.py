@@ -2,9 +2,9 @@
 Application Controller - Handles interactions between models and views
 """
 import os
-import random
 import time
 from tkinter import messagebox
+from ouija_mvc.views.main_window import COMBINED_FUNNY_LIST
 
 class ApplicationController:
     """Controller class to coordinate between models and views"""
@@ -26,6 +26,12 @@ class ApplicationController:
             console_callback=self._on_console_output,
             process_finished_callback=self._on_search_completed
         )
+        
+        # Initialize state for Funny List search mode
+        self.funny_list_active = False
+        self.funny_list_words = []
+        self.current_funny_list_index = 0
+        self.current_config_path_for_search = None
     
     def register_view(self, view):
         """Register the main view for callbacks"""
@@ -117,56 +123,108 @@ class ApplicationController:
         return True
     
     # Search management
-    def run_search(self):  # Renamed from start_search
+    def run_search(self):
         """Start the search process"""
         if self.search_model.has_active_searches():
-            # If there's already a search running, stop it instead
-            return self.stop_search()
-        # Ensure we have a valid config path (save if needed)
+            # If a search is running, the button acts as a stop button
+            self.stop_search() 
+            return
+
+        search_type = self.get_setting('search_type', 'Default')
         config_path = self.config_model.get_command_config_path()
         if not config_path:
             if self.current_view:
                 messagebox.showerror("Error", "Failed to prepare configuration for search.")
             return False
-        # Ensure DuckDB database exists for this config
+
         db_path = self.database_model.get_db_path_from_config(config_path)
         if not os.path.exists(db_path):
+            # Ensure DB connection is established if DB file doesn't exist
             self.database_model.connect(config_path)
-            self.database_model.close()
-        # Connect to the database
-        self.database_model.connect(config_path)        # Start the search
+            self.database_model.close() # Close immediately if only for creation
+        
+        # Always ensure the database is connected before a search
+        self.database_model.connect(config_path)
+
+        if search_type == "Funny List":
+            # Initialize state for Funny List search
+            self.funny_list_active = True
+            self.funny_list_words = list(COMBINED_FUNNY_LIST)
+            self.current_funny_list_index = 0
+            self.current_config_path_for_search = config_path
+            
+            if self.current_view:
+                self.current_view.set_search_running(True)
+                self.current_view.write_to_console("Funny List search started.\n")
+            
+            # Start the first search in the Funny List
+            self._run_next_funny_list_search()
+            return True
+        else:
+            # Normal search (Default/Key Word)
+            success = self.search_model.start_search(
+                config_path=config_path,
+                starting_seed=self.get_setting('starting_seed'),
+                thread_groups=self.get_setting('thread_groups'),
+                number_of_seeds=self.get_setting('number_of_seeds'),
+                db_model=self.database_model,
+                cutoff=self.get_setting('cutoff'),
+                gpu_batch=self.get_setting('gpu_batch'),
+                template=self.get_setting('template')
+            )
+            if success and self.current_view:
+                self.current_view.set_search_running(True)
+                self.current_view.set_status("Search started...")
+            elif not success and self.current_view:
+                self.current_view.set_search_running(False)
+                messagebox.showerror("Error", "Failed to start search.")
+            return success
+
+    def _run_next_funny_list_search(self):
+        """Run the next search in the Funny List"""
+        if not self.funny_list_active or self.current_funny_list_index >= len(self.funny_list_words):
+            if self.current_view:
+                self.current_view.write_to_console("--- Funny List search complete ---\n")
+                self.current_view.set_search_running(False)
+            self.funny_list_active = False
+            return
+        
+        word = self.funny_list_words[self.current_funny_list_index]
+        SEED_CHARACTERS = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        BASE = len(SEED_CHARACTERS)
+        MAX_SEED_LEN = 8
+        fun_word = word.upper()
+        variable_part_len = MAX_SEED_LEN - len(fun_word)
+        starting_seed = fun_word + (SEED_CHARACTERS[0] * variable_part_len)
+        number_of_seeds = BASE ** variable_part_len
+        
+        # Update settings for the search
+        self.set_setting('fun_word', fun_word)
+        self.set_setting('starting_seed', starting_seed)
+        self.set_setting('number_of_seeds', number_of_seeds)
+        
+        if self.current_view:
+            self.current_view.write_to_console(f"[Funny List] Searching for word '{fun_word}' (seed: {starting_seed}, count: {number_of_seeds})...\n")
+            self.current_view.set_status(f"Funny List: {fun_word}")
+        
         success = self.search_model.start_search(
-            config_path=config_path,
-            starting_seed=self.config_model.starting_seed,
-            thread_groups=self.config_model.thread_groups,
-            number_of_seeds=self.config_model.number_of_seeds,
+            config_path=self.current_config_path_for_search,
+            starting_seed=starting_seed,
+            thread_groups=self.get_setting('thread_groups'),
+            number_of_seeds=number_of_seeds,
             db_model=self.database_model,
-            cutoff=self.config_model.cutoff,  # Pass cutoff
-            gpu_batch=self.config_model.gpu_batch,  # Pass gpu_batch
-            template=self.config_model.template  # Pass template
+            cutoff=self.get_setting('cutoff'),
+            gpu_batch=self.get_setting('gpu_batch'),
+            template=self.get_setting('template')
         )
-        # Update UI state if successful
-        if success and self.current_view:
-            self.current_view.set_search_running(True)
-        return success
-    
-    def stop_search(self):
-        """Stop any active search processes"""
-        success = self.search_model.stop_all_searches()
-        if success and self.current_view:
-            self.current_view.set_search_running(False)
-            self.current_view.write_to_console("--- Search Stopped ---\n")
-        return success
-    
-    # Database and results management
-    def refresh_results(self):
-        """Refresh results from the database"""
-        df = self.database_model.get_dataframe()
-        if df is not None and self.current_view:
-            self.current_view.update_results_table(df)
-        return df is not None
-    
-    # Callbacks for the search model
+        
+        if not success:
+            if self.current_view:
+                self.current_view.write_to_console(f"[Funny List] Failed to start search for '{fun_word}'. Skipping.\n")
+            # Move to the next word in the Funny List
+            self.current_funny_list_index += 1
+            self._run_next_funny_list_search()
+
     def _on_search_results(self, header_columns, result_rows):  # header_columns and result_rows are now None
         """Callback for when search results are available (signals to refresh from DB)"""
         if self.current_view:
@@ -242,11 +300,19 @@ class ApplicationController:
     
     def _on_search_completed(self):
         """Callback for when a search process completes"""
-        # Ensure one final refresh from the database
-        self.refresh_results()
-        if self.current_view:
-            self.current_view.write_to_console("--- Search Complete ---\n")
-            self.current_view.set_search_running(False)
+        if self.funny_list_active:
+            # If in Funny List mode, handle the next word in the list
+            word = self.funny_list_words[self.current_funny_list_index] if self.current_funny_list_index < len(self.funny_list_words) else None
+            if self.current_view and word:
+                self.current_view.write_to_console(f"[Funny List] Search complete for '{word}'.\n")
+            self.current_funny_list_index += 1
+            self._run_next_funny_list_search()
+        else:
+            # Normal search completion handling
+            self.refresh_results()
+            if self.current_view:
+                self.current_view.write_to_console("--- Search Complete ---\n")
+                self.current_view.set_search_running(False)
     
     # User preference methods
     def get_setting(self, key, default=None):
@@ -260,7 +326,9 @@ class ApplicationController:
             'stake': 'stake',
             'cutoff': 'cutoff',
             'gpu_batch': 'gpu_batch',
-            'template': 'template'
+            'template': 'template',
+            'search_type': 'search_type',  # Added
+            'fun_word': 'fun_word'        # Added
         }
         
         if key in settings_map:
@@ -278,7 +346,9 @@ class ApplicationController:
             'stake': 'stake',
             'cutoff': 'cutoff',
             'gpu_batch': 'gpu_batch',
-            'template': 'template'
+            'template': 'template',
+            'search_type': 'search_type',  # Added
+            'fun_word': 'fun_word'        # Added
         }
         
         if key in settings_map:
@@ -305,3 +375,19 @@ class ApplicationController:
             self.current_view.root.after_cancel(self.update_timer_id)
         
         return True
+
+    def refresh_results(self):
+        """Refresh results from the database"""
+        df = self.database_model.get_dataframe()
+        if df is not None and self.current_view:
+            self.current_view.update_results_table(df)
+        return df is not None
+
+    def stop_search(self):
+        """Stop the currently active search process"""
+        if self.search_model.has_active_searches():
+            self.search_model.stop_all_searches()
+            if self.current_view:
+                self.current_view.set_status("Search stopped by user.")
+                self.current_view.set_search_running(False)
+        self.funny_list_active = False

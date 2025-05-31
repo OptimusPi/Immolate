@@ -6,7 +6,6 @@ Author: pifreak
 """
 
 import tkinter as tk
-import sv_ttk
 import atexit
 import subprocess
 import os
@@ -36,9 +35,6 @@ def main():
     root.title("Ouija - Balatro Seed Finder")
     root.geometry("1200x720")
     root.configure(bg="#394D53")
-    
-    # Apply Sun Valley dark theme (DISABLED for tksheet compatibility)
-    # sv_ttk.set_theme("dark")
     
     # Initialize models
     config_model = ConfigModel()

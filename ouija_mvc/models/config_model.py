@@ -29,6 +29,8 @@ class ConfigModel:
         self.cutoff = "1"
         self.gpu_batch = "16" # Default GPU batch size
         self.template = "ouija_template" # Default template filter
+        self.fun_word = ""
+        self.search_type = "Default"
         
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)
@@ -246,3 +248,24 @@ class ConfigModel:
         file_path = os.path.join(self.CONFIG_DIR, file_name)
         self.save_config(file_path)
         return file_path
+    
+    def set_setting(self, key, value):
+        """Set a user setting value, extended for fun_word and search_type"""
+        settings_map = {
+            'thread_groups': 'thread_groups',
+            'starting_seed': 'starting_seed',
+            'number_of_seeds': 'number_of_seeds',
+            'deck': 'deck',
+            'stake': 'stake',
+            'cutoff': 'cutoff',
+            'gpu_batch': 'gpu_batch',
+            'template': 'template',
+            'fun_word': 'fun_word',
+            'search_type': 'search_type',
+        }
+        if key in settings_map:
+            setattr(self, settings_map[key], value)
+            self.config_modified = True
+            self.save_user_conf()
+            return True
+        return False
