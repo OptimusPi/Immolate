@@ -434,13 +434,7 @@ int main(int argc, char **argv) {
     }
     printf_s("Building OpenCL Program...\n");    // OpenCL kernel optimization flags for maximum performance
     // -cl-mad-enable: Enable multiply-add optimizations
-    // -cl-finite-math-only: Allow finite math optimizations
-    // -cl-no-signed-zeros: Ignore distinction between -0.0 and +0.0
-    // -cl-fast-relaxed-math: Enable fast relaxed math (implies several opts)
-    // -cl-single-precision-constant: Treat double precision constants as single precision
-    // -cl-denorms-are-zero: Flush denormals to zero for performance
-    // Note: Removed -Werror for Release builds to prevent warnings from blocking optimizations
-    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable -cl-finite-math-only -cl-no-signed-zeros -cl-fast-relaxed-math -cl-single-precision-constant -cl-denorms-are-zero", include_path);
+    snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
     
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {

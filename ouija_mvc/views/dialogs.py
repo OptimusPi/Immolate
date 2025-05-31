@@ -228,7 +228,8 @@ class ItemSelectorDialog(tk.Toplevel):
                 "type": "Standard",
                 "is_need": is_item_actually_a_need
             }
-            self.destroy()
+        
+        self.destroy()  # I'M BACK! The missing line that makes dialogs actually close!
         return True
         
     @staticmethod
@@ -314,20 +315,6 @@ class AdvancedSettingsDialog(tk.Toplevel):
         # self.wait_window(self)  # <-- REMOVE from __init__
 
     def on_ok(self):
-        self.result = {
-            "thread_groups": self.thread_groups_var.get(),
-            "gpu_batch": self.gpu_batch_var.get(),
-            "cutoff": self.cutoff_var.get(),
-            "fun_word": self.fun_word_var.get(),
-            "search_type": self.search_type_var.get(),
-        }
-        self.destroy()
-
-    @staticmethod
-    def show_dialog(parent, thread_groups, gpu_batch, cutoff, fun_word, search_type):
-        dialog = AdvancedSettingsDialog(parent, thread_groups, gpu_batch, cutoff, fun_word, search_type)
-        dialog.wait_window(dialog)
-        return dialog.result
         self.result = {
             "thread_groups": self.thread_groups_var.get(),
             "gpu_batch": self.gpu_batch_var.get(),

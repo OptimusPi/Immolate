@@ -3,6 +3,7 @@ Application Controller - Handles interactions between models and views
 """
 import os
 import time
+import json
 from tkinter import messagebox
 from ouija_mvc.views.main_window import COMBINED_FUNNY_LIST
 
@@ -382,6 +383,30 @@ class ApplicationController:
         if df is not None and self.current_view:
             self.current_view.update_results_table(df)
         return df is not None
+
+    def delete_all_results(self):
+        """Delete all results from the database
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get the current config path to determine which database to clear
+            with open('ouija_user.conf', 'r') as f:
+                user_conf = json.load(f)
+            config_path = user_conf.get('last_config_path')
+            
+            if config_path and self.database_model.connect(config_path):
+                success = self.database_model.delete_all_results()
+                if success:
+                    # Refresh the view to show empty table
+                    self.refresh_results()
+                return success
+            else:
+                return False
+        except Exception as e:
+            print(f"Error deleting all results: {e}")
+            return False
 
     def stop_search(self):
         """Stop the currently active search process"""

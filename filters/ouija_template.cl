@@ -63,8 +63,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         }
       }
     }
-    if (result->TotalScore < 8) {
-      // If the score is less than 8, we can skip the ante loop
+    if (result->TotalScore < 10) {
+      // If the score is less than 10, we can skip the ante loop
       valid = false;
     }
   }
@@ -283,6 +283,15 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       }
     }
 
+    //early exit if no needs or wants are found yet:
+    if (ante == 2) {
+      // check for any negatives so far
+      if (result->NegativeJokers == 0) {
+        valid = false;
+        break;
+      }
+    }
+
     // Check per-need ante requirements at the end of each ante
     for (int n = 0; n < clampedNumNeeds; n++) {
       bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
@@ -307,6 +316,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       wants_score += (result->ScoreWants[w] > 0) + result->ScoreWants[w];
     }
     result->TotalScore += wants_score;
+    result->TotalScore += result->NegativeJokers;
   } else {
     // Invalid seed gets zero score
     result->TotalScore = 0;

@@ -26,6 +26,13 @@ NAUGHTY_WORDS = ["FUCK", "SHIT", "CUNT", "TWAT", "DICK", "PRICK", "SLUT", "WHORE
 # Combine for Funny List mode if desired, or keep separate for selection
 COMBINED_FUNNY_LIST = FUNNY_WORDS + NAUGHTY_WORDS
 
+friendly_template_names = {
+    "Default": "ouija_template",
+    "Erratic Ranks": "ouija_template_erratic_ranks",
+    "Anaglyph": "ouija_template_anaglyph",
+    "Natural Negatives": "ouija_template_negatives"
+}
+
 
 class MainWindow:
     """Main window view for Ouija Seed Finder application"""
@@ -99,25 +106,24 @@ class MainWindow:
         self.table_font_size = 16
     
     def create_layout(self):
-        """Create the main layout with proper 50/50 split"""
+        """Create the main layout with proper proportions"""
         # Main container frame with proper padding
         self.main_container = tk.Frame(self.root, bg=BACKGROUND)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Create top section (50% of window height)
-        self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND, height=self.root.winfo_height()//2)
-        self.settings_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False, pady=(0, 5))
-        self.settings_frame.pack_propagate(False)  # Fix the height
+        # Create top section with FIXED HEIGHT - constrain it properly
+        self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND, height=300)
+        self.settings_frame.pack(side=tk.TOP, fill=tk.X, expand=False, pady=(0, 5))
+        self.settings_frame.pack_propagate(False)  # CRITICAL: Prevent expansion
 
         # Create three equal columns in the top section with padding between them
-        column_width = self.root.winfo_width() // 3
-        self.left_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
+        self.left_column = tk.Frame(self.settings_frame, bg=BACKGROUND)
         self.left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
 
-        self.middle_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
+        self.middle_column = tk.Frame(self.settings_frame, bg=BACKGROUND)
         self.middle_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
-        self.right_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
+        self.right_column = tk.Frame(self.settings_frame, bg=BACKGROUND)
         self.right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
 
         # Place config section at the top of the right column
@@ -125,19 +131,17 @@ class MainWindow:
         # Then place the run/console section below it
         self.create_run_settings_section(parent=self.right_column)
 
-        # Bottom section (remaining height)
+        # Bottom section - THIS gets all the remaining space
         self.bottom_frame = tk.Frame(self.main_container, bg=BACKGROUND)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        # Add window resize handler to maintain the proportions
-        self.root.bind("<Configure>", self._on_window_resize)
-        
-    def _on_window_resize(self, event):
-        """Handle window resize events to maintain proportions"""
-        if event.widget == self.root:
-            # Update top section height to be 50% of window
-            self.settings_frame.config(height=event.height//2)
-            
+        # Remove the window resize handler since we want natural behavior
+        # self.root.bind("<Configure>", self._on_window_resize)
+    
+    # Remove the _on_window_resize method entirely since we don't need it
+    # def _on_window_resize(self, event):
+    #     ...existing code...
+    
     def create_config_section(self, parent=None):
         """Create the configuration section with optimized spacing"""
         if parent is None:
@@ -228,10 +232,13 @@ class MainWindow:
         tk.Label(self.deck_settings_frame, text="Template:",
                bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
         self.template_var = tk.StringVar()
-        self.template_dropdown = ttk.Combobox(self.deck_settings_frame,
-                                              textvariable=self.template_var, state="readonly",
-                                              font=("m6x11", 12))
-        self.template_dropdown['values'] = ["ouija_template", "ouija_template_erratic_ranks", "ouija_template_anaglyph"]
+        self.template_dropdown = ttk.Combobox(
+            self.deck_settings_frame,
+            textvariable=self.template_var,
+            state="readonly",
+            font=("m6x11", 12)
+        )
+        self.template_dropdown['values'] = list(friendly_template_names.keys())
         self.template_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.template_dropdown.bind("<<ComboboxSelected>>", self.on_template_changed)
         row += 1
@@ -340,8 +347,10 @@ class MainWindow:
           # Add Refresh/Delete Everything buttons
         button_row = tk.Frame(self.results_frame, bg=BACKGROUND)
         button_row.pack(fill=tk.X, pady=(0, 5))
-        tk.Button(button_row, text="Refresh", bg=GREEN, fg=LIGHT_TEXT, font=("m6x11", 12), width=10).pack(side=tk.LEFT, padx=(0,4))
-        tk.Button(button_row, text="Delete Everything", bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12), width=16).pack(side=tk.LEFT, padx=(4,0))
+        tk.Button(button_row, text="Refresh", bg=GREEN, fg=LIGHT_TEXT, font=("m6x11", 12), width=10, 
+                 command=self.on_refresh_results).pack(side=tk.LEFT, padx=(0,4))
+        tk.Button(button_row, text="Delete Everything", bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12), width=16,
+                 command=self.on_delete_all_results).pack(side=tk.LEFT, padx=(4,0))
         
         # Create a dedicated container frame for the table to isolate grid geometry manager
         table_container = tk.Frame(self.results_frame, bg=BACKGROUND)
@@ -359,19 +368,65 @@ class MainWindow:
         self._setup_initial_table()
 
     def _adjust_table_column_widths(self):
-        """Adjusts column widths using pandastable's built-in auto-resize feature."""
+        """Adjusts column widths based on header names rather than content."""
         if not hasattr(self.pt, 'model') or self.pt.model is None or \
            not hasattr(self.pt.model, 'df') or self.pt.model.df is None:
-            self.pt.redraw()  # Ensure table is drawn if empty
+            self.pt.redraw()
             return
 
-        # Let pandastable handle the column sizing
-        self.pt.autoResizeColumns()
-        
-        # Apply a minimum size to ensure headers aren't cut off
-        if hasattr(self.pt, 'currentwidths') and self.pt.model.df is not None:
-            # Redraw the table to apply changes
+        # NUCLEAR OPTION: Override ALL of pandastable's width settings
+        if self.pt.model.df is not None and len(self.pt.model.df.columns) > 0:
+            # Force disable ALL auto-sizing mechanisms
+            self.pt.autoresizecols = 0
+            if hasattr(self.pt, 'autoResizeColumns'):
+                self.pt.autoResizeColumns = False
+            
+            new_widths = {}
+            for col in self.pt.model.df.columns:
+                # Calculate width based on header name length
+                header_width = len(col) * 10  # pixels per character
+                min_width = 80   # Minimum column width
+                max_width = 200  # Maximum column width
+                
+                calculated_width = max(min_width, min(header_width, max_width))
+                new_widths[col] = calculated_width
+                
+                # Set in EVERY possible width storage location
+                if hasattr(self.pt, 'columnwidths'):
+                    self.pt.columnwidths[col] = calculated_width
+                if hasattr(self.pt, 'colwidths'):
+                    self.pt.colwidths[col] = calculated_width
+                if hasattr(self.pt, 'col_positions'):
+                    # Force update column positions
+                    try:
+                        col_index = list(self.pt.model.df.columns).index(col)
+                        if col_index < len(self.pt.col_positions):
+                            # Update the actual column position
+                            if col_index > 0:
+                                self.pt.col_positions[col_index] = self.pt.col_positions[col_index-1] + calculated_width
+                            else:
+                                self.pt.col_positions[col_index] = calculated_width
+                    except:
+                        pass
+            
+            # Force manual recalculation of ALL column positions
+            if hasattr(self.pt, 'col_positions') and hasattr(self.pt, 'columnwidths'):
+                total_width = 0
+                for i, col in enumerate(self.pt.model.df.columns):
+                    if col in new_widths:
+                        if i == 0:
+                            self.pt.col_positions[i] = new_widths[col]
+                        else:
+                            self.pt.col_positions[i] = self.pt.col_positions[i-1] + new_widths[col]
+                        total_width += new_widths[col]
+            
+            # Multiple forced redraws to override stubborn settings
             self.pt.redraw()
+            self.root.after(50, lambda: self.pt.redraw())  # Delayed redraw
+            
+            # Final nuclear option: directly modify the canvas if it exists
+            if hasattr(self.pt, 'tablecolheader') and hasattr(self.pt.tablecolheader, 'redraw'):
+                self.root.after(100, lambda: self.pt.tablecolheader.redraw())
 
     def _setup_initial_table(self):
         """Set up the results table to refresh immediately and then every 1000ms."""
@@ -385,7 +440,7 @@ class MainWindow:
         if dataframe is not None:
             # Ensure DataFrame index is continuous for pandastable
             dataframe = dataframe.reset_index(drop=True)
-            # Ensure numeric columns display as integers
+            # Ensure numeric columns display as integers (no decimals)
             for col in dataframe.columns:
                 if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
                     # Set format for this column to show integers (no decimals)
@@ -521,8 +576,9 @@ class MainWindow:
         self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
 
     def on_template_changed(self, event=None):
-        """Handle template selection changes"""
-        self.controller.set_setting('template', self.template_var.get())
+        selected_friendly_name = self.template_var.get()
+        internal_template = friendly_template_names.get(selected_friendly_name, "ouija_template")
+        self.controller.set_setting('template', internal_template)
 
     def on_random_seed(self):
         """Set the search seed to random, ouija.exe handles this"""
@@ -887,3 +943,28 @@ class MainWindow:
         
         # Clear focus from the gear button to prevent visual state issues
         self.root.focus_set()
+
+    def on_refresh_results(self):
+        """Manually refresh the results table"""
+        self.controller.refresh_results()
+        self.set_status("Results refreshed")
+
+    def on_delete_all_results(self):
+        """Delete all results from the database after confirmation"""
+        if messagebox.askyesno("Confirm Delete", 
+                              "Are you sure you want to delete ALL results? This cannot be undone!",
+                              icon="warning"):
+            try:
+                # Clear the table first for immediate visual feedback
+                self.update_results_table(pd.DataFrame())
+                
+                # Delete from database
+                if self.controller.delete_all_results():
+                    self.set_status("All results deleted successfully")
+                    self.write_to_console("All results deleted from database.\n")
+                else:
+                    self.set_status("Failed to delete results")
+                    self.write_to_console("Error: Failed to delete results from database.\n")
+            except Exception as e:
+                self.set_status(f"Error deleting results: {str(e)}")
+                self.write_to_console(f"Error deleting results: {str(e)}\n")
