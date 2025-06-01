@@ -13,7 +13,7 @@ __kernel void ouija_search(char8 starting_seed_char8, // Renamed to avoid confli
     size_t total_global_size = get_global_size(0); // Original OpenCL type: size_t
     
     seed _seed = s_new_c8(starting_seed_char8); // Initialize once from the global starting seed string
-    text seedPrint = s_to_string(&_seed); // Convert the seed to a string for debugging
+    //text seedPrint = s_to_string(&_seed); // Convert the seed to a string for debugging
     //printf("[KERNEL-Ouija_Search] Starting seed: %s\n", seedPrint.str); // Debugging output
     // Consistently use %lu for size_t, casting to unsigned long for printf portability
     //printf("[KERNEL-Ouija_Search] Current work-item ID (raw size_t): %lu\n", (unsigned long)current_global_id); 
