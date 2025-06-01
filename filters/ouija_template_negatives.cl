@@ -12,6 +12,12 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       }
     }
   }
+  if (result->NegativeJokers == 0) {
+    result->TotalScore = 0;
+    return;
+  } else {
+    result->TotalScore = result->NegativeJokers;
+  }
   
   // Convert seed to string
   text s_str = s_to_string(&inst->seed);

@@ -61,11 +61,6 @@ class ApplicationController:
             if self.current_view:
                 messagebox.showerror("Error", "Please enter a configuration name before saving.")
             return False
-            
-        if not self.config_model.needs_list and not self.config_model.wants_list:
-            if self.current_view:
-                messagebox.showerror("Error", "Please add at least one Need or Want before saving.")
-            return False
         
         success, result = self.config_model.save_config(file_path)
         if success and self.current_view:
@@ -123,6 +118,10 @@ class ApplicationController:
             self.current_view.update_criteria_display()
         return True
     
+    def get_criteria(self):
+        """Retrieve the current criteria from the model."""
+        return self.config_model.get_criteria()
+
     # Search management
     def run_search(self):
         """Start the search process"""
@@ -169,7 +168,7 @@ class ApplicationController:
                 thread_groups=self.get_setting('thread_groups'),
                 number_of_seeds=self.get_setting('number_of_seeds'),
                 db_model=self.database_model,
-                cutoff=self.get_setting('cutoff'),
+                cutoff=self.get_setting('cutoff',
                 gpu_batch=self.get_setting('gpu_batch'),
                 template=self.get_setting('template')
             )

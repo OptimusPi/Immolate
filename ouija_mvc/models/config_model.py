@@ -3,7 +3,6 @@ Config Model - Handles configuration data for Ouija seed finder
 """
 import os
 import json
-import time  # Added missing import for time.time()
 from pathlib import Path
 import random, string
 
@@ -147,9 +146,6 @@ class ConfigModel:
         if not self.config_name:
             return False, "Configuration name cannot be empty"
         
-        if not self.needs_list and not self.wants_list:
-            return False, "Configuration must include at least one Need or Want"
-        
         # Create configuration object
         config = {
             "name": self.config_name,
@@ -269,3 +265,12 @@ class ConfigModel:
             self.save_user_conf()
             return True
         return False
+    
+    def get_criteria(self):
+        """Return the current criteria as a list."""
+        criteria = []
+        for need in self.config.get("Needs", []):
+            criteria.append(f"Need: {need['value']} (Ante: {need['desireByAnte']})")
+        for want in self.config.get("Wants", []):
+            criteria.append(f"Want: {want['value']}")
+        return criteria
