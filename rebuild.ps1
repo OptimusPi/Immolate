@@ -34,7 +34,19 @@ if (Test-Path ".\filters\ouija_template_negatives.bin") {
 
 # Run CMake to configure the project
 Write-Host "Running CMake configuration..." -ForegroundColor Yellow
-$configResult = cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="vcpkg\scripts\buildsystems\vcpkg.cmake"
+
+# Get the absolute path to the vcpkg toolchain file
+$vcpkgToolchain = Join-Path $PSScriptRoot "vcpkg\scripts\buildsystems\vcpkg.cmake"
+
+# Verify the toolchain file exists
+if (-not (Test-Path $vcpkgToolchain)) {
+    Write-Host "ERROR: vcpkg toolchain file not found at: $vcpkgToolchain" -ForegroundColor Red
+    Write-Host "Make sure vcpkg submodule is initialized: git submodule update --init --recursive" -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "Using vcpkg toolchain: $vcpkgToolchain" -ForegroundColor Green
+$configResult = cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain"
 $configSuccess = $LASTEXITCODE -eq 0
 
 if (-not $configSuccess) {

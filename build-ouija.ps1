@@ -4,8 +4,19 @@
 # Navigate to the project directory (ensure we're in the right location)
 Set-Location $PSScriptRoot
 
+# Get the absolute path to the vcpkg toolchain file
+$vcpkgToolchain = Join-Path $PSScriptRoot "vcpkg\scripts\buildsystems\vcpkg.cmake"
+
+# Verify the toolchain file exists
+if (-not (Test-Path $vcpkgToolchain)) {
+    Write-Host "ERROR: vcpkg toolchain file not found at: $vcpkgToolchain" -ForegroundColor Red
+    Write-Host "Make sure vcpkg submodule is initialized: git submodule update --init --recursive" -ForegroundColor Yellow
+    exit 1
+}
+
 # Run CMake to configure the project
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=".\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+Write-Host "Configuring with vcpkg toolchain: $vcpkgToolchain" -ForegroundColor Green
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DCMAKE_BUILD_TYPE=Release
 
 # Build the project with maximum optimizations
 cmake --build build --config Release --parallel
