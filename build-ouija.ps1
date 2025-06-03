@@ -1,8 +1,8 @@
 # Recompile.ps1
 # This script simplifies the re-compilation process for the Ouija variant of the Immolate-based project.
 
-# Navigate to the project directory
-cd "x:\Immolate"
+# Navigate to the project directory (ensure we're in the right location)
+Set-Location $PSScriptRoot
 
 # Run CMake to configure the project
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=".\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release

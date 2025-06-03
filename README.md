@@ -40,8 +40,12 @@ cmake --build build --config Release
 ```
 
 Run:
-```
-./build/Immolate
+```powershell
+# Windows
+.\build\Release\Ouija.exe
+
+# Unix/Linux
+./build/Ouija
 ```
 
 

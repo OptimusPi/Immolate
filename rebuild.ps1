@@ -55,8 +55,8 @@ if (-not $buildSuccess) {
 }
 
 # Copy the output executable to the root directory
-$source = "x:\Immolate\build\Release\Ouija.exe" # Changed from Immolate.exe to Ouija.exe
-$destination = "x:\Immolate\Ouija.exe" # Changed destination name to match executable name
+$source = ".\build\Release\Ouija.exe" # Changed from Immolate.exe to Ouija.exe
+$destination = ".\Ouija.exe" # Changed destination name to match executable name
 if (Test-Path $source) {
     Copy-Item -Path $source -Destination $destination -Force
     Write-Host "Copied output to Ouija.exe" -ForegroundColor Green
@@ -69,7 +69,7 @@ if (Test-Path $source) {
 # Activate Python virtual environment
 Write-Host "Activating Python virtual environment..." -ForegroundColor Yellow
 try {
-    & "x:\Immolate\.venv\Scripts\activate.ps1"
+    & ".\.venv\Scripts\activate.ps1"
     Write-Host "Virtual environment activated." -ForegroundColor Green
 } catch {
     Write-Host "Failed to activate virtual environment. GUI may not run correctly." -ForegroundColor Red
