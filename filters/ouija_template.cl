@@ -283,15 +283,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
       }
     }
 
-    //early exit if no needs or wants are found yet:
-    if (ante == 2) {
-      // check for any negatives so far
-      if (result->NegativeJokers == 0) {
-        valid = false;
-        break;
-      }
-    }
-
     // Check per-need ante requirements at the end of each ante
     for (int n = 0; n < clampedNumNeeds; n++) {
       bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;

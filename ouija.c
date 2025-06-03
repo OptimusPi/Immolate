@@ -718,11 +718,12 @@ int main(int argc, char **argv) {
                                                    CL_MAP_READ, 0, sizeof(OuijaHostResult) * num_seeds_last_dispatch, 0, NULL, NULL, &err);
                 clErrCheck(err, "clEnqueueMapBuffer - Mapping result buffer");
             }
+              // Count all seeds that were dispatched to the kernel as processed
+            seeds_processed_total += num_seeds_last_dispatch;
             
             for (cl_long i = 0; i < num_seeds_last_dispatch; ++i) {
                 OuijaHostResult* result = &mapped_results[i];
-                if (result->seed[0] == '\0') continue; // Skip if kernel returned empty seed (e.g. error or no actual processing)
-                seeds_processed_total++; // Count actual non-empty results processed                // Apply cutoff filtering in host
+                if (result->seed[0] == '\0') continue; // Skip if kernel returned empty seed (e.g. filter didn't pass)// Apply cutoff filtering in host
                 if (result->TotalScore >= cutoff) {
                     seeds_scored_total++;
                     printf_s("|%s,%d,%d",

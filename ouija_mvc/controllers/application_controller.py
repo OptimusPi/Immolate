@@ -5,7 +5,6 @@ import os
 import time
 import json
 from tkinter import messagebox
-from ouija_mvc.views.main_window import COMBINED_FUNNY_LIST
 
 class ApplicationController:
     """Controller class to coordinate between models and views"""
@@ -146,84 +145,25 @@ class ApplicationController:
         # Always ensure the database is connected before a search
         self.database_model.connect(config_path)
 
-        if search_type == "Funny List":
-            # Initialize state for Funny List search
-            self.funny_list_active = True
-            self.funny_list_words = list(COMBINED_FUNNY_LIST)
-            self.current_funny_list_index = 0
-            self.current_config_path_for_search = config_path
-            
-            if self.current_view:
-                self.current_view.set_search_running(True)
-                self.current_view.write_to_console("Funny List search started.\n")
-            
-            # Start the first search in the Funny List
-            self._run_next_funny_list_search()
-            return True
-        else:
-            # Normal search (Default/Key Word)
-            success = self.search_model.start_search(
-                config_path=config_path,
-                starting_seed=self.get_setting('starting_seed'),
-                thread_groups=self.get_setting('thread_groups'),
-                number_of_seeds=self.get_setting('number_of_seeds'),
-                db_model=self.database_model,
-                cutoff=self.get_setting('cutoff',
-                gpu_batch=self.get_setting('gpu_batch'),
-                template=self.get_setting('template')
-            )
-            if success and self.current_view:
-                self.current_view.set_search_running(True)
-                self.current_view.set_status("Search started...")
-            elif not success and self.current_view:
-                self.current_view.set_search_running(False)
-                messagebox.showerror("Error", "Failed to start search.")
-            return success
-
-    def _run_next_funny_list_search(self):
-        """Run the next search in the Funny List"""
-        if not self.funny_list_active or self.current_funny_list_index >= len(self.funny_list_words):
-            if self.current_view:
-                self.current_view.write_to_console("--- Funny List search complete ---\n")
-                self.current_view.set_search_running(False)
-            self.funny_list_active = False
-            return
-        
-        word = self.funny_list_words[self.current_funny_list_index]
-        SEED_CHARACTERS = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        BASE = len(SEED_CHARACTERS)
-        MAX_SEED_LEN = 8
-        fun_word = word.upper()
-        variable_part_len = MAX_SEED_LEN - len(fun_word)
-        starting_seed = fun_word + (SEED_CHARACTERS[0] * variable_part_len)
-        number_of_seeds = BASE ** variable_part_len
-        
-        # Update settings for the search
-        self.set_setting('fun_word', fun_word)
-        self.set_setting('starting_seed', starting_seed)
-        self.set_setting('number_of_seeds', number_of_seeds)
-        
-        if self.current_view:
-            self.current_view.write_to_console(f"[Funny List] Searching for word '{fun_word}' (seed: {starting_seed}, count: {number_of_seeds})...\n")
-            self.current_view.set_status(f"Funny List: {fun_word}")
-        
+        # Normal search (Default/Key Word)
         success = self.search_model.start_search(
-            config_path=self.current_config_path_for_search,
-            starting_seed=starting_seed,
+            config_path=config_path,
+            starting_seed=self.get_setting('starting_seed'),
             thread_groups=self.get_setting('thread_groups'),
-            number_of_seeds=number_of_seeds,
+            number_of_seeds=self.get_setting('number_of_seeds'),
             db_model=self.database_model,
             cutoff=self.get_setting('cutoff'),
             gpu_batch=self.get_setting('gpu_batch'),
             template=self.get_setting('template')
         )
-        
-        if not success:
-            if self.current_view:
-                self.current_view.write_to_console(f"[Funny List] Failed to start search for '{fun_word}'. Skipping.\n")
-            # Move to the next word in the Funny List
-            self.current_funny_list_index += 1
-            self._run_next_funny_list_search()
+        if success and self.current_view:
+            self.current_view.set_search_running(True)
+            self.current_view.set_status("Search started...")
+        elif not success and self.current_view:
+            self.current_view.set_search_running(False)
+            messagebox.showerror("Error", "Failed to start search.")
+        return success
+
 
     def _on_search_results(self, header_columns, result_rows):  # header_columns and result_rows are now None
         """Callback for when search results are available (signals to refresh from DB)"""

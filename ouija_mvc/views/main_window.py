@@ -20,17 +20,15 @@ from ..utils.ui_utils import (
 from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
 from ouija_mvc.models.database_model import DatabaseModel
 
-# Define word lists
-FUNNY_WORDS = ["PIE", "CHEAT", "POO", "POOP", "69", "420","FART", "BUM", "BUTT", "BOOB", "NERD", "DORK", "RAD", "COOL", "BEAN", "LIPS"]
-NAUGHTY_WORDS = ["FUCK", "SHIT", "CUNT", "TWAT", "DICK", "PRICK", "SLUT", "WHORE", "CLIT", "ASS", "PISS", "69", "SEX", "420", "BLOW", "METH", "CRACK", "PUSSY", "COCK", "VAG", "FAG", "GAY"]
-# Combine for Funny List mode if desired, or keep separate for selection
-COMBINED_FUNNY_LIST = FUNNY_WORDS + NAUGHTY_WORDS
 
 friendly_template_names = {
-    "Default": "ouija_template",
+    "Default": "ouija_template",    
     "Erratic Ranks": "ouija_template_erratic_ranks",
     "Anaglyph": "ouija_template_anaglyph",
-    "Natural Negatives": "ouija_template_negatives"
+    "Natural Negatives": "ouija_template_negatives",
+    "SIMD Experiment": "ouija_template_simd",
+    "SIMD Experiment Optimized": "ouija_template_simd_optimized",
+    "ASIC Mathematical": "ouija_template_asic",
 }
 
 

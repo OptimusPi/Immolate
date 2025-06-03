@@ -3,21 +3,44 @@
     "description": "Filter configuration created by Ouija GUI",
     "author": "Ouija GUI User",
     "filter_config": {
-        "numNeeds": 1,
-        "numWants": 1,
+        "numNeeds": 5,
+        "numWants": 2,
         "Needs": [
             {
-                "value": "Perkeo",
+                "value": "Hanging_Chad",
                 "jokeredition": "Negative",
                 "desireByAnte": 1
+            },
+            {
+                "value": "Perkeo",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 1
+            },
+            {
+                "value": "Negative_Tag",
+                "desireByAnte": 3
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
+            },
+            {
+                "value": "Showman",
+                "jokeredition": "No_Edition",
+                "desireByAnte": 8
             }
         ],
         "Wants": [
             {
                 "value": "Negative_Tag"
+            },
+            {
+                "value": "Oops_All_6s",
+                "jokeredition": "No_Edition"
             }
         ],
-        "maxSearchAnte": 1,
+        "maxSearchAnte": 8,
         "deck": "Anaglyph_Deck",
         "stake": "White_Stake"
     }

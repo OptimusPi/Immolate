@@ -3,9 +3,10 @@
 void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
   result->NegativeJokers = 0;
   int maxAnte = config->maxSearchAnte == 0 ? 8 : config->maxSearchAnte;
+  int trip = 0;
   for (int ante = 1; ante <= maxAnte; ante++) {
-    int shopCount = (ante == 1) ? 4 : 6;
-    for (int i = 0; i < shopCount; i++) {
+    trip = 0;
+    for (int i = 0; i < 100 && trip == false; i++) {
       shopitem shItem = next_shop_item(inst, ante);
       if (shItem.type == ItemType_Joker && shItem.joker.edition == Negative) {
         result->NegativeJokers++;
@@ -16,7 +17,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     result->TotalScore = 0;
     return;
   } else {
-    result->TotalScore = result->NegativeJokers;
+    result->TotalScore += result->NegativeJokers;
   }
   
   // Convert seed to string

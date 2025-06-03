@@ -252,6 +252,21 @@ found_path_or_continue_parsing:
         }
     }
 
+    // Debug: print loaded Needs entries
+    printf_s("Loaded Needs (index: value, edition, byAnte):\n");
+    for (int i = 0; i < config->numNeeds && i < MAX_DESIRES_HOST; ++i) {
+        printf_s(" Need %d: value=", i);
+        print_item_host(config->Needs[i].value);
+        printf_s(" edition=");
+        if (config->Needs[i].jokeredition != RETRY) {
+            print_item_host(config->Needs[i].jokeredition);
+        } else {
+            printf_s("None");
+        }
+        printf_s(" byAnte=%d\n", config->Needs[i].desireByAnte);
+    }
+    printf_s("\n");
+
     // Parse Wants section
     char* wants_section = strstr(filter_config, "\"Wants\"");
     if (wants_section) {
