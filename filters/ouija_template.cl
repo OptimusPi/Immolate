@@ -1,35 +1,43 @@
 #include "lib/ouija.cl"
-//#define CACHE_SIZE 800
-//#define _debugPrintsMAGIC
+// #define CACHE_SIZE 800
+// #define _debugPrintsMAGIC
+// #define _debugPrints1
 
-void ouija_filter(instance *inst, __constant OuijaConfig *config, __global OuijaResult *result) {
-  
+void ouija_filter(instance *inst, __constant OuijaConfig *config,
+                  __global OuijaResult *result) {
+
   // Use faster primitive initialization
   bool valid = true;
-  
+
   // Initialize result struct efficiently
   result->TotalScore = 1;
   result->NegativeJokers = 0;
-  
-  // Host already clears the entire buffer with clEnqueueFillBuffer - no need to clear arrays in kernel
+
+  // Host already clears the entire buffer with clEnqueueFillBuffer - no need to
+  // clear arrays in kernel
 
   // Clamp numNeeds and numWants defensively
   int clampedNumNeeds = config->numNeeds;
   int clampedNumWants = config->numWants;
-  if (clampedNumNeeds > MAX_DESIRES_KERNEL) clampedNumNeeds = MAX_DESIRES_KERNEL;
-  if (clampedNumNeeds < 0) clampedNumNeeds = 0;
-  if (clampedNumWants > MAX_DESIRES_KERNEL) clampedNumWants = MAX_DESIRES_KERNEL;
-  if (clampedNumWants < 0) clampedNumWants = 0;
+  if (clampedNumNeeds > MAX_DESIRES_KERNEL)
+    clampedNumNeeds = MAX_DESIRES_KERNEL;
+  if (clampedNumNeeds < 0)
+    clampedNumNeeds = 0;
+  if (clampedNumWants > MAX_DESIRES_KERNEL)
+    clampedNumWants = MAX_DESIRES_KERNEL;
+  if (clampedNumWants < 0)
+    clampedNumWants = 0;
 
   // Memory fence
-
 
 #ifdef _debugPrints
   printf("[Kernel] Starting filter\n");
   printf("[Kernel] Deck id: %d\n", config->deck);
   printf("[Kernel] Stake id: %d\n", config->stake);
-  printf("[Kernel] Num Needs: %d (clamped: %d)\n", config->numNeeds, clampedNumNeeds);
-  printf("[Kernel] Num Wants: %d (clamped: %d)\n", config->numWants, clampedNumWants);
+  printf("[Kernel] Num Needs: %d (clamped: %d)\n", config->numNeeds,
+         clampedNumNeeds);
+  printf("[Kernel] Num Wants: %d (clamped: %d)\n", config->numWants,
+         clampedNumWants);
   printf("[Kernel] Max Search Ante: %d\n", config->maxSearchAnte);
   printf("[Kernel] Seed: [%s]\n", debug_Seed.str);
 #endif
@@ -97,7 +105,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
     int shCount = (ante == 1) ? 4 : 8;
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
-      if (shItem.value == RETRY) continue;
+      if (shItem.value == RETRY)
+        continue;
 #ifdef _debugPrints1
       printf("[Kernel] Shop item %d: ", sh);
       print_item(shItem.value);
@@ -108,14 +117,17 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 #endif
       if (shItem.value == Showman)
         inst->params.showman = true;
-      result->NegativeJokers += (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
+      result->NegativeJokers +=
+          (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
       for (int x = 0; x < clampedNumNeeds; x++) {
-        bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
-                          (shItem.type == ItemType_Joker) && 
-                          (config->Needs[x].value == shItem.value) && 
-                          ((config->Needs[x].jokeredition == No_Edition) || 
-                           (config->Needs[x].jokeredition == shItem.joker.edition));
-        bool regularMatch = (shItem.type != ItemType_Joker && config->Needs[x].value == shItem.value);
+        bool jokerMatch =
+            (config->Needs[x].jokeredition != RETRY) &&
+            (shItem.type == ItemType_Joker) &&
+            (config->Needs[x].value == shItem.value) &&
+            ((config->Needs[x].jokeredition == No_Edition) ||
+             (config->Needs[x].jokeredition == shItem.joker.edition));
+        bool regularMatch = (shItem.type != ItemType_Joker &&
+                             config->Needs[x].value == shItem.value);
         bool matched = (jokerMatch | regularMatch);
         ScoreNeeds[x] |= matched;
 #ifdef _debugPrints1
@@ -125,19 +137,23 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 #endif
       }
       for (int x = 0; x < clampedNumWants; x++) {
-        int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
-                         (shItem.type == ItemType_Joker) && 
-                         (config->Wants[x].value == shItem.value) && 
-                         ((config->Wants[x].jokeredition == No_Edition) || 
-                          (config->Wants[x].jokeredition == shItem.joker.edition));
-        int regularMatch = (shItem.type != ItemType_Joker && config->Wants[x].value == shItem.value);
-        result->ScoreWants[x] += (jokerMatch && (result->ScoreWants[x] == 0 || inst->params.showman == true));
+        int jokerMatch =
+            (config->Wants[x].jokeredition != RETRY) &&
+            (shItem.type == ItemType_Joker) &&
+            (config->Wants[x].value == shItem.value) &&
+            ((config->Wants[x].jokeredition == No_Edition) ||
+             (config->Wants[x].jokeredition == shItem.joker.edition));
+        int regularMatch = (shItem.type != ItemType_Joker &&
+                            config->Wants[x].value == shItem.value);
+        result->ScoreWants[x] += (jokerMatch && (result->ScoreWants[x] == 0 ||
+                                                 inst->params.showman == true));
         result->ScoreWants[x] += regularMatch;
       }
     }
     int packChecks = (ante == 1) ? 4 : 6;
 #ifdef _debugPrints1
-    printf("[Kernel] performing %d pack checks for ante %d\n", packChecks, ante);
+    printf("[Kernel] performing %d pack checks for ante %d\n", packChecks,
+           ante);
 #endif
     for (int p = 0; p < packChecks; p++) {
       pack _pack = pack_info(next_pack(inst, ante));
@@ -155,7 +171,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
           print_item(tarotCards[t]);
           printf("\n");
 #endif
-          if (tarotCards[t] == RETRY) continue;
+          if (tarotCards[t] == RETRY)
+            continue;
           if (tarotCards[t] == The_Soul) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
 #ifdef _debugPrints1
@@ -178,10 +195,11 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
                 printf("[Kernel] Matched The Soul need %d\n", x);
               }
 #endif
-              bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
-                                (config->Needs[x].value == soulJoker.joker) && 
-                                ((config->Needs[x].jokeredition == No_Edition) || 
-                                 (config->Needs[x].jokeredition == soulJoker.edition));
+              bool jokerMatch =
+                  (config->Needs[x].jokeredition != RETRY) &&
+                  (config->Needs[x].value == soulJoker.joker) &&
+                  ((config->Needs[x].jokeredition == No_Edition) ||
+                   (config->Needs[x].jokeredition == soulJoker.edition));
 #ifdef _debugPrints1
               if (jokerMatch) {
                 printf("[Kernel] Matched joker need %d\n", x);
@@ -205,10 +223,11 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
             }
             for (int x = 0; x < clampedNumWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
-              int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
-                               (config->Wants[x].value == soulJoker.joker) && 
-                               ((config->Wants[x].jokeredition == No_Edition) || 
-                                (config->Wants[x].jokeredition == soulJoker.edition));
+              int jokerMatch =
+                  (config->Wants[x].jokeredition != RETRY) &&
+                  (config->Wants[x].value == soulJoker.joker) &&
+                  ((config->Wants[x].jokeredition == No_Edition) ||
+                   (config->Wants[x].jokeredition == soulJoker.edition));
               result->ScoreWants[x] += (soulMatch + jokerMatch);
             }
           } else {
@@ -217,7 +236,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
               ScoreNeeds[x] |= matched;
             }
             for (int x = 0; x < clampedNumWants; x++) {
-              result->ScoreWants[x] += (config->Wants[x].value == tarotCards[t]);
+              result->ScoreWants[x] +=
+                  (config->Wants[x].value == tarotCards[t]);
             }
           }
         }
@@ -228,24 +248,27 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 #ifdef _debugPrints1
           printf("[Kernel] Spectral card %d: %d\n", t, spectralCards[t]);
 #endif
-          if (spectralCards[t] == RETRY) continue;
+          if (spectralCards[t] == RETRY)
+            continue;
           if (spectralCards[t] == The_Soul) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
             result->NegativeJokers += (soulJoker.edition == Negative);
             for (int x = 0; x < clampedNumNeeds; x++) {
               bool soulMatch = (config->Needs[x].value == The_Soul);
-              bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
-                                (config->Needs[x].value == soulJoker.joker) && 
-                                ((config->Needs[x].jokeredition == No_Edition) || 
-                                 (config->Needs[x].jokeredition == soulJoker.edition));
+              bool jokerMatch =
+                  (config->Needs[x].jokeredition != RETRY) &&
+                  (config->Needs[x].value == soulJoker.joker) &&
+                  ((config->Needs[x].jokeredition == No_Edition) ||
+                   (config->Needs[x].jokeredition == soulJoker.edition));
               ScoreNeeds[x] |= (soulMatch | jokerMatch);
             }
             for (int x = 0; x < clampedNumWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
-              int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
-                               (config->Wants[x].value == soulJoker.joker) && 
-                               ((config->Wants[x].jokeredition == No_Edition) || 
-                                (config->Wants[x].jokeredition == soulJoker.edition));
+              int jokerMatch =
+                  (config->Wants[x].jokeredition != RETRY) &&
+                  (config->Wants[x].value == soulJoker.joker) &&
+                  ((config->Wants[x].jokeredition == No_Edition) ||
+                   (config->Wants[x].jokeredition == soulJoker.edition));
               result->ScoreWants[x] += (soulMatch + jokerMatch);
             }
           } else {
@@ -253,7 +276,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
               ScoreNeeds[x] |= (config->Needs[x].value == spectralCards[t]);
             }
             for (int x = 0; x < clampedNumWants; x++) {
-              result->ScoreWants[x] += (config->Wants[x].value == spectralCards[t]);
+              result->ScoreWants[x] +=
+                  (config->Wants[x].value == spectralCards[t]);
             }
           }
         }
@@ -261,23 +285,28 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
         jokerdata buffoonJokers[5];
         buffoon_pack_detailed(buffoonJokers, _pack.size, inst, ante);
         for (int t = 0; t < _pack.size; t++) {
-          if (buffoonJokers[t].joker == RETRY) continue;
+          if (buffoonJokers[t].joker == RETRY)
+            continue;
           if (buffoonJokers[t].joker == Showman)
             inst->params.showman = true;
           result->NegativeJokers += (buffoonJokers[t].edition == Negative);
           for (int x = 0; x < clampedNumNeeds; x++) {
-            bool jokerMatch = (config->Needs[x].jokeredition != RETRY) && 
-                              (config->Needs[x].value == buffoonJokers[t].joker) && 
-                              ((config->Needs[x].jokeredition == No_Edition) || 
-                               (config->Needs[x].jokeredition == buffoonJokers[t].edition));
-            ScoreNeeds[x] = ScoreNeeds[x] ? ScoreNeeds[x] : jokerMatch;
+            bool jokerMatch =
+                (config->Needs[x].jokeredition != RETRY) &&
+                (config->Needs[x].value == buffoonJokers[t].joker) &&
+                ((config->Needs[x].jokeredition == No_Edition) ||
+                 (config->Needs[x].jokeredition == buffoonJokers[t].edition));
+            ScoreNeeds[x] |= jokerMatch;
           }
           for (int x = 0; x < clampedNumWants; x++) {
-            int jokerMatch = (config->Wants[x].jokeredition != RETRY) && 
-                             (config->Wants[x].value == buffoonJokers[t].joker) && 
-                             ((config->Wants[x].jokeredition == No_Edition) || 
-                              (config->Wants[x].jokeredition == buffoonJokers[t].edition));
-            result->ScoreWants[x] += jokerMatch && (result->ScoreWants[x] == 0 || inst->params.showman == true);
+            int jokerMatch =
+                (config->Wants[x].jokeredition != RETRY) &&
+                (config->Wants[x].value == buffoonJokers[t].joker) &&
+                ((config->Wants[x].jokeredition == No_Edition) ||
+                 (config->Wants[x].jokeredition == buffoonJokers[t].edition));
+            result->ScoreWants[x] +=
+                jokerMatch &&
+                (result->ScoreWants[x] == 0 || inst->params.showman == true);
           }
         }
       }
@@ -285,8 +314,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 
     // Check per-need ante requirements at the end of each ante
     for (int n = 0; n < clampedNumNeeds; n++) {
-      bool needNotMetByRequiredAnte = (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
-      
+      bool needNotMetByRequiredAnte =
+          (ante == config->Needs[n].desireByAnte) && ScoreNeeds[n] == false;
+
       if (needNotMetByRequiredAnte) {
         valid = false;
         break;
@@ -296,31 +326,29 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config, __global Ouija
 
   // Calculate total score efficiently only if valid
   if (valid) {
-    // Pre-increment by 1
-    result->TotalScore += 1;
-    
     // Efficiently calculate score from wants
     int wants_score = 0;
-    #pragma unroll 4 // Specify unroll factor for better optimization
+#pragma unroll 4 // Specify unroll factor for better optimization
     for (int w = 0; w < clampedNumWants; w++) {
       // Combine operations to reduce branches
       wants_score += (result->ScoreWants[w] > 0) + result->ScoreWants[w];
     }
+
     result->TotalScore += wants_score;
     result->TotalScore += result->NegativeJokers;
   } else {
     // Invalid seed gets zero score
     result->TotalScore = 0;
   }
-  
-      // Always perform seed string conversion since filtering is done in host
-    text s_str = s_to_string(&inst->seed);
-    
-    // Use efficient copying
-    #pragma unroll
-    for (int i = 0; i < 9; i++) {
-      result->seed[i] = s_str.str[i];
-    }
+
+  // Always perform seed string conversion since filtering is done in host
+  text s_str = s_to_string(&inst->seed);
+
+// Use efficient copying
+#pragma unroll
+  for (int i = 0; i < 9; i++) {
+    result->seed[i] = s_str.str[i];
+  }
 
   return;
 }

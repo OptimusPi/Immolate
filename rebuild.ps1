@@ -25,11 +25,23 @@ if (Test-Path ".\filters\ouija_template_erratic_ranks.bin") {
 } else {
     Write-Host "Template binary 'ouija_template_erratic_ranks' already does not exist." -ForegroundColor Green
 }
+if (Test-Path ".\filters\ouija_template_erratic_ranks.bin") {
+    Remove-Item .\filters\ouija_template_erratic_suits.bin
+    Write-Host "Template binary 'ouija_template_erratic_suits' removed." -ForegroundColor Green
+} else {
+    Write-Host "Template binary 'ouija_template_erratic_suits' already does not exist." -ForegroundColor Green
+}
 if (Test-Path ".\filters\ouija_template_negatives.bin") {
     Remove-Item .\filters\ouija_template_negatives.bin
     Write-Host "Template binary 'ouija_template_negatives' removed." -ForegroundColor Green
 } else {
     Write-Host "Template binary 'ouija_template_negatives' already does not exist." -ForegroundColor Green
+}
+if (Test-Path ".\filters\ouija_template_anaglyph.bin") {
+    Remove-Item .\filters\ouija_template_anaglyph.bin
+    Write-Host "Template binary 'ouija_template_anaglyph' removed." -ForegroundColor Green
+} else {
+    Write-Host "Template binary 'ouija_template_anaglyph' already does not exist." -ForegroundColor Green
 }
 
 # Run CMake to configure the project

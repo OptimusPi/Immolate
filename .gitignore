@@ -73,3 +73,8 @@ ouija_configs*
 ouija_database*
 /ouija_configs
 *.pyc
+ouija_mvc/__pycache__/app.cpython-311.pyc
+ouija_mvc/__pycache__/app.cpython-311.pyc
+ouija_mvc/controllers/__pycache__/application_controller.cpython-311.pyc
+*.pyc
+/ouija_mvc/views/__pycache__
