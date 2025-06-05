@@ -101,42 +101,58 @@ class DatabaseModel:
             return False
         try:
             if not self.table_exists():
-                self.conn.execute(
-                    """
-                    CREATE TABLE results (
-                        Seed TEXT PRIMARY KEY,
-                        Score INTEGER,
-                        Negative_Jokers INTEGER
+                try:
+                    self.conn.execute(
+                        """
+                        CREATE TABLE results (
+                            Seed TEXT PRIMARY KEY,
+                            Score INTEGER,
+                            Negative_Jokers INTEGER
+                        )
+                        """
                     )
-                """
-                )
+                    # Create an index on Score column for faster sorting
+                    self.conn.execute(
+                        'CREATE INDEX IF NOT EXISTS idx_score ON results ("Score");'
+                    )
+                except Exception as e:
+                    # Ignore "column already exists" errors which can happen during race conditions
+                    error_msg = str(e).lower()
+                    if "already exists" not in error_msg and "duplicate column" not in error_msg:
+                        raise  # Re-raise any other error
             return True
         except Exception as e:
             print(f"Error creating results table: {e}")
             return False
 
     def delete_all_results(self):
-        """Delete all results and recreate the table with fresh schema"""
-        if not self.connection:
+        """Delete all results by completely removing and recreating the database file"""
+        if not self.connection or not self.current_db_path:
             return False
 
         try:
-            cursor = self.connection.cursor()
+            # Close the database connection
+            self.connection.close()
+            self.connection = None
+            self.conn = None
 
-            # Drop the existing table completely
-            cursor.execute("DROP TABLE IF EXISTS results")
+            # Remove the database file if it exists
+            db_path = Path(self.current_db_path)
+            if db_path.exists():
+                os.remove(db_path)
 
-            # Reset ALL schema tracking
+            # Reset schema tracking and connection state
             self._schema_established = False
-            self.header_columns = None  # This is the key fix!
-
-            # Recreate the basic table structure
-            self.create_results_table()
-
-            self.connection.commit()
-            return True
+            self.header_columns = None
+            
+            # Reconnect to create a fresh database
+            if self.current_db_path:
+                self.connect(self.current_db_path)  
+                return True
+            return False
+            
         except Exception as e:
-            print(f"Error deleting all results and recreating table: {e}")
+            print(f"Error deleting database file: {e}")
             return False
 
     def process_csv_line(self, line, header_columns=None):
@@ -268,13 +284,21 @@ class DatabaseModel:
             # Add any missing columns
             for col in columns:
                 if col not in existing_col_names and col != "Seed":
-                    print(f"Adding column: {col}")
-                    self.conn.execute(
-                        f'ALTER TABLE results ADD COLUMN "{col}" INTEGER DEFAULT 0'
-                    )
-                    self.conn.commit()  # Immediate commit
-                    existing_col_names.append(col)  # Update our local list
-
+                    try:
+                        # Use IF NOT EXISTS to handle race conditions gracefully
+                        self.conn.execute(
+                            f'ALTER TABLE results ADD COLUMN IF NOT EXISTS "{col}" INTEGER DEFAULT 0'
+                        )
+                    except Exception as col_error:
+                        error_msg = str(col_error).lower()
+                        # Ignore "already exists" errors - they're harmless race conditions
+                        if "already exists" not in error_msg and "duplicate column" not in error_msg:
+                            print(f"Error adding column {col}: {col_error}")
+                            continue
+                    # Update tracking if column was added or already existed
+                    existing_col_names.append(col)
+            
+            self.conn.commit()  # Commit after all column additions
             return True
         except Exception as e:
             print(f"Error ensuring columns exist: {e}")

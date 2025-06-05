@@ -56,15 +56,16 @@ class MainWindow:
         # Create main layout frames
         self.create_layout()
         
+        # Create status bar
+        self.status_bar = StatusBar(self.root)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
         # Create widgets in each section
         self.create_config_section()
         self.create_criteria_section()    
         self.create_run_settings_section()
         self.create_results_section()
         
-        # Create status bar
-        self.status_bar = StatusBar(self.root)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         
         # Set up window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -409,29 +410,56 @@ class MainWindow:
         
         # Show the table with tight packing
         self.pt.show()
-        
-        # Set default precision for numeric columns
+          # Set default precision for numeric columns
         if not hasattr(self.pt, 'columnformats'):
             self.pt.columnformats = {}
-        self.pt.columnformats['default'] = {'precision': 0}
+            self.pt.columnformats['default'] = {'precision': 0}
         
-        self.latest_df = None
-        self._setup_initial_table()
-
+            self.latest_df = None
+            self._setup_initial_table()
+    
     def _adjust_table_column_widths(self):
-        """Adjusts column widths using pandastable's built-in auto-resize feature."""
+        """Adjusts column widths to show full headers and make Seed column 50% larger."""
         if not hasattr(self.pt, 'model') or self.pt.model is None or \
            not hasattr(self.pt.model, 'df') or self.pt.model.df is None:
-            self.pt.redraw()  # Ensure table is drawn if empty
             return
 
-        # Let pandastable handle the column sizing
-        self.pt.autoResizeColumns()
+        # Initialize colwidths if not present
+        if not hasattr(self.pt, 'colwidths'):
+            self.pt.colwidths = {}
+
+        # Get the column list
+        columns = self.pt.model.df.columns.tolist()
+
+        # Calculate header width based on column name length
+        for col in columns:
+            # For headers with underscores, replace _ with space to get true visual width
+            display_name = str(col).replace('_', ' ')
+            # Use a larger character width factor (12 pixels per character)
+            header_width = len(display_name) * 12 + 25  # 12px per char + 25px padding
+
+            # For numeric columns except 'Seed', ensure minimum width
+            if col != 'Seed' and pd.api.types.is_numeric_dtype(self.pt.model.df[col]):
+                header_width = max(header_width, 60)  # Minimum width for numeric columns
+
+            # Special handling for Seed column - make 50% wider
+            if col == 'Seed':
+                header_width = header_width * 1.5
+            # Special handling for Negative_* columns - add extra width
+            elif col.startswith('Negative_'):
+                header_width += 20  # Extra padding for Negative_ columns
+
+            # Set the width, use max of calculated width or existing width
+            if col in self.pt.colwidths:
+                self.pt.colwidths[col] = max(self.pt.colwidths[col], header_width)
+            else:
+                self.pt.colwidths[col] = header_width
+
+        # Update column widths in pandastable
+        self.pt.columnwidths = self.pt.colwidths.copy()
         
-        # Apply a minimum size to ensure headers aren't cut off
-        if hasattr(self.pt, 'currentwidths') and self.pt.model.df is not None:
-            # Redraw the table to apply changes
-            self.pt.redraw()
+        # Redraw the table
+        self.pt.redraw()
 
     def _setup_initial_table(self):
         """Set up the results table to refresh immediately and then every 1000ms."""

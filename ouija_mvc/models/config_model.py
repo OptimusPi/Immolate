@@ -32,7 +32,7 @@ class ConfigModel:
         self.cutoff = "1"
         self.gpu_batch = "16"  # Default GPU batch size
         self.template = "ouija_template"  # Default template filter
-        self.search_type = "Default"
+
 
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)

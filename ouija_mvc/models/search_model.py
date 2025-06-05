@@ -17,15 +17,14 @@ class SearchModel:
         "Single": "1",  # Added to handle "Single" from UI
         "1": "1",
         "16": "16",  # Added 16 as a valid option, assuming it's supported
-        "32": "32",
-        "64": "64",
+        "32": "32",        "64": "64",
         "128": "128",
         "256": "256",
     }
 
     SEED_COUNT_MAP = {
-        "All": None,  # Changed "All Seeds" to "All" to match UI/config_model
-        "1": "1",
+        "All": None,  # No -n parameter (search all seeds)
+        "1 Single Seed": "1",  # Match the UI dropdown value
         "1K": "1000",
         "100K": "100000",
         "1M": "1000000",

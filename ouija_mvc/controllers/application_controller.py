@@ -151,13 +151,12 @@ class ApplicationController:
 
     # Search management
     def run_search(self):
-        """Start the search process"""
-        if self.search_model.has_active_searches():
+        """Start the search process"""        
+        if self.search_model.has_active_searches() or self.prank_search_active:
             # If a search is running, the button acts as a stop button
             self.stop_search()
             return
 
-        search_type = self.get_setting("search_type", "Default")
         config_path = self.config_model.get_command_config_path()
         if not config_path:
             if self.current_view:
@@ -335,9 +334,7 @@ class ApplicationController:
             "stake": "stake",
             "cutoff": "cutoff",
             "gpu_batch": "gpu_batch",
-            "template": "template",
-            "search_type": "search_type",  # Added
-            "fun_word": "fun_word",  # Added
+            "template": "template"
         }
 
         if key in settings_map:
@@ -355,9 +352,7 @@ class ApplicationController:
             "stake": "stake",
             "cutoff": "cutoff",
             "gpu_batch": "gpu_batch",
-            "template": "template",
-            "search_type": "search_type",  # Added
-            "fun_word": "fun_word",  # Added
+            "template": "template"
         }
 
         if key in settings_map:
@@ -520,9 +515,9 @@ class ApplicationController:
         self.prank_search_words = prank_words
         self.prank_search_padding = padding
         self.prank_search_seeds_per_word = total_seeds_per_word
-        self.prank_search_current_index = 0
-
-        # Start first prank search
+        self.prank_search_current_index = 0        # Start first prank search
+        if self.current_view:
+            self.current_view.set_search_running(True)
         self._run_next_prank_search()
 
         return True
