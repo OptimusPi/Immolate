@@ -56,10 +56,6 @@ class MainWindow:
         # Create main layout frames
         self.create_layout()
         
-        # Create status bar
-        self.status_bar = StatusBar(self.root)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        
         # Create widgets in each section
         self.create_config_section()
         self.create_criteria_section()    
@@ -98,6 +94,11 @@ class MainWindow:
     
     def create_layout(self):
         """Create the main layout with proper 50/50 split"""
+        # Create status bar first to ensure it stays on top of all elements
+        self.status_bar = StatusBar(self.root)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_bar.lift()  # Ensure it stays on top
+        
         # Main container frame with proper padding
         self.main_container = tk.Frame(self.root, bg=BACKGROUND)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -238,16 +239,6 @@ class MainWindow:
         self.thread_groups_dropdown.bind("<<ComboboxSelected>>", self.on_thread_groups_changed)
         row += 1
 
-        # Cutoff entry
-        tk.Label(self.search_settings_frame, text="Cutoff Score:",
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        self.cutoff_var = tk.StringVar()
-        self.cutoff_entry = tk.Entry(self.search_settings_frame, textvariable=self.cutoff_var,
-                                     font=("m6x11", 12))
-        self.cutoff_entry.grid(row=row, column=1, sticky="ew", pady=2)
-        self.cutoff_var.trace_add("write", self.on_cutoff_changed)
-        row += 1
-
         # GPU Batch dropdown
         tk.Label(self.search_settings_frame, text="GPU Batch Size:",
                bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
@@ -258,6 +249,29 @@ class MainWindow:
         self.gpu_batch_dropdown['values'] = ["1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048", "4096", "8192"]
         self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.gpu_batch_dropdown.bind("<<ComboboxSelected>>", self.on_gpu_batch_changed)
+        row += 1
+
+        # Template dropdown
+        tk.Label(self.search_settings_frame, text="Template:",
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.template_var = tk.StringVar()
+        self.template_dropdown = ttk.Combobox(self.search_settings_frame,
+                                            textvariable=self.template_var, state="readonly",
+                                            font=("m6x11", 12))
+        self.template_dropdown['values'] = ["Default", "Erratic", "Ghost"]
+        self.template_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.template_dropdown.bind("<<ComboboxSelected>>", self.on_template_changed)
+        row += 1
+        
+        
+        # Cutoff entry
+        tk.Label(self.search_settings_frame, text="Cutoff Score:",
+               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        self.cutoff_var = tk.StringVar()
+        self.cutoff_entry = tk.Entry(self.search_settings_frame, textvariable=self.cutoff_var,
+                                     font=("m6x11", 12))
+        self.cutoff_entry.grid(row=row, column=1, sticky="ew", pady=2)
+        self.cutoff_var.trace_add("write", self.on_cutoff_changed)
         row += 1
         
         # Configure column weights
@@ -603,11 +617,16 @@ class MainWindow:
     
     def on_cutoff_changed(self, *args):
         """Handle cutoff score changes"""
-        self.controller.set_setting('cutoff', self.cutoff_var.get())
-
+        self.controller.set_setting('cutoff', self.cutoff_var.get())    
+    
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
         self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
+
+    def on_template_changed(self, event=None):
+        """Handle template selection changes"""
+        self.controller.set_setting('template', self.template_var.get())
+        self.update_config_display()
 
     def on_random_seed(self):
         """Set the search seed to random, ouija.exe handles this"""
@@ -822,8 +841,8 @@ class MainWindow:
         self.thread_groups_var.set(self.controller.get_setting('thread_groups', '32'))
         self.starting_seed_var.set(self.controller.get_setting('starting_seed', 'random'))
         self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'All'))
-        self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
-        self.gpu_batch_var.set(self.controller.get_setting('gpu_batch', '16'))
+        self.gpu_batch_var.set(self.controller.get_setting('gpu_batch_size', '256'))
+        self.template_var.set(self.controller.get_setting('template', 'Default'))
 
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""

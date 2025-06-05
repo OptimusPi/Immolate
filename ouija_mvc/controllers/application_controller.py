@@ -409,19 +409,21 @@ class ApplicationController:
                 return False
         except Exception as e:
             print(f"Error deleting all results: {e}")
-            return False
-
+            return False    
+        
     def stop_search(self):
         """Stop the currently active search process"""
+        # First handle prank search if active, since it manages its own search state
+        if self.prank_search_active:
+            self.stop_prank_search()
+            return
+            
+        # Otherwise handle normal search
         if self.search_model.has_active_searches():
             self.search_model.stop_all_searches()
             if self.current_view:
                 self.current_view.set_status("Search stopped by user.")
                 self.current_view.set_search_running(False)
-
-        # Also stop prank search if active
-        if self.prank_search_active:
-            self.stop_prank_search()
 
         self.funny_list_active = False
 
@@ -520,21 +522,23 @@ class ApplicationController:
             self.current_view.set_search_running(True)
         self._run_next_prank_search()
 
-        return True
-
+        return True    
+    
     def stop_prank_search(self):
         """Stop the active prank search"""
         if not self.prank_search_active:
             return False
 
+        # Set this first to prevent additional searches from starting
         self.prank_search_active = False
 
-        # Stop current search using existing method
+        # Stop current search and update UI
         if self.search_model.has_active_searches():
             self.search_model.stop_all_searches()
-
-        if self.current_view:
-            self.current_view.write_to_console("🛑 Prank search stopped by user.\n")
+            if self.current_view:
+                self.current_view.write_to_console("🛑 Prank search stopped by user.\n")
+                self.current_view.set_status("Search stopped by user.")
+                self.current_view.set_search_running(False)
 
         return True
 
