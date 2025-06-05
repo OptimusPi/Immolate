@@ -90,15 +90,16 @@ class MainWindow:
         self.update_config_display()
         self.update_criteria_display()
 
-        self.controller.refresh_results()
-
-        # Add to __init__
+        self.controller.refresh_results()        # Add to __init__
         self._debounce_table_update_id = None
         self._pending_table_df = None
         self._debounce_interval_ms = 1000
         self._status_update_id = None
         self._last_results_count = 0
         self._search_results_count = 0
+        
+        # Test console output immediately after UI setup
+        self.root.after(100, lambda: self.write_to_console("🚀 Ouija Console Ready!\n"))
 
     def setup_font(self):
         """Set up custom font for the application with slightly larger size"""
@@ -747,20 +748,20 @@ class MainWindow:
         else:
             if self.latest_df is not None:
                 self.update_results_table(pd.DataFrame())
-
+    
     def set_search_running(self, is_running):
         """Update the UI state when search is running or stops
 
         Args:
             is_running: Boolean indicating if search is running
         """
+        # Note: Button state is managed by on_run_search() method
+        # This method only handles internal state tracking
         self.search_running = is_running
         if is_running:
-            self.run_button.config(text="STOP SEARCH", bg=RED)
             self._search_start_time = time.time()
             self._search_results_count = 0
         else:
-            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
             if self.start_time is not None:
                 elapsed = time.time() - self.start_time
                 self.write_to_console(
@@ -1059,7 +1060,7 @@ class MainWindow:
             if current_num_seeds_setting in num_seeds_map:
                 self.controller.set_setting(
                     "number_of_seeds", num_seeds_map[current_num_seeds_setting]
-                )
+                )            
             elif current_num_seeds_setting.isdigit():
                 self.controller.set_setting(
                     "number_of_seeds", int(current_num_seeds_setting)
@@ -1067,17 +1068,27 @@ class MainWindow:
             else:  # Assuming 'All' or other non-numeric/non-mapped
                 self.controller.set_setting(
                     "number_of_seeds", current_num_seeds_setting
-                )
-
-            # Run the search
+                )            # Run the search
             self.search_running = True
             self.start_time = time.time()
-            self.run_button.config(text="STOP SEARCH", bg=RED)
-            self.controller.run_search()
+            
+            # FORCE button update BEFORE starting search
+            self.run_button.config(text="STOP SEARCH", bg=RED, activebackground=RED)
+            self.run_button.update_idletasks()
+            self.root.update_idletasks()
+            self.root.update()  # Force complete UI refresh
+            self.write_to_console("🔍 Search started...\n")
+            print(f"DEBUG: Button bg is now: {self.run_button.cget('bg')}, RED constant is: {RED}")
+            
+            # Give UI much more time to actually render before blocking thread
+            self.root.after(500, lambda: self.controller.run_search())
         else:
             # Stop the search
             self.search_running = False
-            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
+            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE, activebackground=BLUE)
+            self.run_button.update()
+            self.root.update_idletasks()
+            self.set_status("🛑 Button should now be BLUE and say Let Jimbo Cook!")
             self.controller.stop_search()
             if self.start_time:
                 elapsed = time.time() - self.start_time
