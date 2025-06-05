@@ -106,11 +106,9 @@ class ConfigModel:
 
             # Clear current configuration
             self.needs_list.clear()
-            self.wants_list.clear()
-            # Set configuration name, description, and author
-            self.config_name = config.get(
-                "name", os.path.basename(file_path).replace(".ouija.json", "")
-            )
+            self.wants_list.clear()            # Set configuration name, description, and author
+            # Always use filename for config name, ignore JSON "name" field
+            self.config_name = os.path.basename(file_path).replace(".ouija.json", "")
             self.config_description = config.get("description", "")
             self.config_author = config.get("author", "")
 
