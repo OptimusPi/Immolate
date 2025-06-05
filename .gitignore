@@ -72,3 +72,4 @@ debug_output.txt
 ouija_configs*
 ouija_database*
 /ouija_configs
+*.pyc
