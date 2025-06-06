@@ -80,3 +80,4 @@ ouija_mvc/controllers/__pycache__/application_controller.cpython-311.pyc
 /ouija_mvc/views/__pycache__
 ouija_mvc/views/__pycache__/main_window.cpython-311.pyc
 /ouija_configs
+/ouija_database

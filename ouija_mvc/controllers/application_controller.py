@@ -34,12 +34,17 @@ class ApplicationController:
         self.funny_list_active = False
         self.funny_list_words = []
         self.current_funny_list_index = 0
-        self.current_config_path_for_search = None
-
-        # Prank search control - for stop button functionality
+        self.current_config_path_for_search = None        # Prank search control - for stop button functionality
         self.prank_search_active = False
         self.prank_search_processes = []
         self.prank_search_stop_requested = False
+
+        # Fun search state variables
+        self.fun_search_category = None
+        self.fun_search_words = []
+        self.fun_search_padding_levels = []
+        self.fun_search_current_word_index = 0
+        self.fun_search_current_padding_index = 0
 
     def register_view(self, view):
         """Register the main view for callbacks"""
@@ -255,9 +260,7 @@ class ApplicationController:
                     r"Estimated remaining time: (\d+\.\d+) seconds",
                     lambda m: f"Estimated remaining time: {format_time(m)}",
                     status_message,
-                )
-
-                # Check if this is a metrics message (contains clock emoji)
+                )                # Check if this is a metrics message (contains clock emoji)
                 if "⏱️" in status_message:
                     # Split into two parts: status and metrics
                     parts = status_message.split("⏱️")
@@ -279,31 +282,58 @@ class ApplicationController:
         """Callback for when a search process completes"""
         try:
             if self.prank_search_active:
-                # If in prank search mode, handle the next word in the list
-                word = (
-                    self.prank_search_words[self.prank_search_current_index]
-                    if self.prank_search_current_index < len(self.prank_search_words)
-                    else None
-                )
-                if self.current_view and word:
-                    self.current_view.write_to_console(f"    ✅ Completed: {word}\n")
-
-                # Increment and continue to next search
-                self.prank_search_current_index += 1
-
-                # Check if we're done with all words
-                if self.prank_search_current_index >= len(self.prank_search_words):
-                    # Prank search fully complete - now we can reset search state
-                    self.prank_search_active = False
-                    if self.current_view:
-                        self.current_view.write_to_console(
-                            "🎉 All prank searches complete! Check your results! 🎉\n"
-                        )
-                        self.current_view.set_search_running(False)
-                    self.refresh_results()
+                # Check if this is a fun search (has fun_search_category) or regular prank search
+                if hasattr(self, 'fun_search_category') and self.fun_search_category:
+                    # Fun search mode - handle sequential word/padding combinations
+                    if (self.fun_search_current_word_index < len(self.fun_search_words)):
+                        word = self.fun_search_words[self.fun_search_current_word_index]
+                        padding = self.fun_search_padding_levels[self.fun_search_current_padding_index]
+                        if self.current_view:
+                            self.current_view.write_to_console(f"    ✅ Completed: {word} (padding {padding})\n")
+                    
+                    # Advance to next search
+                    self._advance_fun_search_indices()
+                    
+                    # Check if we're done with all combinations
+                    if self.fun_search_current_word_index >= len(self.fun_search_words):
+                        # Fun search fully complete
+                        self.prank_search_active = False
+                        self.fun_search_category = None  # Clear the flag
+                        if self.current_view:
+                            self.current_view.write_to_console(
+                                "🎉 All fun searches complete! Check your results! 🎉\n"
+                            )
+                            self.current_view.set_search_running(False)
+                        self.refresh_results()
+                    else:
+                        # More combinations to search - continue
+                        self._run_next_fun_search()
                 else:
-                    # More words to search - continue
-                    self._run_next_prank_search()
+                    # Regular prank search mode - handle the next word in the list
+                    word = (
+                        self.prank_search_words[self.prank_search_current_index]
+                        if self.prank_search_current_index < len(self.prank_search_words)
+                        else None
+                    )
+                    if self.current_view and word:
+                        self.current_view.write_to_console(f"    ✅ Completed: {word}\n")
+
+                    # Increment and continue to next search
+                    self.prank_search_current_index += 1
+
+                    # Check if we're done with all words
+                    if self.prank_search_current_index >= len(self.prank_search_words):
+                        # Prank search fully complete - now we can reset search state
+                        self.prank_search_active = False
+                        if self.current_view:
+                            self.current_view.write_to_console(
+                                "🎉 All prank searches complete! Check your results! 🎉\n"
+                            )
+                            self.current_view.set_search_running(False)
+                        self.refresh_results()
+                    else:
+                        # More words to search - continue
+                        self._run_next_prank_search()
             else:
                 # Normal search completion handling
                 self.refresh_results()
@@ -319,6 +349,8 @@ class ApplicationController:
             print(f"Error in _on_search_completed: {e}")
             # Reset prank search state to prevent further issues
             self.prank_search_active = False
+            if hasattr(self, 'fun_search_category'):
+                self.fun_search_category = None
             if self.current_view:
                 self.current_view.set_search_running(False)
 
@@ -696,3 +728,160 @@ class ApplicationController:
         # Wait for dialog to close
         dialog.wait_window()
         return result
+
+    def run_fun_seed_search(self, category):
+        """Run the fun seed search feature for a specific category with all padding levels"""
+        # Check if any search is already running
+        if self.prank_search_active:
+            # If prank search is running, this acts as a stop button
+            self.stop_prank_search()
+            return True
+
+        # Define word lists for each category
+        fun_word_lists = {
+            "LOL": [
+                "LMAO", "ROFL", "HAHA", "JOKE", "MEME", "EPIC", "FAIL", "DERP",
+                "NOOB", "YOLO", "SWAG", "REKT", "TROLL", "PLEB", "KEKS", "LULZ"
+            ],
+            "GROSS": [
+                "FART", "BURP", "SNOT", "POOP", "SLIME", "YUCK", "EWWW", "SICK",
+                "VOMIT", "GUNK", "CRUD", "MOLD", "GRIME", "BILE", "DROOL", "SCUM"
+            ],
+            "NSFW": [
+                "SEXY", "BOOB", "BUTT", "DAMN", "HELL", "SUCK", "BEER", "WINE",
+                "SHOT", "BLOW", "DRUG", "WEED", "HIGH", "DOPE", "ACID", "BUZZ"
+            ],
+            "COOL": [
+                "FIRE", "DOPE", "SICK", "EPIC", "RAGE", "WILD", "BOSS", "HERO",
+                "STAR", "GOLD", "RICH", "FAST", "MEGA", "HUGE", "ROCK", "KING"
+            ]
+        }
+
+        if category not in fun_word_lists:
+            if self.current_view:
+                messagebox.showerror("Error", f"Unknown category: {category}")
+            return False
+
+        if self.search_model.has_active_searches():
+            if self.current_view:
+                messagebox.showwarning(
+                    "Search Active",
+                    "Please stop the current search before starting a fun seed search.",
+                )
+            return False
+
+        # Get current config for the search
+        config_path = self.config_model.get_command_config_path()
+        if not config_path:
+            if self.current_view:
+                messagebox.showerror(
+                    "Error", "Failed to prepare configuration for fun seed search."
+                )
+            return False
+
+        # All padding levels (1, 11, 111, 1111)
+        padding_levels = [1, 2, 3, 4]
+
+        if self.current_view:
+            word_count = len(fun_word_lists[category])
+            total_searches = word_count * len(padding_levels)
+            self.current_view.write_to_console(f"🎉 Starting {category} seed search!\n")
+            self.current_view.write_to_console("=" * 50 + "\n")
+            self.current_view.write_to_console(f"Category: {category}\n")
+            self.current_view.write_to_console(f"Words: {word_count}\n")
+            self.current_view.write_to_console(f"Padding levels: {len(padding_levels)} (1, 11, 111, 1111)\n")
+            self.current_view.write_to_console(f"Total searches: {total_searches}\n")
+            self.current_view.write_to_console("=" * 50 + "\n")
+
+        # Set up fun search state
+        self.prank_search_active = True
+        self.fun_search_category = category
+        self.fun_search_words = fun_word_lists[category]
+        self.fun_search_padding_levels = padding_levels
+        self.fun_search_current_word_index = 0
+        self.fun_search_current_padding_index = 0
+
+        # Start first fun search
+        if self.current_view:
+            self.current_view.set_search_running(True)
+        self._run_next_fun_search()
+
+        return True
+
+    def _run_next_fun_search(self):
+        """Run the next word/padding combination in the fun search sequence"""
+        if (not self.prank_search_active or 
+            self.fun_search_current_word_index >= len(self.fun_search_words)):
+            # Fun search complete or stopped
+            if self.prank_search_active:  # Complete, not stopped
+                if self.current_view:
+                    total_words = len(self.fun_search_words)
+                    total_padding = len(self.fun_search_padding_levels)
+                    total_searches = total_words * total_padding
+                    
+                    self.current_view.write_to_console("=" * 50 + "\n")
+                    self.current_view.write_to_console(
+                        f"🎉 {self.fun_search_category} SEARCH COMPLETE! 🎉\n"
+                    )
+                    self.current_view.write_to_console(
+                        f"Completed {total_searches} searches ({total_words} words × {total_padding} padding levels)\n"
+                    )
+                    self.current_view.write_to_console(
+                        "Check your results table for any findings! 🔍\n"
+                    )
+            self.prank_search_active = False
+            return
+
+        # Get current word and padding level
+        word = self.fun_search_words[self.fun_search_current_word_index]
+        padding = self.fun_search_padding_levels[self.fun_search_current_padding_index]
+        
+        # Calculate seeds per search based on padding level
+        seeds_per_search = {1: 35, 2: 1225, 3: 42875, 4: 1500625}[padding]
+        
+        # Generate starting seed
+        start_seed = self._generate_prank_starting_seed(word, padding)
+
+        if self.current_view:
+            word_progress = self.fun_search_current_word_index + 1
+            total_words = len(self.fun_search_words)
+            padding_progress = self.fun_search_current_padding_index + 1
+            total_padding = len(self.fun_search_padding_levels)
+            overall_progress = ((word_progress - 1) * total_padding + padding_progress) / (total_words * total_padding) * 100
+            
+            self.current_view.write_to_console(
+                f"\n🎯 [{word_progress}/{total_words}] Word '{word}' - Padding {padding} "
+                f"({padding_progress}/{total_padding}) - ({overall_progress:.1f}% overall)\n"
+            )
+            self.current_view.write_to_console(
+                f"    Starting seed: {start_seed} (will search {seeds_per_search:,} seeds)\n"
+            )
+
+        # Start search using existing search infrastructure
+        success = self.search_model.start_search(
+            config_path=self.config_model.get_command_config_path(),
+            starting_seed=start_seed,
+            thread_groups=self.get_setting("thread_groups"),
+            number_of_seeds=seeds_per_search,
+            db_model=self.database_model,
+            cutoff=self.get_setting("cutoff"),
+            gpu_batch=self.get_setting("gpu_batch"),
+            template=self.get_setting("template"),
+        )
+
+        if not success and self.current_view:
+            self.current_view.write_to_console(
+                f"    ❌ Failed to start search for {word} (padding {padding})\n"
+            )
+            # Continue to next search even if this one failed
+            self._advance_fun_search_indices()
+            self._run_next_fun_search()
+
+    def _advance_fun_search_indices(self):
+        """Advance to the next word/padding combination in the fun search"""
+        self.fun_search_current_padding_index += 1
+        
+        # If we've completed all padding levels for this word, move to next word
+        if self.fun_search_current_padding_index >= len(self.fun_search_padding_levels):
+            self.fun_search_current_padding_index = 0
+            self.fun_search_current_word_index += 1
