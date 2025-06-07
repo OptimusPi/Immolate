@@ -24,6 +24,7 @@ class SearchModel:
 
     SEED_COUNT_MAP = {
         "All": None,  # No -n parameter (search all seeds)
+        "All Seeds": None,  # Handle default config value (search all seeds)
         "1 Single Seed": "1",  # Match the UI dropdown value
         "1K": "1000",
         "100K": "100000",
