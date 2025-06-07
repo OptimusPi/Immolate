@@ -13,6 +13,7 @@ class ConfigModel:
 
     USER_CONF_PATH = "ouija_user.conf"
     CONFIG_DIR = "ouija_configs"
+    EXPORT_DIR = "ouija_csv_exports"
 
     def __init__(self):
         """Initialize config model with default values"""
@@ -32,7 +33,6 @@ class ConfigModel:
         self.cutoff = "1"
         self.gpu_batch = "16"  # Default GPU batch size
         self.template = "ouija_template"  # Default template filter
-
 
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)
@@ -65,8 +65,7 @@ class ConfigModel:
                 if conf.get("template"):  # Load template
                     self.template = conf["template"]
                 if conf.get("last_config_path") and os.path.exists(
-                    conf["last_config_path"]
-                ):
+                        conf["last_config_path"]):
                     self.load_config_from_path(conf["last_config_path"])
                 return True
             except Exception as e:
@@ -106,9 +105,11 @@ class ConfigModel:
 
             # Clear current configuration
             self.needs_list.clear()
-            self.wants_list.clear()            # Set configuration name, description, and author
+            self.wants_list.clear(
+            )  # Set configuration name, description, and author
             # Always use filename for config name, ignore JSON "name" field
-            self.config_name = os.path.basename(file_path).replace(".ouija.json", "")
+            self.config_name = os.path.basename(file_path).replace(
+                ".ouija.json", "")
             self.config_description = config.get("description", "")
             self.config_author = config.get("author", "")
 
@@ -143,7 +144,8 @@ class ConfigModel:
         """Calculate the maximum search ante based on desires."""
         max_ante = 0  # Default value
         for need in self.needs_list:
-            if "desireByAnte" in need and isinstance(need["desireByAnte"], int):
+            if "desireByAnte" in need and isinstance(need["desireByAnte"],
+                                                     int):
                 max_ante = max(max_ante, need["desireByAnte"])
         return max_ante
 
@@ -164,8 +166,10 @@ class ConfigModel:
                 "Wants": self.wants_list,
                 "maxSearchAnte": self.calculate_max_search_ante(),
                 # Default to searching all antes
-                "deck": self.deck.replace(" ", "_"),  # Convert to internal format
-                "stake": self.stake.replace(" ", "_"),  # Convert to internal format
+                "deck": self.deck.replace(" ",
+                                          "_"),  # Convert to internal format
+                "stake": self.stake.replace(" ",
+                                            "_"),  # Convert to internal format
             },
         }
 
@@ -174,7 +178,8 @@ class ConfigModel:
             if self.loaded_config_path:
                 file_path = self.loaded_config_path
             else:
-                file_name = self.config_name.lower().replace(" ", "_") + ".ouija.json"
+                file_name = self.config_name.lower().replace(
+                    " ", "_") + ".ouija.json"
                 file_path = os.path.join(self.CONFIG_DIR, file_name)
 
         try:
@@ -199,7 +204,8 @@ class ConfigModel:
             if os.path.exists(self.CONFIG_DIR):
                 for file in os.listdir(self.CONFIG_DIR):
                     if file.endswith(".ouija.json"):
-                        config_files.append(os.path.join(self.CONFIG_DIR, file))
+                        config_files.append(os.path.join(
+                            self.CONFIG_DIR, file))
         except Exception as e:
             print(f"Error listing config files: {e}")
 
@@ -243,11 +249,11 @@ class ConfigModel:
         """Get the configuration path to use for the command line"""
         # Always use the config name from the input box, or generate a random one if not supplied
         if self.config_name:
-            file_name = self.config_name.lower().replace(" ", "_") + ".ouija.json"
+            file_name = self.config_name.lower().replace(" ",
+                                                         "_") + ".ouija.json"
         else:
             rand_name = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=8)
-            )
+                random.choices(string.ascii_lowercase + string.digits, k=8))
             file_name = f"ouija_{rand_name}.ouija.json"
         file_path = os.path.join(self.CONFIG_DIR, file_name)
         self.save_config(file_path)
@@ -276,7 +282,8 @@ class ConfigModel:
         """Return the current criteria as a list."""
         criteria = []
         for need in self.config.get("Needs", []):
-            criteria.append(f"Need: {need['value']} (Ante: {need['desireByAnte']})")
+            criteria.append(
+                f"Need: {need['value']} (Ante: {need['desireByAnte']})")
         for want in self.config.get("Wants", []):
             criteria.append(f"Want: {want['value']}")
         return criteria

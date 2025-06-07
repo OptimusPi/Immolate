@@ -329,3 +329,91 @@ class DatabaseModel:
     def get_dataframe(self):
         """Get results as a pandas DataFrame"""
         return self.query_results()
+
+    def export_to_csv(self, file_path, limit=None):
+        """Export results to CSV file
+        
+        Args:
+            file_path: Path where CSV file will be saved
+            limit: Maximum number of rows to export (None for all)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            df = self.query_results(limit=limit or 10000)  # Default to 10k if no limit
+            if df is not None and not df.empty:
+                df.to_csv(file_path, index=False)
+                return True
+            return False
+        except Exception as e:
+            print(f"Error exporting to CSV: {e}")
+            return False
+
+    def export_to_excel(self, file_path, limit=None):
+        """Export results to Excel file
+        
+        Args:
+            file_path: Path where Excel file will be saved
+            limit: Maximum number of rows to export (None for all)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            df = self.query_results(limit=limit or 10000)  # Default to 10k if no limit
+            if df is not None and not df.empty:
+                # Requires openpyxl for Excel export
+                df.to_excel(file_path, index=False, engine='openpyxl')
+                return True
+            return False
+        except Exception as e:
+            print(f"Error exporting to Excel: {e}")
+            print("Note: Excel export requires 'pip install openpyxl'")
+            return False
+
+    def export_to_json(self, file_path, limit=None):
+        """Export results to JSON file
+        
+        Args:
+            file_path: Path where JSON file will be saved
+            limit: Maximum number of rows to export (None for all)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            df = self.query_results(limit=limit or 10000)  # Default to 10k if no limit
+            if df is not None and not df.empty:
+                df.to_json(file_path, orient='records', indent=2)
+                return True
+            return False
+        except Exception as e:
+            print(f"Error exporting to JSON: {e}")
+            return False
+
+    def get_export_stats(self):
+        """Get statistics about exportable data
+        
+        Returns:
+            dict: Statistics including row count, columns, etc.
+        """
+        try:
+            if not self.conn or not self.table_exists():
+                return {"total_rows": 0, "columns": []}
+            
+            # Get row count
+            row_count = self.conn.execute("SELECT COUNT(*) FROM results").fetchone()[0]
+            
+            # Get column names
+            columns = self.conn.execute("PRAGMA table_info(results)").fetchall()
+            column_names = [col[1] for col in columns]
+            
+            return {
+                "total_rows": row_count,
+                "columns": column_names,
+                "database_path": self.current_db_path
+            }
+        except Exception as e:
+            print(f"Error getting export stats: {e}")
+            return {"total_rows": 0, "columns": []}

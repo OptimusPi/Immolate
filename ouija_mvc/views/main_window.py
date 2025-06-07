@@ -13,7 +13,7 @@ import json
 # Import from our own modules
 from .dialogs import ItemSelectorDialog
 from ..utils.ui_utils import (
-    add_tooltip, StatusBar, ScrollableFrame, 
+    add_tooltip, StatusBar, ScrollableFrame,
     BLUE, RED, GREEN, BACKGROUND, DARK_BACKGROUND, LIGHT_TEXT
 )
 from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
@@ -24,16 +24,16 @@ from ouija_mvc.models.database_model import DatabaseModel
 
 class MainWindow:
     """Main window view for Ouija Seed Finder application"""
-    
+
     # Template mapping dictionary for converting between UI-friendly names and template filenames
     template_mapping = {
         "Default": "ouija_template",
         "Erratic Ranks": "ouija_template_erratic_ranks",
-        "Erratic Suits": "ouija_template_erratic_suits", 
+        "Erratic Suits": "ouija_template_erratic_suits",
         "Anaglyph Negatives": "ouija_template_anaglyph",
         "Natural Negatives": "ouija_template_negatives",
     }
-    
+
     def __init__(self, root, controller):
         """Initialize the main window
         
@@ -46,41 +46,44 @@ class MainWindow:
         self.start_time = None  # Ensure this always exists
         self.search_running = False
         self._search_start_time = None
-        
+
         # Advanced settings variables
         self.thread_groups_var = tk.StringVar()
         self.gpu_batch_var = tk.StringVar()
         self.cutoff_var = tk.StringVar()
-        
+
         # Define table font attributes early
         self.table_font_family = "m6x11"
         self.table_font_size = 13  # Updated font size
 
         # Register this view with the controller
         controller.register_view(self)
-        
+
         # Apply custom font
         self.setup_font()
-        
+
         # Create main layout frames
         self.create_layout()
-        
+
         # Create widgets in each section
         self.create_config_section()
-        self.create_criteria_section()    
+        self.create_criteria_section()
         self.create_run_settings_section()
         self.create_results_section()
-        
-        
+
         # Set up window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
         # Initialize the UI with current settings
         self.update_config_display()
         self.update_criteria_display()
-        
+
+        # Connect to database if config was auto-loaded
+        if self.controller.config_model.loaded_config_path:
+            self.controller.database_model.connect(
+                self.controller.config_model.loaded_config_path)
+
         self.controller.refresh_results()
-        
+
         # Add to __init__
         self._debounce_table_update_id = None
         self._pending_table_df = None
@@ -95,116 +98,189 @@ class MainWindow:
         self.custom_font = font.nametofont("TkDefaultFont")
         self.custom_font.configure(family="m6x11", size=18)
         self.root.option_add("*Font", self.custom_font)
-        
+
         # Define table font attributes with slightly larger size
         self.table_font_family = "m6x11"
         # Increase table font size from 12 to 13
         self.table_font_size = 16
-    
+
     def create_layout(self):
         """Create the main layout with proper 50/50 split"""
         # Create status bar first to ensure it stays on top of all elements
         self.status_bar = StatusBar(self.root)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         self.status_bar.lift()  # Ensure it stays on top
-        
+
         # Main container frame with proper padding
         self.main_container = tk.Frame(self.root, bg=BACKGROUND)
         self.main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
+
         # Create top section (50% of window height)
-        self.settings_frame = tk.Frame(self.main_container, bg=BACKGROUND, height=self.root.winfo_height()//2)
-        self.settings_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False, pady=(0, 5))
+        self.settings_frame = tk.Frame(self.main_container,
+                                       bg=BACKGROUND,
+                                       height=self.root.winfo_height() // 2)
+        self.settings_frame.pack(side=tk.TOP,
+                                 fill=tk.BOTH,
+                                 expand=False,
+                                 pady=(0, 5))
         self.settings_frame.pack_propagate(False)  # Fix the height
-        
+
         # Create three equal columns in the top section with padding between them
         column_width = self.root.winfo_width() // 3
-        self.left_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
-        self.left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
-        self.middle_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
-        self.middle_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-        
-        self.right_column = tk.Frame(self.settings_frame, bg=BACKGROUND, width=column_width)
-        self.right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
-        
+        self.left_column = tk.Frame(self.settings_frame,
+                                    bg=BACKGROUND,
+                                    width=column_width)
+        self.left_column.pack(side=tk.LEFT,
+                              fill=tk.BOTH,
+                              expand=True,
+                              padx=(0, 5))
+
+        self.middle_column = tk.Frame(self.settings_frame,
+                                      bg=BACKGROUND,
+                                      width=column_width)
+        self.middle_column.pack(side=tk.LEFT,
+                                fill=tk.BOTH,
+                                expand=True,
+                                padx=5)
+
+        self.right_column = tk.Frame(self.settings_frame,
+                                     bg=BACKGROUND,
+                                     width=column_width)
+        self.right_column.pack(side=tk.LEFT,
+                               fill=tk.BOTH,
+                               expand=True,
+                               padx=(5, 0))
+
         # Bottom section (remaining height)
         self.bottom_frame = tk.Frame(self.main_container, bg=BACKGROUND)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
-        
+
         # Add window resize handler to maintain the proportions
         self.root.bind("<Configure>", self._on_window_resize)
-        
+
     def _on_window_resize(self, event):
         """Handle window resize events to maintain proportions"""
         if event.widget == self.root:
             # Update top section height to be 50% of window
-            self.settings_frame.config(height=event.height//2)
-            
+            self.settings_frame.config(height=event.height // 2)
+
     def create_config_section(self):
         """Create the configuration section with optimized spacing"""
         # Config frame with improved padding
-        self.config_frame = tk.LabelFrame(self.left_column, text="Configuration", 
-                                        padx=5, pady=5, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.config_frame = tk.LabelFrame(self.left_column,
+                                          text="Configuration",
+                                          padx=5,
+                                          pady=5,
+                                          bg=BACKGROUND,
+                                          fg=LIGHT_TEXT,
+                                          font=("m6x11", 14))
         self.config_frame.pack(fill=tk.X, expand=False, padx=2, pady=(2, 5))
-        
+
         # Config name entry with better padding
         self.config_name_var = tk.StringVar()
-        self.config_name_entry = tk.Entry(self.config_frame, textvariable=self.config_name_var, font=("m6x11", 13))
+        self.config_name_entry = tk.Entry(self.config_frame,
+                                          textvariable=self.config_name_var,
+                                          font=("m6x11", 13))
         self.config_name_entry.pack(fill=tk.X, pady=5)
         self.config_name_var.trace_add("write", self.on_config_name_changed)
-        
+
         # Button rows with improved spacing
         button_frame = tk.Frame(self.config_frame, bg=BACKGROUND)
         button_frame.pack(fill=tk.X, pady=5)
-        
-        self.save_button = tk.Button(button_frame, text="Save", 
-                                   command=self.on_save_direct, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
-        self.save_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
-        
-        self.save_as_button = tk.Button(button_frame, text="Save As", 
-                                      command=self.on_save_as, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
+
+        self.save_button = tk.Button(button_frame,
+                                     text="Save",
+                                     command=self.on_save_direct,
+                                     bg=BLUE,
+                                     fg=LIGHT_TEXT,
+                                     font=("m6x11", 12))
+        self.save_button.pack(side=tk.LEFT,
+                              expand=True,
+                              fill=tk.X,
+                              padx=(0, 5))
+
+        self.save_as_button = tk.Button(button_frame,
+                                        text="Save As",
+                                        command=self.on_save_as,
+                                        bg=BLUE,
+                                        fg=LIGHT_TEXT,
+                                        font=("m6x11", 12))
         self.save_as_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        
-        self.load_button = tk.Button(button_frame, text="Load", 
-                                   command=self.on_load_config, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12))
-        self.load_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
-        
+
+        self.load_button = tk.Button(button_frame,
+                                     text="Load",
+                                     command=self.on_load_config,
+                                     bg=BLUE,
+                                     fg=LIGHT_TEXT,
+                                     font=("m6x11", 12))
+        self.load_button.pack(side=tk.RIGHT,
+                              expand=True,
+                              fill=tk.X,
+                              padx=(5, 0))
+
         # ===== Search Settings Frame =====
-        self.search_settings_frame = tk.LabelFrame(self.left_column, text="Search Settings", 
-                                                 padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
-        self.search_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        
+        self.search_settings_frame = tk.LabelFrame(self.left_column,
+                                                   text="Search Settings",
+                                                   padx=2,
+                                                   pady=2,
+                                                   bg=BACKGROUND,
+                                                   fg=LIGHT_TEXT,
+                                                   font=("m6x11", 14))
+        self.search_settings_frame.pack(fill=tk.BOTH,
+                                        expand=True,
+                                        padx=1,
+                                        pady=1)
+
         # Create a grid layout for more compact controls
         row = 0
 
         # Deck label and dropdown
-        tk.Label(self.search_settings_frame, text="Deck:", 
-                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        tk.Label(self.search_settings_frame,
+                 text="Deck:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
         self.deck_var = tk.StringVar()
         self.deck_dropdown = ttk.Combobox(self.search_settings_frame,
-                                           textvariable=self.deck_var, state="readonly",
-                                           font=("m6x11", 12))
+                                          textvariable=self.deck_var,
+                                          state="readonly",
+                                          font=("m6x11", 12))
         self.deck_dropdown['values'] = AVAILABLE_ITEMS["Decks"]
         self.deck_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.deck_dropdown.bind("<<ComboboxSelected>>", self.on_deck_changed)
         row += 1
 
         # Stake label and dropdown
-        tk.Label(self.search_settings_frame, text="Stake:", 
-                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        tk.Label(self.search_settings_frame,
+                 text="Stake:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
         self.stake_var = tk.StringVar()
         self.stake_dropdown = ttk.Combobox(self.search_settings_frame,
-                                            textvariable=self.stake_var, state="readonly",
-                                            font=("m6x11", 12))
+                                           textvariable=self.stake_var,
+                                           state="readonly",
+                                           font=("m6x11", 12))
         self.stake_dropdown['values'] = AVAILABLE_ITEMS["Stakes"]
         self.stake_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
         self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
         row += 1
 
         # Seed label and entry
-        tk.Label(self.search_settings_frame, text="Starting Seed:", 
-                 bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        tk.Label(self.search_settings_frame,
+                 text="Starting Seed:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
         seed_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
         seed_frame.grid(row=row, column=1, sticky="ew", pady=2)
         self.starting_seed_var = tk.StringVar()
@@ -213,188 +289,316 @@ class MainWindow:
         seed_frame.columnconfigure(0, weight=1)
         seed_frame.columnconfigure(1, weight=0)
 
-        self.starting_seed_entry = tk.Entry(seed_frame, textvariable=self.starting_seed_var, 
-                                            font=("m6x11", 12))
+        self.starting_seed_entry = tk.Entry(
+            seed_frame,
+            textvariable=self.starting_seed_var,
+            font=("m6x11", 12))
         self.starting_seed_entry.grid(row=0, column=0, sticky="ew")
-        random_seed_button = tk.Button(seed_frame, text="🎲", bg=GREEN, fg=LIGHT_TEXT,
-                                       command=self.on_random_seed, font=("m6x11", 12), width=6)
+        random_seed_button = tk.Button(seed_frame,
+                                       text="🎲",
+                                       bg=GREEN,
+                                       fg=LIGHT_TEXT,
+                                       command=self.on_random_seed,
+                                       font=("m6x11", 12),
+                                       width=6)
         random_seed_button.grid(row=0, column=1, padx=(8, 0))
         row += 1
 
         # Search size dropdown
-        tk.Label(self.search_settings_frame, text="Search Size:", 
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        
+        tk.Label(self.search_settings_frame,
+                 text="Search Size:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
+
         self.number_of_seeds_var = tk.StringVar()
-        self.number_of_seeds_dropdown = ttk.Combobox(self.search_settings_frame, 
-                                                   textvariable=self.number_of_seeds_var, state="readonly", 
-                                                   font=("m6x11", 12))
-        self.number_of_seeds_dropdown['values'] = ["All", "1 Single Seed",
-                                                "1K", "100K", "1M", "100M", "1B", "10B", "100B"]
-        self.number_of_seeds_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>", self.on_number_of_seeds_changed)
+        self.number_of_seeds_dropdown = ttk.Combobox(
+            self.search_settings_frame,
+            textvariable=self.number_of_seeds_var,
+            state="readonly",
+            font=("m6x11", 12))
+        self.number_of_seeds_dropdown['values'] = [
+            "All", "1 Single Seed", "1K", "100K", "1M", "100M", "1B", "10B",
+            "100B"
+        ]
+        self.number_of_seeds_dropdown.grid(row=row,
+                                           column=1,
+                                           sticky="ew",
+                                           pady=2)
+        self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>",
+                                           self.on_number_of_seeds_changed)
         row += 1
-        
+
         # Thread groups
-        tk.Label(self.search_settings_frame, text="Thread Groups:", 
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        
+        tk.Label(self.search_settings_frame,
+                 text="Thread Groups:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
+
         self.thread_groups_var = tk.StringVar()
-        self.thread_groups_dropdown = ttk.Combobox(self.search_settings_frame, 
-                                                 textvariable=self.thread_groups_var, state="readonly", 
-                                                 font=("m6x11", 12))
-        self.thread_groups_dropdown['values'] = ["Single", "16", "32", "64", "128", "256"]
-        self.thread_groups_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.thread_groups_dropdown.bind("<<ComboboxSelected>>", self.on_thread_groups_changed)
+        self.thread_groups_dropdown = ttk.Combobox(
+            self.search_settings_frame,
+            textvariable=self.thread_groups_var,
+            state="readonly",
+            font=("m6x11", 12))
+        self.thread_groups_dropdown['values'] = [
+            "Single", "16", "32", "64", "128", "256"
+        ]
+        self.thread_groups_dropdown.grid(row=row,
+                                         column=1,
+                                         sticky="ew",
+                                         pady=2)
+        self.thread_groups_dropdown.bind("<<ComboboxSelected>>",
+                                         self.on_thread_groups_changed)
         row += 1
 
         # GPU Batch dropdown
-        tk.Label(self.search_settings_frame, text="GPU Batch Size:",
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        tk.Label(self.search_settings_frame,
+                 text="GPU Batch Size:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
         self.gpu_batch_var = tk.StringVar()
         self.gpu_batch_dropdown = ttk.Combobox(self.search_settings_frame,
-                                               textvariable=self.gpu_batch_var, state="readonly",
+                                               textvariable=self.gpu_batch_var,
+                                               state="readonly",
                                                font=("m6x11", 12))
-        self.gpu_batch_dropdown['values'] = ["1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048", "4096", "8192"]
+        self.gpu_batch_dropdown['values'] = [
+            "1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024",
+            "2048", "4096", "8192"
+        ]
         self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.gpu_batch_dropdown.bind("<<ComboboxSelected>>", self.on_gpu_batch_changed)
+        self.gpu_batch_dropdown.bind("<<ComboboxSelected>>",
+                                     self.on_gpu_batch_changed)
         row += 1
 
         # Template dropdown
-        tk.Label(self.search_settings_frame, text="Template:",
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
+        tk.Label(self.search_settings_frame,
+                 text="Template:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
         self.template_var = tk.StringVar()
         self.template_dropdown = ttk.Combobox(self.search_settings_frame,
-                                            textvariable=self.template_var, state="readonly",
-                                            font=("m6x11", 12))
+                                              textvariable=self.template_var,
+                                              state="readonly",
+                                              font=("m6x11", 12))
         # Convert dictionary keys to list to avoid dict_keys object
         self.template_dropdown['values'] = list(self.template_mapping.keys())
         self.template_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.template_dropdown.bind("<<ComboboxSelected>>", self.on_template_changed)
+        self.template_dropdown.bind("<<ComboboxSelected>>",
+                                    self.on_template_changed)
         row += 1
-        
-        
+
         # Cutoff entry
-        tk.Label(self.search_settings_frame, text="Cutoff Score:",
-               bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12)).grid(row=row, column=0, sticky="w", pady=2)
-        
+        tk.Label(self.search_settings_frame,
+                 text="Cutoff Score:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
+
         # Create a frame to hold both the cutoff entry and auto checkbox
         cutoff_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
         cutoff_frame.grid(row=row, column=1, sticky="ew", pady=2)
-        cutoff_frame.columnconfigure(0, weight=1)  # Entry takes available space
-        
+        cutoff_frame.columnconfigure(0,
+                                     weight=1)  # Entry takes available space
+
         self.cutoff_var = tk.StringVar()
-        self.cutoff_entry = tk.Entry(cutoff_frame, textvariable=self.cutoff_var,
+        self.cutoff_entry = tk.Entry(cutoff_frame,
+                                     textvariable=self.cutoff_var,
                                      font=("m6x11", 12))
         self.cutoff_entry.grid(row=0, column=0, sticky="ew")
-        
+
         # Add Auto checkbox
-        tk.Label(cutoff_frame, text="Auto?", bg=BACKGROUND, fg=LIGHT_TEXT,
-                font=("m6x11", 12)).grid(row=0, column=1, padx=(8, 4))
+        tk.Label(cutoff_frame,
+                 text="Auto?",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=0, column=1, padx=(8, 4))
         self.auto_cutoff_var = tk.BooleanVar(value=False)
-        self.auto_cutoff_check = tk.Checkbutton(cutoff_frame, variable=self.auto_cutoff_var,
-                                               bg=BACKGROUND, activebackground=BACKGROUND,
-                                               command=self.on_auto_cutoff_changed)
+        self.auto_cutoff_check = tk.Checkbutton(
+            cutoff_frame,
+            variable=self.auto_cutoff_var,
+            bg=BACKGROUND,
+            activebackground=BACKGROUND,
+            command=self.on_auto_cutoff_changed)
         self.auto_cutoff_check.grid(row=0, column=2)
         self.cutoff_var.trace_add("write", self.on_cutoff_changed)
         row += 1
-        
+
         # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
-        
+
         # Make the grid rows more compact
         for row in range(8):  # Assuming we have about 8 rows in the grid
-            self.search_settings_frame.grid_rowconfigure(row, pad=1)  # Minimal row padding
-    
+            self.search_settings_frame.grid_rowconfigure(
+                row, pad=1)  # Minimal row padding
+
     def create_criteria_section(self):
         """Create the criteria selection section with improved spacing"""
-        self.criteria_frame = tk.LabelFrame(self.middle_column, text="Search Criteria", 
-                                          padx=5, pady=5, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.criteria_frame = tk.LabelFrame(self.middle_column,
+                                            text="Search Criteria",
+                                            padx=5,
+                                            pady=5,
+                                            bg=BACKGROUND,
+                                            fg=LIGHT_TEXT,
+                                            font=("m6x11", 14))
         self.criteria_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
+
         # Criteria section - split into left (deck settings) and right (criteria list)
         criteria_left = tk.Frame(self.criteria_frame, bg=BACKGROUND)
         criteria_left.pack(side=tk.LEFT, fill=tk.Y, padx=5)
-        
+
         criteria_right = tk.Frame(self.criteria_frame, bg=BACKGROUND)
         criteria_right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5)
-        
+
         # Criteria buttons in right side
         self.add_criteria_frame = tk.Frame(criteria_right, bg=BACKGROUND)
         self.add_criteria_frame.pack(fill=tk.X, pady=5)
-        
+
         # Add criteria buttons
-        tk.Button(self.add_criteria_frame, text="+Joker", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Jokers")).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.add_criteria_frame, text="+Tarot", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Tarots")).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.add_criteria_frame, text="+Spectral", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Spectrals")).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.add_criteria_frame, text="+Tag", 
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Tags")).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.add_criteria_frame, text="+Voucher",
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Vouchers")).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.add_criteria_frame, text="+Rank",
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Ranks")).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.add_criteria_frame, text="+Suit",
-                bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12),
-                command=lambda: self.on_add_need("Suits")).pack(side=tk.LEFT, padx=4)
-        
+        tk.Button(self.add_criteria_frame,
+                  text="+Joker",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Jokers")).pack(
+                      side=tk.LEFT, padx=4)
+        tk.Button(self.add_criteria_frame,
+                  text="+Tarot",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Tarots")).pack(
+                      side=tk.LEFT, padx=4)
+        tk.Button(self.add_criteria_frame,
+                  text="+Spectral",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Spectrals")).pack(
+                      side=tk.LEFT, padx=4)
+        tk.Button(self.add_criteria_frame,
+                  text="+Tag",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Tags")).pack(side=tk.LEFT,
+                                                                 padx=4)
+        tk.Button(self.add_criteria_frame,
+                  text="+Voucher",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Vouchers")).pack(
+                      side=tk.LEFT, padx=4)
+        tk.Button(self.add_criteria_frame,
+                  text="+Rank",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Ranks")).pack(side=tk.LEFT,
+                                                                  padx=4)
+        tk.Button(self.add_criteria_frame,
+                  text="+Suit",
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12),
+                  command=lambda: self.on_add_need("Suits")).pack(side=tk.LEFT,
+                                                                  padx=4)
+
         # Criteria list
-        self.criteria_list = tk.Listbox(criteria_right, bg=DARK_BACKGROUND, fg=LIGHT_TEXT,
-                                     selectmode=tk.SINGLE, font=("m6x11", 12))
+        self.criteria_list = tk.Listbox(criteria_right,
+                                        bg=DARK_BACKGROUND,
+                                        fg=LIGHT_TEXT,
+                                        selectmode=tk.SINGLE,
+                                        font=("m6x11", 12))
         self.criteria_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         # Criteria action buttons
         self.criteria_buttons_frame = tk.Frame(criteria_right, bg=BACKGROUND)
         self.criteria_buttons_frame.pack(fill=tk.X, pady=5)
-        
-        tk.Button(self.criteria_buttons_frame, text="Clear All", 
-                command=self.on_clear_all, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
-        tk.Button(self.criteria_buttons_frame, text="Remove Selected", 
-                command=self.on_remove_selected, bg=RED, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
-        tk.Button(self.criteria_buttons_frame, text="Edit Selected", 
-                command=self.on_edit_selected, bg=BLUE, fg=LIGHT_TEXT, font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
-    
+
+        tk.Button(self.criteria_buttons_frame,
+                  text="Clear All",
+                  command=self.on_clear_all,
+                  bg=RED,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
+        tk.Button(self.criteria_buttons_frame,
+                  text="Remove Selected",
+                  command=self.on_remove_selected,
+                  bg=RED,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
+        tk.Button(self.criteria_buttons_frame,
+                  text="Edit Selected",
+                  command=self.on_edit_selected,
+                  bg=BLUE,
+                  fg=LIGHT_TEXT,
+                  font=("m6x11", 12)).pack(side=tk.RIGHT, padx=5)
+
     def create_run_settings_section(self):
         """Create the run settings section with the button properly positioned"""
-        self.run_settings_frame = tk.LabelFrame(self.right_column, text="Run", 
-                                              padx=3, pady=3, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.run_settings_frame = tk.LabelFrame(self.right_column,
+                                                text="Run",
+                                                padx=3,
+                                                pady=3,
+                                                bg=BACKGROUND,
+                                                fg=LIGHT_TEXT,
+                                                font=("m6x11", 14))
         self.run_settings_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        
+
         # Create a container frame with proper layout
         run_container = tk.Frame(self.run_settings_frame, bg=BACKGROUND)
         run_container.pack(fill=tk.BOTH, expand=True)
-        
+
         # Configure rows to ensure proper distribution
-        run_container.grid_rowconfigure(0, weight=1)  # Console gets all extra space
-        run_container.grid_rowconfigure(1, weight=0)  # Button row has fixed height
+        run_container.grid_rowconfigure(
+            0, weight=1)  # Console gets all extra space
+        run_container.grid_rowconfigure(
+            1, weight=0)  # Button row has fixed height
         run_container.grid_columnconfigure(0, weight=1)  # Full width
-        
+
         # Console output at top now, using grid
         console_frame = tk.Frame(run_container, bg=BACKGROUND)
         console_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-        
-        self.output_text = tk.Text(console_frame, wrap=tk.WORD,
-                                 bg=DARK_BACKGROUND, fg=LIGHT_TEXT, 
-                                 font=("m6x11", 13), insertbackground='white')
+
+        self.output_text = tk.Text(console_frame,
+                                   wrap=tk.WORD,
+                                   bg=DARK_BACKGROUND,
+                                   fg=LIGHT_TEXT,
+                                   font=("m6x11", 13),
+                                   insertbackground='white')
         self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
-        
+
         # Button at bottom with fixed height
         button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
-        button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5,0))
+        button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5, 0))
         button_frame.grid_propagate(False)  # Prevent shrinking
-        self.run_button = tk.Button(button_frame, text="Let Jimbo Cook!",
-                                  command=self.on_run_search, 
-                                  bg=BLUE, fg=LIGHT_TEXT, 
-                                  font=("m6x11", 16))
+        self.run_button = tk.Button(button_frame,
+                                    text="Let Jimbo Cook!",
+                                    command=self.on_run_search,
+                                    bg=BLUE,
+                                    fg=LIGHT_TEXT,
+                                    font=("m6x11", 16))
         self.run_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+
         # Add gear button for advanced settings
         self.advanced_button = tk.Button(
             button_frame,
@@ -405,23 +609,28 @@ class MainWindow:
             font=("m6x11", 16),
             width=4,
             takefocus=False,
-            cursor="hand2",        )
-        self.advanced_button.pack(side=tk.LEFT, padx=(8, 0), pady=0)    
-    
+            cursor="hand2",
+        )
+        self.advanced_button.pack(side=tk.LEFT, padx=(8, 0), pady=0)
+
     def create_results_section(self):
         """Create results table section with optimized spacing"""
-        self.results_frame = tk.LabelFrame(self.bottom_frame, text="Results",
-                                         padx=2, pady=2, bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 14))
+        self.results_frame = tk.LabelFrame(self.bottom_frame,
+                                           text="Results",
+                                           padx=2,
+                                           pady=2,
+                                           bg=BACKGROUND,
+                                           fg=LIGHT_TEXT,
+                                           font=("m6x11", 14))
         self.results_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        
+
         # Add Refresh/Delete Everything buttons
         button_row = tk.Frame(self.results_frame, bg=BACKGROUND)
         button_row.pack(fill=tk.X, pady=(0, 5))
-        
+
         # Left side buttons
         left_buttons = tk.Frame(button_row, bg=BACKGROUND)
         left_buttons.pack(side=tk.LEFT)
-        
         tk.Button(
             left_buttons,
             text="Refresh",
@@ -431,7 +640,17 @@ class MainWindow:
             width=10,
             command=self.on_refresh_results,
         ).pack(side=tk.LEFT, padx=(0, 4))
-        
+
+        tk.Button(
+            left_buttons,
+            text="Export...",
+            bg=BLUE,
+            fg=LIGHT_TEXT,
+            font=("m6x11", 12),
+            width=10,
+            command=self.on_export_results,
+        ).pack(side=tk.LEFT, padx=(4, 4))
+
         tk.Button(
             left_buttons,
             text="Delete Everything",
@@ -441,11 +660,11 @@ class MainWindow:
             width=16,
             command=self.on_delete_all_results,
         ).pack(side=tk.LEFT, padx=(4, 0))
-        
+
         # Right side - Secret button
         right_buttons = tk.Frame(button_row, bg=BACKGROUND)
         right_buttons.pack(side=tk.RIGHT)
-        
+
         # The secret button
         self.secret_button = tk.Button(
             right_buttons,
@@ -456,11 +675,11 @@ class MainWindow:
             command=self.on_secret_button_clicked,
         )
         self.secret_button.pack(side=tk.RIGHT)
-        
+
         # Hidden fun buttons frame (initially hidden)
         self.fun_buttons_frame = tk.Frame(button_row, bg=BACKGROUND)
         # Don't pack it initially - it will be shown when secret button is clicked
-        
+
         # Create the fun category buttons
         self.lol_button = tk.Button(
             self.fun_buttons_frame,
@@ -471,7 +690,7 @@ class MainWindow:
             command=lambda: self.run_fun_seed_search("LOL"),
         )
         self.lol_button.pack(side=tk.LEFT, padx=2)
-        
+
         self.gross_button = tk.Button(
             self.fun_buttons_frame,
             text="GROSS Seeds 🤮",
@@ -481,7 +700,7 @@ class MainWindow:
             command=lambda: self.run_fun_seed_search("GROSS"),
         )
         self.gross_button.pack(side=tk.LEFT, padx=2)
-        
+
         self.nsfw_button = tk.Button(
             self.fun_buttons_frame,
             text="NSFW Seeds 🍆",
@@ -491,7 +710,7 @@ class MainWindow:
             command=lambda: self.run_fun_seed_search("NSFW"),
         )
         self.nsfw_button.pack(side=tk.LEFT, padx=2)
-        
+
         self.cool_button = tk.Button(
             self.fun_buttons_frame,
             text="COOL Seeds 😎",
@@ -507,22 +726,25 @@ class MainWindow:
         table_container.pack(fill=tk.BOTH, expand=True)
 
         # Table with no wasted space
-        self.pt = Table(table_container, dataframe=pd.DataFrame(),
-                       showtoolbar=False, showstatusbar=False,
-                       font=self.table_font_family,
-                       fontsize=self.table_font_size,
-                       headerfont=(self.table_font_family, self.table_font_size))
-        
+        self.pt = Table(table_container,
+                        dataframe=pd.DataFrame(),
+                        showtoolbar=False,
+                        showstatusbar=False,
+                        font=self.table_font_family,
+                        fontsize=self.table_font_size,
+                        headerfont=(self.table_font_family,
+                                    self.table_font_size))
+
         # Show the table with tight packing
         self.pt.show()
-          # Set default precision for numeric columns
+        # Set default precision for numeric columns
         if not hasattr(self.pt, 'columnformats'):
             self.pt.columnformats = {}
             self.pt.columnformats['default'] = {'precision': 0}
-        
+
             self.latest_df = None
             self._setup_initial_table()
-    
+
     def _adjust_table_column_widths(self):
         """Adjusts column widths to show full headers and make Seed column 50% larger."""
         if not hasattr(self.pt, 'model') or self.pt.model is None or \
@@ -541,11 +763,14 @@ class MainWindow:
             # For headers with underscores, replace _ with space to get true visual width
             display_name = str(col).replace('_', ' ')
             # Use a larger character width factor (12 pixels per character)
-            header_width = len(display_name) * 12 + 25  # 12px per char + 25px padding
+            header_width = len(
+                display_name) * 12 + 25  # 12px per char + 25px padding
 
             # For numeric columns except 'Seed', ensure minimum width
-            if col != 'Seed' and pd.api.types.is_numeric_dtype(self.pt.model.df[col]):
-                header_width = max(header_width, 60)  # Minimum width for numeric columns
+            if col != 'Seed' and pd.api.types.is_numeric_dtype(
+                    self.pt.model.df[col]):
+                header_width = max(header_width,
+                                   60)  # Minimum width for numeric columns
 
             # Special handling for Seed column - make 50% wider
             if col == 'Seed':
@@ -556,21 +781,24 @@ class MainWindow:
 
             # Set the width, use max of calculated width or existing width
             if col in self.pt.colwidths:
-                self.pt.colwidths[col] = max(self.pt.colwidths[col], header_width)
+                self.pt.colwidths[col] = max(self.pt.colwidths[col],
+                                             header_width)
             else:
                 self.pt.colwidths[col] = header_width
 
         # Update column widths in pandastable
         self.pt.columnwidths = self.pt.colwidths.copy()
-        
+
         # Redraw the table
         self.pt.redraw()
 
     def _setup_initial_table(self):
         """Set up the results table to refresh immediately and then every 1000ms."""
+
         def refresh_loop():
             self.refresh_results_table()
             self.root.after(2000, refresh_loop)
+
         # Call once immediately, then start the loop
         self.refresh_results_table()
 
@@ -586,67 +814,80 @@ class MainWindow:
         """
         if df is None or df.empty or 'Score' not in df.columns:
             return None
-            
+
         # Sort by Score in descending order and get the value at the percentile
         sorted_scores = df['Score'].sort_values(ascending=False)
         index = int(len(sorted_scores) * percentile)
         if index >= len(sorted_scores):
-            return sorted_scores.iloc[-1]  # Return lowest score if percentile is too high
-        return sorted_scores.iloc[index]   
-    
+            return sorted_scores.iloc[
+                -1]  # Return lowest score if percentile is too high
+        return sorted_scores.iloc[index]
+
     def update_results_table(self, dataframe):
         """Update results table with new data and handle auto cutoff if enabled"""
         self.latest_df = dataframe
         if dataframe is not None:
             # Check for auto cutoff when we hit 1000+ results
-            if self.search_running and self.auto_cutoff_var.get() and len(dataframe) >= 1000:
-                # Sort scores in descending order and get the 500th score
+            if self.search_running and self.auto_cutoff_var.get() and len(dataframe) >= 1000:                # Sort scores in descending order and get the 500th score
                 sorted_scores = dataframe['Score'].sort_values(ascending=False)
                 cutoff_score = sorted_scores.iloc[499]  # 0-based index for 500th result
                 current_cutoff = self.cutoff_var.get()
-                
+
                 try:
                     current_cutoff_val = float(current_cutoff) if current_cutoff else 0
                     if cutoff_score > current_cutoff_val:
                         new_cutoff = str(int(cutoff_score))
                         self.cutoff_var.set(new_cutoff)
                         self.controller.set_setting('cutoff', new_cutoff)
+                        
+                        # Also update the config model directly to ensure it's saved
+                        self.controller.config_model.cutoff = new_cutoff
+                        # Save the config to ensure the new cutoff persists
+                        self.controller.config_model.save()
+                        
                         self.set_status(f"Auto cutoff triggered: Using score {cutoff_score} from 500th result")
                         self.write_to_console(f"\nAuto cutoff triggered: Found {len(dataframe)} results, using score {cutoff_score} from 500th result\n")
-                        # Only stop if the cutoff actually changed
+                        
+                        # Debug output to verify auto cutoff is working
+                        self.write_to_console(f"Debug: Auto cutoff set to {new_cutoff}, search will restart with new cutoff\n")
+                        
+                        # Stop current search and restart with new cutoff
                         self.controller.stop_search()
+                        # Wait for search to stop cleanly, then restart
+                        self.root.after(1500, lambda: self._restart_search_with_new_cutoff())
                 except ValueError:
-                    pass  # Keep current cutoff if there's an error
-            
+                    self.write_to_console("Error: Failed to parse cutoff value for auto cutoff\n")
+
             # Format numeric columns
             for col in dataframe.columns:
-                if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
+                if col != 'Seed' and pd.api.types.is_numeric_dtype(
+                        dataframe[col]):
                     if hasattr(self.pt, 'columnformats'):
                         if col not in self.pt.columnformats:
                             self.pt.columnformats[col] = {}
                         self.pt.columnformats[col]['precision'] = 0
-            
+
             self.pt.model.df = dataframe
         else:
             self.pt.model.df = pd.DataFrame()
-            
+
         self.pt.redraw()
         self._adjust_table_column_widths()
         self._search_results_count = len(dataframe) if dataframe is not None else 0
-    
+
     def refresh_results_table(self):
         """Reload the results table from the database and update the UI."""
         from ouija_mvc.models.database_model import DatabaseModel
         db_model = DatabaseModel()
-        
+
         # Try to get the current config path from the controller first
         config_path = self.controller.get_current_config_path()
-        
+
         # Fall back to last saved config if needed
-        if not config_path:       
+        if not config_path:
             # Try to get the current config path from the controller first
             config_path = self.controller.get_current_config_path()
-        
+
         # Fall back to last saved config if needed
         if not config_path:
             try:
@@ -655,12 +896,14 @@ class MainWindow:
                 config_path = user_conf.get('last_config_path')
             except Exception:
                 config_path = None
-            
-        if config_path and db_model.connect(config_path) and db_model.table_exists():
+
+        if config_path and db_model.connect(
+                config_path) and db_model.table_exists():
             df = db_model.get_dataframe()
-            if df is not None and (self.latest_df is None or not df.equals(self.latest_df)):
+            if df is not None and (self.latest_df is None
+                                   or not df.equals(self.latest_df)):
                 self.update_results_table(df)
-                
+
                 # Update metrics if search is running
                 if self._search_start_time is not None:
                     elapsed = time.time() - self._search_start_time
@@ -685,9 +928,10 @@ class MainWindow:
             self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
             if self.start_time is not None:
                 elapsed = time.time() - self.start_time
-                self.write_to_console(f"Search finished. Elapsed time: {elapsed:.2f} seconds\n")
+                self.write_to_console(
+                    f"Search finished. Elapsed time: {elapsed:.2f} seconds\n")
             self._search_start_time = None
-    
+
     def write_to_console(self, text):
         """Write text to the console output
         
@@ -696,7 +940,7 @@ class MainWindow:
         """
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
-    
+
     def set_status(self, text):
         """Set status bar text
         
@@ -704,7 +948,7 @@ class MainWindow:
             text: Status text to display
         """
         self.status_bar.set_status(text)
-    
+
     def set_metrics(self, text):
         """Set metrics text in the status bar (right side)
         
@@ -715,7 +959,7 @@ class MainWindow:
         if text and "$clock$" in text:
             text = text.replace("$clock$", "⏱️")
         self.status_bar.set_metrics(text)
-    
+
     def get_available_items(self):
         """Get the available items by category
         
@@ -723,7 +967,7 @@ class MainWindow:
             Dictionary mapping category names to lists of item names
         """
         return AVAILABLE_ITEMS
-    
+
     def validate_seed(self, new_value):
         """Validate the seed input
         
@@ -736,31 +980,33 @@ class MainWindow:
         # Allow empty (will default to random) or "random"
         if new_value == "" or new_value.lower() == "random":
             return True
-        
+
         # Otherwise only allow valid seed characters and max length 8
         seed_dictionary = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        return len(new_value) <= 8 and all(char in seed_dictionary for char in new_value.upper())
-    
+        return len(new_value) <= 8 and all(char in seed_dictionary
+                                           for char in new_value.upper())
+
     def on_config_name_changed(self, *args):
         """Handle configuration name changes"""
         self.controller.set_config_name(self.config_name_var.get())
-    
+
     def on_deck_changed(self, event=None):
         """Handle deck selection changes"""
         self.controller.set_setting('deck', self.deck_var.get())
-    
+
     def on_stake_changed(self, event=None):
         """Handle stake selection changes"""
         self.controller.set_setting('stake', self.stake_var.get())
-    
+
     def on_thread_groups_changed(self, event=None):
         """Handle thread groups selection changes"""
-        self.controller.set_setting('thread_groups', self.thread_groups_var.get())
-    
+        self.controller.set_setting('thread_groups',
+                                    self.thread_groups_var.get())
+
     def on_cutoff_changed(self, *args):
         """Handle cutoff score changes"""
-        self.controller.set_setting('cutoff', self.cutoff_var.get())    
-    
+        self.controller.set_setting('cutoff', self.cutoff_var.get())
+
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
         self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
@@ -770,7 +1016,8 @@ class MainWindow:
         # Get the friendly name from the dropdown
         friendly_name = self.template_var.get()
         # Get the actual template filename from our mapping
-        template_name = self.template_mapping.get(friendly_name, "ouija_template")
+        template_name = self.template_mapping.get(friendly_name,
+                                                  "ouija_template")
         # Update the setting with the actual template filename
         self.controller.set_setting('template', template_name)
         self.update_config_display()
@@ -779,11 +1026,12 @@ class MainWindow:
         """Set the search seed to random, ouija.exe handles this"""
         self.starting_seed_entry.delete(0, tk.END)
         self.starting_seed_entry.insert(0, "random")
-    
+
     def on_number_of_seeds_changed(self, event=None):
         """Handle number of seeds selection changes"""
-        self.controller.set_setting('number_of_seeds', self.number_of_seeds_var.get())
-    
+        self.controller.set_setting('number_of_seeds',
+                                    self.number_of_seeds_var.get())
+
     def on_save_direct(self):
         """Save directly to {config_name}.ouija.json in the config directory, no prompt."""
         config_name = self.config_name_var.get().strip()
@@ -791,9 +1039,10 @@ class MainWindow:
             self.set_status("Please enter a configuration name before saving.")
             return
         file_name = config_name.lower().replace(" ", "_") + ".ouija.json"
-        file_path = os.path.join(self.controller.config_model.CONFIG_DIR, file_name)
+        file_path = os.path.join(self.controller.config_model.CONFIG_DIR,
+                                 file_name)
         self.controller.save_config(file_path)
-    
+
     def on_save_as(self):
         """Prompt user for file path, pre-filling with config name, and save there."""
         config_name = self.config_name_var.get().strip()
@@ -805,29 +1054,33 @@ class MainWindow:
             initialdir=self.controller.config_model.CONFIG_DIR,
             initialfile=file_name,
             defaultextension=".ouija.json",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
+            filetypes=[("Ouija JSON files", "*.ouija.json"),
+                       ("All files", "*.*")])
         if file_path:
             self.controller.save_config(file_path)
-    
+
     def on_load_config(self):
         """Load a configuration"""
         file_path = filedialog.askopenfilename(
             initialdir=self.controller.config_model.CONFIG_DIR,
             title="Load Configuration",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
-        
+            filetypes=[("Ouija JSON files", "*.ouija.json"),
+                       ("All files", "*.*")])
+
         if file_path:
             self.controller.load_config(file_path)
-            self.update_config_display()    # Add this to refresh config UI elements
+            self.update_config_display(
+            )  # Add this to refresh config UI elements
             self.update_criteria_display()  # Add this to refresh criteria list
-            self.controller.refresh_results()      # Refresh results table once after UI updates
-    
+            self.controller.refresh_results(
+            )  # Refresh results table once after UI updates
+
     def on_add_need(self, category):
         """Add a need from the selected category"""
         # The True argument indicates to the dialog that the initial context is a 'Need'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Need: {category}", category, True)
+        result = ItemSelectorDialog.show_dialog(self.root,
+                                                f"Select Need: {category}",
+                                                category, True)
         if result:
             item_payload = result["payload"]
 
@@ -840,51 +1093,55 @@ class MainWindow:
             else:
                 # If is_need is False (either Rank/Suit selected as Want, or Standard item with Ante 0)
                 # it's treated as a Want. Ensure desireByAnte is not in payload for wants if it was 0.
-                if "desireByAnte" in item_payload and item_payload["desireByAnte"] == 0:
+                if "desireByAnte" in item_payload and item_payload[
+                        "desireByAnte"] == 0:
                     del item_payload["desireByAnte"]
                 self.controller.add_want(item_payload)
-            
-            self.update_criteria_display() # Refresh list after adding
-    
+
+            self.update_criteria_display()  # Refresh list after adding
+
     def on_add_want(self, category):
         """Add a want from the selected category"""
         # The False argument indicates to the dialog that the initial context is a 'Want'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Want: {category}", category, False)
+        result = ItemSelectorDialog.show_dialog(self.root,
+                                                f"Select Want: {category}",
+                                                category, False)
         if result:
             item_payload = result["payload"]
-            # Ensure desireByAnte is not part of a want payload, 
+            # Ensure desireByAnte is not part of a want payload,
             # especially if it might have been added and set to 0 by the dialog for standard items.
             if "desireByAnte" in item_payload:
                 del item_payload["desireByAnte"]
             self.controller.add_want(item_payload)
-            self.update_criteria_display() # Refresh list after adding
+            self.update_criteria_display()  # Refresh list after adding
 
     def on_remove_selected(self):
         """Remove the selected criterion"""
         selected_indices = self.criteria_list.curselection()
         if selected_indices:
             self.controller.remove_criterion(selected_indices[0])
-    
+
     def on_edit_selected(self):
         """Edit the selected criterion"""
         selected_indices = self.criteria_list.curselection()
         if not selected_indices:
             return
-            
+
         # Get the selected index and determine if it's a need or a want
         index = selected_indices[0]
         needs_count = len(self.controller.config_model.needs_list)
-        
+
         is_need = index < needs_count
-        
+
         # Get the criterion data
         if is_need:
             criterion = self.controller.config_model.needs_list[index]
             category = self.get_category_for_item(criterion["value"])
         else:
-            criterion = self.controller.config_model.wants_list[index - needs_count]
+            criterion = self.controller.config_model.wants_list[index -
+                                                                needs_count]
             category = self.get_category_for_item(criterion["value"])
-        
+
         # Show the dialog with the existing item data
         result = ItemSelectorDialog.show_dialog(
             self.root,
@@ -892,17 +1149,16 @@ class MainWindow:
             category,
             is_need,
             edit_mode=True,
-            existing_item=criterion
-        )
-        
+            existing_item=criterion)
+
         if result:
             item_payload = result["payload"]
-            
+
             # Handle Need/Want changes
             if result["is_need"] != is_need:
                 # Need/Want type changed - remove old and add new
                 self.controller.remove_criterion(index)
-                
+
                 if result["is_need"]:
                     self.controller.add_need(item_payload)
                 else:
@@ -913,9 +1169,9 @@ class MainWindow:
             else:
                 # Same type, just update
                 self.controller.edit_criterion(index, item_payload)
-            
+
             self.update_criteria_display()
-    
+
     def get_category_for_item(self, item_value):
         """Determine the category for an item based on its value
         
@@ -927,21 +1183,22 @@ class MainWindow:
         """
         # Check each category for the item value
         from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
-        
+
         item_display_name = get_display_name(item_value)
-        
+
         for category, items in AVAILABLE_ITEMS.items():
             if item_display_name in items:
                 return category
-        
+
         # Default to Jokers if not found
         return "Jokers"
-    
+
     def on_clear_all(self):
         """Clear all criteria"""
-        if messagebox.askyesno("Confirm", "Are you sure you want to clear all criteria?"):
+        if messagebox.askyesno("Confirm",
+                               "Are you sure you want to clear all criteria?"):
             self.controller.clear_all_criteria()
-    
+
     def on_run_search(self):
         """Start or stop the search process"""
         if not hasattr(self, 'search_running'):
@@ -953,11 +1210,12 @@ class MainWindow:
             seed_value = self.starting_seed_var.get().strip()
             if not seed_value or seed_value.lower() == 'random':
                 seed_value = 'random'
-            
+
             self.search_running = True
             self.start_time = time.time()
             self.run_button.config(text="STOP SEARCH", bg=RED)
-            self.controller.set_setting('starting_seed', seed_value)  # Update the controller
+            self.controller.set_setting('starting_seed',
+                                        seed_value)  # Update the controller
             self.controller.run_search()
         else:
             self.search_running = False
@@ -965,17 +1223,18 @@ class MainWindow:
             self.controller.stop_search()
             if self.start_time:
                 elapsed = time.time() - self.start_time
-                self.write_to_console(f"Search stopped. Elapsed time: {elapsed:.2f} seconds\n")
-    
+                self.write_to_console(
+                    f"Search stopped. Elapsed time: {elapsed:.2f} seconds\n")
+
     def on_closing(self):
         """Handle window closing event"""
         # Make sure we stop all search processes first
         if self.search_running:
             self.controller.stop_search()
-        
+
         # Then do the general cleanup
         self.controller.cleanup()
-        
+
         # Finally destroy the root window
         self.root.destroy()
 
@@ -985,11 +1244,16 @@ class MainWindow:
         self.config_name_var.set(self.controller.get_config_name())
         self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
         self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
-        self.thread_groups_var.set(self.controller.get_setting('thread_groups', '32'))
-        self.starting_seed_var.set(self.controller.get_setting('starting_seed', 'random'))
-        self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'All'))
-        self.gpu_batch_var.set(self.controller.get_setting('gpu_batch_size', '256'))
-        self.template_var.set(self.controller.get_setting('template', 'Default'))
+        self.thread_groups_var.set(
+            self.controller.get_setting('thread_groups', '32'))
+        self.starting_seed_var.set(
+            self.controller.get_setting('starting_seed', 'random'))
+        self.number_of_seeds_var.set(
+            self.controller.get_setting('number_of_seeds', 'All'))
+        self.gpu_batch_var.set(
+            self.controller.get_setting('gpu_batch_size', '256'))
+        self.template_var.set(
+            self.controller.get_setting('template', 'Default'))
 
         # Set auto cutoff state and update UI accordingly
         is_auto = self.controller.get_setting('auto_cutoff', False)
@@ -997,7 +1261,7 @@ class MainWindow:
         self.cutoff_entry.configure(state='disabled' if is_auto else 'normal')
         if not is_auto:
             self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
-    
+
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""
         # Clear current list
@@ -1046,12 +1310,34 @@ class MainWindow:
         self.controller.refresh_results()
         self.set_status("Results refreshed")
 
+    def on_export_results(self):
+        """Export results to a CSV file"""
+        config_name = self.config_name_var.get().strip()
+        if not config_name:
+            config_name = "ouija_results"
+        file_name = config_name.lower().replace(" ", "_") + ".ouija.csv"
+        file_path = filedialog.asksaveasfilename(
+            initialdir=self.controller.config_model.EXPORT_DIR,
+            initialfile=file_name,
+            title="Export Results",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
+
+        if file_path:
+            try:
+                self.controller.export_results(file_path)
+                self.set_status(f"Results exported to {file_path}")
+                self.write_to_console(f"Results exported to {file_path}\n")
+            except Exception as e:
+                self.set_status(f"Error exporting results: {str(e)}")
+                self.write_to_console(f"Error exporting results: {str(e)}\n")
+
     def on_delete_all_results(self):
         """Delete all results from the database after confirmation"""
         if messagebox.askyesno(
-            "Confirm Delete",
-            "Are you sure you want to delete ALL results? This cannot be undone!",
-            icon="warning",
+                "Confirm Delete",
+                "Are you sure you want to delete ALL results? This cannot be undone!",
+                icon="warning",
         ):
             try:
                 # Clear the table first for immediate visual feedback
@@ -1060,16 +1346,16 @@ class MainWindow:
                 # Delete from database
                 if self.controller.delete_all_results():
                     self.set_status("All results deleted successfully")
-                    self.write_to_console("All results deleted from database.\n")
+                    self.write_to_console(
+                        "All results deleted from database.\n")
                 else:
                     self.set_status("Failed to delete results")
                     self.write_to_console(
-                        "Error: Failed to delete results from database.\n"
-                    )
+                        "Error: Failed to delete results from database.\n")
             except Exception as e:
                 self.set_status(f"Error deleting results: {str(e)}")
                 self.write_to_console(f"Error deleting results: {str(e)}\n")
-    
+
     def on_auto_cutoff_changed(self):
         """Handle auto cutoff checkbox changes"""
         is_auto = self.auto_cutoff_var.get()
@@ -1081,325 +1367,14 @@ class MainWindow:
             self.cutoff_var.set('1')  # Set default minimum if none exists
             self.controller.set_setting('cutoff', '1')
 
-    def on_gpu_batch_changed(self, event=None):
-        """Handle GPU batch size selection changes"""
-        self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
-
-    def on_template_changed(self, event=None):
-        """Handle template selection changes"""
-        # Get the friendly name from the dropdown
-        friendly_name = self.template_var.get()
-        # Get the actual template filename from our mapping
-        template_name = self.template_mapping.get(friendly_name, "ouija_template")
-        # Update the setting with the actual template filename
-        self.controller.set_setting('template', template_name)
-        self.update_config_display()
-
-    def on_random_seed(self):
-        """Set the search seed to random, ouija.exe handles this"""
-        self.starting_seed_entry.delete(0, tk.END)
-        self.starting_seed_entry.insert(0, "random")
-    
-    def on_number_of_seeds_changed(self, event=None):
-        """Handle number of seeds selection changes"""
-        self.controller.set_setting('number_of_seeds', self.number_of_seeds_var.get())
-    
-    def on_save_direct(self):
-        """Save directly to {config_name}.ouija.json in the config directory, no prompt."""
-        config_name = self.config_name_var.get().strip()
-        if not config_name:
-            self.set_status("Please enter a configuration name before saving.")
-            return
-        file_name = config_name.lower().replace(" ", "_") + ".ouija.json"
-        file_path = os.path.join(self.controller.config_model.CONFIG_DIR, file_name)
-        self.controller.save_config(file_path)
-    
-    def on_save_as(self):
-        """Prompt user for file path, pre-filling with config name, and save there."""
-        config_name = self.config_name_var.get().strip()
-        if not config_name:
-            self.set_status("Please enter a configuration name before saving.")
-            return
-        file_name = config_name.lower().replace(" ", "_") + ".ouija.json"
-        file_path = filedialog.asksaveasfilename(
-            initialdir=self.controller.config_model.CONFIG_DIR,
-            initialfile=file_name,
-            defaultextension=".ouija.json",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
-        if file_path:
-            self.controller.save_config(file_path)
-    
-    def on_load_config(self):
-        """Load a configuration"""
-        file_path = filedialog.askopenfilename(
-            initialdir=self.controller.config_model.CONFIG_DIR,
-            title="Load Configuration",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
-        
-        if file_path:
-            self.controller.load_config(file_path)
-            self.update_config_display()    # Add this to refresh config UI elements
-            self.update_criteria_display()  # Add this to refresh criteria list
-            self.controller.refresh_results()      # Refresh results table once after UI updates
-    
-    def on_add_need(self, category):
-        """Add a need from the selected category"""
-        # The True argument indicates to the dialog that the initial context is a 'Need'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Need: {category}", category, True)
-        if result:
-            item_payload = result["payload"]
-
-            if result["is_need"]:
-                # If it's a Rank or Suit Need, explicitly set desireByAnte to 1 as per requirements
-                if result["type"] == "RankOrSuit":
-                    item_payload["desireByAnte"] = 1
-                # For Standard needs, desireByAnte should already be in item_payload if ante > 0
-                self.controller.add_need(item_payload)
-            else:
-                # If is_need is False (either Rank/Suit selected as Want, or Standard item with Ante 0)
-                # it's treated as a Want. Ensure desireByAnte is not in payload for wants if it was 0.
-                if "desireByAnte" in item_payload and item_payload["desireByAnte"] == 0:
-                    del item_payload["desireByAnte"]
-                self.controller.add_want(item_payload)
-            
-            self.update_criteria_display() # Refresh list after adding
-    
-    def on_add_want(self, category):
-        """Add a want from the selected category"""
-        # The False argument indicates to the dialog that the initial context is a 'Want'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Want: {category}", category, False)
-        if result:
-            item_payload = result["payload"]
-            # Ensure desireByAnte is not part of a want payload, 
-            # especially if it might have been added and set to 0 by the dialog for standard items.
-            if "desireByAnte" in item_payload:
-                del item_payload["desireByAnte"]
-            self.controller.add_want(item_payload)
-            self.update_criteria_display() # Refresh list after adding
-
-    def on_remove_selected(self):
-        """Remove the selected criterion"""
-        selected_indices = self.criteria_list.curselection()
-        if selected_indices:
-            self.controller.remove_criterion(selected_indices[0])
-    
-    def on_edit_selected(self):
-        """Edit the selected criterion"""
-        selected_indices = self.criteria_list.curselection()
-        if not selected_indices:
-            return
-            
-        # Get the selected index and determine if it's a need or a want
-        index = selected_indices[0]
-        needs_count = len(self.controller.config_model.needs_list)
-        
-        is_need = index < needs_count
-        
-        # Get the criterion data
-        if is_need:
-            criterion = self.controller.config_model.needs_list[index]
-            category = self.get_category_for_item(criterion["value"])
-        else:
-            criterion = self.controller.config_model.wants_list[index - needs_count]
-            category = self.get_category_for_item(criterion["value"])
-        
-        # Show the dialog with the existing item data
-        result = ItemSelectorDialog.show_dialog(
-            self.root,
-            f"Edit {'Need' if is_need else 'Want'}: {category}",
-            category,
-            is_need,
-            edit_mode=True,
-            existing_item=criterion
-        )
-        
-        if result:
-            item_payload = result["payload"]
-            
-            # Handle Need/Want changes
-            if result["is_need"] != is_need:
-                # Need/Want type changed - remove old and add new
-                self.controller.remove_criterion(index)
-                
-                if result["is_need"]:
-                    self.controller.add_need(item_payload)
-                else:
-                    # Ensure desireByAnte is removed for wants
-                    if "desireByAnte" in item_payload:
-                        del item_payload["desireByAnte"]
-                    self.controller.add_want(item_payload)
-            else:
-                # Same type, just update
-                self.controller.edit_criterion(index, item_payload)
-            
-            self.update_criteria_display()
-    
-    def get_category_for_item(self, item_value):
-        """Determine the category for an item based on its value
-        
-        Args:
-            item_value: The internal item value
-            
-        Returns:
-            The category name
-        """
-        # Check each category for the item value
-        from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
-        
-        item_display_name = get_display_name(item_value)
-        
-        for category, items in AVAILABLE_ITEMS.items():
-            if item_display_name in items:
-                return category
-        
-        # Default to Jokers if not found
-        return "Jokers"
-    
-    def on_clear_all(self):
-        """Clear all criteria"""
-        if messagebox.askyesno("Confirm", "Are you sure you want to clear all criteria?"):
-            self.controller.clear_all_criteria()
-    
-    def on_run_search(self):
-        """Start or stop the search process"""
-        if not hasattr(self, 'search_running'):
-            self.search_running = False
-            self.start_time = None
-
+    def _restart_search_with_new_cutoff(self):
+        """Helper method to restart search after auto cutoff is triggered"""
         if not self.search_running:
-            # Get the current seed value
-            seed_value = self.starting_seed_var.get().strip()
-            if not seed_value or seed_value.lower() == 'random':
-                seed_value = 'random'
-            
-            self.search_running = True
-            self.start_time = time.time()
-            self.run_button.config(text="STOP SEARCH", bg=RED)
-            self.controller.set_setting('starting_seed', seed_value)  # Update the controller
+            self.write_to_console("Debug: Restarting search with new cutoff value\n")
             self.controller.run_search()
         else:
-            self.search_running = False
-            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
-            self.controller.stop_search()
-            if self.start_time:
-                elapsed = time.time() - self.start_time
-                self.write_to_console(f"Search stopped. Elapsed time: {elapsed:.2f} seconds\n")
-    
-    def on_closing(self):
-        """Handle window closing event"""
-        # Make sure we stop all search processes first
-        if self.search_running:
-            self.controller.stop_search()
-        
-        # Then do the general cleanup
-        self.controller.cleanup()
-        
-        # Finally destroy the root window
-        self.root.destroy()
-
-    def update_config_display(self):
-        """Update the UI with current configuration settings"""
-        # Example: update config name, deck, stake, etc.
-        self.config_name_var.set(self.controller.get_config_name())
-        self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
-        self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
-        self.thread_groups_var.set(self.controller.get_setting('thread_groups', '32'))
-        self.starting_seed_var.set(self.controller.get_setting('starting_seed', 'random'))
-        self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'All'))
-        self.gpu_batch_var.set(self.controller.get_setting('gpu_batch_size', '256'))
-        self.template_var.set(self.controller.get_setting('template', 'Default'))
-
-        # Set auto cutoff state and update UI accordingly
-        is_auto = self.controller.get_setting('auto_cutoff', False)
-        self.auto_cutoff_var.set(is_auto)
-        self.cutoff_entry.configure(state='disabled' if is_auto else 'normal')
-        if not is_auto:
-            self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
-    
-    def update_criteria_display(self):
-        """Update the criteria list with current needs and wants"""
-        # Clear current list
-        self.criteria_list.delete(0, tk.END)
-        # Add needs
-        for need in self.controller.config_model.needs_list:
-            display_text = f"NEED: {get_display_name(need['value'])}"
-            if "desireByAnte" in need and need["desireByAnte"] > 0:
-                display_text += f" by Ante {need['desireByAnte']}"
-            if "jokeredition" in need and need["jokeredition"] != "No_Edition":
-                display_text += f" ({need['jokeredition']})"
-            self.criteria_list.insert(tk.END, display_text)
-        # Add wants
-        for want in self.controller.config_model.wants_list:
-            display_text = f"WANT: {get_display_name(want['value'])}"
-            if "jokeredition" in want and want["jokeredition"] != "No_Edition":
-                display_text += f" ({want['jokeredition']})"
-            self.criteria_list.insert(tk.END, display_text)
-
-    def update_deck_Settings_display(self):
-        """Update the deck settings display with current values"""
-        self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
-        self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
-
-    def open_advanced_settings_dialog(self):
-        """Open the Advanced Settings dialog (thread groups, GPU batch, cutoff, fun word, search type)."""
-        from .dialogs import AdvancedSettingsDialog
-
-        result = AdvancedSettingsDialog.show_dialog(
-            self.root,
-            self.thread_groups_var.get(),
-            self.gpu_batch_var.get(),
-            self.cutoff_var.get(),
-            self.controller,  # Pass controller for prank seed functionality
-        )
-        if result:
-            self.thread_groups_var.set(result["thread_groups"])
-            self.gpu_batch_var.set(result["gpu_batch"])
-            self.cutoff_var.set(result["cutoff"])
-
-        # Clear focus from the gear button to prevent visual state issues
-        self.root.focus_set()
-
-    def on_refresh_results(self):
-        """Manually refresh the results table"""
-        self.controller.refresh_results()
-        self.set_status("Results refreshed")
-
-    def on_delete_all_results(self):
-        """Delete all results from the database after confirmation"""
-        if messagebox.askyesno(
-            "Confirm Delete",
-            "Are you sure you want to delete ALL results? This cannot be undone!",
-            icon="warning",
-        ):
-            try:
-                # Clear the table first for immediate visual feedback
-                self.update_results_table(pd.DataFrame())
-
-                # Delete from database
-                if self.controller.delete_all_results():
-                    self.set_status("All results deleted successfully")
-                    self.write_to_console("All results deleted from database.\n")
-                else:
-                    self.set_status("Failed to delete results")
-                    self.write_to_console(
-                        "Error: Failed to delete results from database.\n"
-                    )
-            except Exception as e:
-                self.set_status(f"Error deleting results: {str(e)}")
-                self.write_to_console(f"Error deleting results: {str(e)}\n")
-    
-    def on_auto_cutoff_changed(self):
-        """Handle auto cutoff checkbox changes"""
-        is_auto = self.auto_cutoff_var.get()
-        self.cutoff_entry.configure(state='disabled' if is_auto else 'normal')
-        # Save the auto cutoff state in settings
-        self.controller.set_setting('auto_cutoff', is_auto)
-        # Keep existing cutoff as minimum threshold when auto is enabled
-        if is_auto and not self.cutoff_var.get():
-            self.cutoff_var.set('1')  # Set default minimum if none exists
-            self.controller.set_setting('cutoff', '1')
+            self.write_to_console("Debug: Search still running, scheduling retry\n")
+            self.root.after(500, lambda: self._restart_search_with_new_cutoff())
 
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
@@ -1410,7 +1385,8 @@ class MainWindow:
         # Get the friendly name from the dropdown
         friendly_name = self.template_var.get()
         # Get the actual template filename from our mapping
-        template_name = self.template_mapping.get(friendly_name, "ouija_template")
+        template_name = self.template_mapping.get(friendly_name,
+                                                  "ouija_template")
         # Update the setting with the actual template filename
         self.controller.set_setting('template', template_name)
         self.update_config_display()
@@ -1419,11 +1395,12 @@ class MainWindow:
         """Set the search seed to random, ouija.exe handles this"""
         self.starting_seed_entry.delete(0, tk.END)
         self.starting_seed_entry.insert(0, "random")
-    
+
     def on_number_of_seeds_changed(self, event=None):
         """Handle number of seeds selection changes"""
-        self.controller.set_setting('number_of_seeds', self.number_of_seeds_var.get())
-    
+        self.controller.set_setting('number_of_seeds',
+                                    self.number_of_seeds_var.get())
+
     def on_save_direct(self):
         """Save directly to {config_name}.ouija.json in the config directory, no prompt."""
         config_name = self.config_name_var.get().strip()
@@ -1431,9 +1408,10 @@ class MainWindow:
             self.set_status("Please enter a configuration name before saving.")
             return
         file_name = config_name.lower().replace(" ", "_") + ".ouija.json"
-        file_path = os.path.join(self.controller.config_model.CONFIG_DIR, file_name)
+        file_path = os.path.join(self.controller.config_model.CONFIG_DIR,
+                                 file_name)
         self.controller.save_config(file_path)
-    
+
     def on_save_as(self):
         """Prompt user for file path, pre-filling with config name, and save there."""
         config_name = self.config_name_var.get().strip()
@@ -1445,29 +1423,33 @@ class MainWindow:
             initialdir=self.controller.config_model.CONFIG_DIR,
             initialfile=file_name,
             defaultextension=".ouija.json",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
+            filetypes=[("Ouija JSON files", "*.ouija.json"),
+                       ("All files", "*.*")])
         if file_path:
             self.controller.save_config(file_path)
-    
+
     def on_load_config(self):
         """Load a configuration"""
         file_path = filedialog.askopenfilename(
             initialdir=self.controller.config_model.CONFIG_DIR,
             title="Load Configuration",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
-        
+            filetypes=[("Ouija JSON files", "*.ouija.json"),
+                       ("All files", "*.*")])
+
         if file_path:
             self.controller.load_config(file_path)
-            self.update_config_display()    # Add this to refresh config UI elements
+            self.update_config_display(
+            )  # Add this to refresh config UI elements
             self.update_criteria_display()  # Add this to refresh criteria list
-            self.controller.refresh_results()      # Refresh results table once after UI updates
-    
+            self.controller.refresh_results(
+            )  # Refresh results table once after UI updates
+
     def on_add_need(self, category):
         """Add a need from the selected category"""
         # The True argument indicates to the dialog that the initial context is a 'Need'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Need: {category}", category, True)
+        result = ItemSelectorDialog.show_dialog(self.root,
+                                                f"Select Need: {category}",
+                                                category, True)
         if result:
             item_payload = result["payload"]
 
@@ -1480,51 +1462,55 @@ class MainWindow:
             else:
                 # If is_need is False (either Rank/Suit selected as Want, or Standard item with Ante 0)
                 # it's treated as a Want. Ensure desireByAnte is not in payload for wants if it was 0.
-                if "desireByAnte" in item_payload and item_payload["desireByAnte"] == 0:
+                if "desireByAnte" in item_payload and item_payload[
+                        "desireByAnte"] == 0:
                     del item_payload["desireByAnte"]
                 self.controller.add_want(item_payload)
-            
-            self.update_criteria_display() # Refresh list after adding
-    
+
+            self.update_criteria_display()  # Refresh list after adding
+
     def on_add_want(self, category):
         """Add a want from the selected category"""
         # The False argument indicates to the dialog that the initial context is a 'Want'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Want: {category}", category, False)
+        result = ItemSelectorDialog.show_dialog(self.root,
+                                                f"Select Want: {category}",
+                                                category, False)
         if result:
             item_payload = result["payload"]
-            # Ensure desireByAnte is not part of a want payload, 
+            # Ensure desireByAnte is not part of a want payload,
             # especially if it might have been added and set to 0 by the dialog for standard items.
             if "desireByAnte" in item_payload:
                 del item_payload["desireByAnte"]
             self.controller.add_want(item_payload)
-            self.update_criteria_display() # Refresh list after adding
+            self.update_criteria_display()  # Refresh list after adding
 
     def on_remove_selected(self):
         """Remove the selected criterion"""
         selected_indices = self.criteria_list.curselection()
         if selected_indices:
             self.controller.remove_criterion(selected_indices[0])
-    
+
     def on_edit_selected(self):
         """Edit the selected criterion"""
         selected_indices = self.criteria_list.curselection()
         if not selected_indices:
             return
-            
+
         # Get the selected index and determine if it's a need or a want
         index = selected_indices[0]
         needs_count = len(self.controller.config_model.needs_list)
-        
+
         is_need = index < needs_count
-        
+
         # Get the criterion data
         if is_need:
             criterion = self.controller.config_model.needs_list[index]
             category = self.get_category_for_item(criterion["value"])
         else:
-            criterion = self.controller.config_model.wants_list[index - needs_count]
+            criterion = self.controller.config_model.wants_list[index -
+                                                                needs_count]
             category = self.get_category_for_item(criterion["value"])
-        
+
         # Show the dialog with the existing item data
         result = ItemSelectorDialog.show_dialog(
             self.root,
@@ -1532,17 +1518,16 @@ class MainWindow:
             category,
             is_need,
             edit_mode=True,
-            existing_item=criterion
-        )
-        
+            existing_item=criterion)
+
         if result:
             item_payload = result["payload"]
-            
+
             # Handle Need/Want changes
             if result["is_need"] != is_need:
                 # Need/Want type changed - remove old and add new
                 self.controller.remove_criterion(index)
-                
+
                 if result["is_need"]:
                     self.controller.add_need(item_payload)
                 else:
@@ -1553,9 +1538,9 @@ class MainWindow:
             else:
                 # Same type, just update
                 self.controller.edit_criterion(index, item_payload)
-            
+
             self.update_criteria_display()
-    
+
     def get_category_for_item(self, item_value):
         """Determine the category for an item based on its value
         
@@ -1567,333 +1552,13 @@ class MainWindow:
         """
         # Check each category for the item value
         from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
-        
+
         item_display_name = get_display_name(item_value)
-        
+
         for category, items in AVAILABLE_ITEMS.items():
             if item_display_name in items:
                 return category
-        
-        # Default to Jokers if not found
-        return "Jokers"
-    
-    def on_clear_all(self):
-        """Clear all criteria"""
-        if messagebox.askyesno("Confirm", "Are you sure you want to clear all criteria?"):
-            self.controller.clear_all_criteria()
-    
-    def on_run_search(self):
-        """Start or stop the search process"""
-        if not hasattr(self, 'search_running'):
-            self.search_running = False
-            self.start_time = None
 
-        if not self.search_running:
-            # Get the current seed value
-            seed_value = self.starting_seed_var.get().strip()
-            if not seed_value or seed_value.lower() == 'random':
-                seed_value = 'random'
-            
-            self.search_running = True
-            self.start_time = time.time()
-            self.run_button.config(text="STOP SEARCH", bg=RED)
-            self.controller.set_setting('starting_seed', seed_value)  # Update the controller
-            self.controller.run_search()
-        else:
-            self.search_running = False
-            self.run_button.config(text="Let Jimbo Cook!", bg=BLUE)
-            self.controller.stop_search()
-            if self.start_time:
-                elapsed = time.time() - self.start_time
-                self.write_to_console(f"Search stopped. Elapsed time: {elapsed:.2f} seconds\n")
-    
-    def on_closing(self):
-        """Handle window closing event"""
-        # Make sure we stop all search processes first
-        if self.search_running:
-            self.controller.stop_search()
-        
-        # Then do the general cleanup
-        self.controller.cleanup()
-        
-        # Finally destroy the root window
-        self.root.destroy()
-
-    def update_config_display(self):
-        """Update the UI with current configuration settings"""
-        # Example: update config name, deck, stake, etc.
-        self.config_name_var.set(self.controller.get_config_name())
-        self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
-        self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
-        self.thread_groups_var.set(self.controller.get_setting('thread_groups', '32'))
-        self.starting_seed_var.set(self.controller.get_setting('starting_seed', 'random'))
-        self.number_of_seeds_var.set(self.controller.get_setting('number_of_seeds', 'All'))
-        self.gpu_batch_var.set(self.controller.get_setting('gpu_batch_size', '256'))
-        self.template_var.set(self.controller.get_setting('template', 'Default'))
-
-        # Set auto cutoff state and update UI accordingly
-        is_auto = self.controller.get_setting('auto_cutoff', False)
-        self.auto_cutoff_var.set(is_auto)
-        self.cutoff_entry.configure(state='disabled' if is_auto else 'normal')
-        if not is_auto:
-            self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
-    
-    def update_criteria_display(self):
-        """Update the criteria list with current needs and wants"""
-        # Clear current list
-        self.criteria_list.delete(0, tk.END)
-        # Add needs
-        for need in self.controller.config_model.needs_list:
-            display_text = f"NEED: {get_display_name(need['value'])}"
-            if "desireByAnte" in need and need["desireByAnte"] > 0:
-                display_text += f" by Ante {need['desireByAnte']}"
-            if "jokeredition" in need and need["jokeredition"] != "No_Edition":
-                display_text += f" ({need['jokeredition']})"
-            self.criteria_list.insert(tk.END, display_text)
-        # Add wants
-        for want in self.controller.config_model.wants_list:
-            display_text = f"WANT: {get_display_name(want['value'])}"
-            if "jokeredition" in want and want["jokeredition"] != "No_Edition":
-                display_text += f" ({want['jokeredition']})"
-            self.criteria_list.insert(tk.END, display_text)
-
-    def update_deck_Settings_display(self):
-        """Update the deck settings display with current values"""
-        self.deck_var.set(self.controller.get_setting('deck', 'Red Deck'))
-        self.stake_var.set(self.controller.get_setting('stake', 'Black Stake'))
-
-    def open_advanced_settings_dialog(self):
-        """Open the Advanced Settings dialog (thread groups, GPU batch, cutoff, fun word, search type)."""
-        from .dialogs import AdvancedSettingsDialog
-
-        result = AdvancedSettingsDialog.show_dialog(
-            self.root,
-            self.thread_groups_var.get(),
-            self.gpu_batch_var.get(),
-            self.cutoff_var.get(),
-            self.controller,  # Pass controller for prank seed functionality
-        )
-        if result:
-            self.thread_groups_var.set(result["thread_groups"])
-            self.gpu_batch_var.set(result["gpu_batch"])
-            self.cutoff_var.set(result["cutoff"])
-
-        # Clear focus from the gear button to prevent visual state issues
-        self.root.focus_set()
-
-    def on_refresh_results(self):
-        """Manually refresh the results table"""
-        self.controller.refresh_results()
-        self.set_status("Results refreshed")
-
-    def on_delete_all_results(self):
-        """Delete all results from the database after confirmation"""
-        if messagebox.askyesno(
-            "Confirm Delete",
-            "Are you sure you want to delete ALL results? This cannot be undone!",
-            icon="warning",
-        ):
-            try:
-                # Clear the table first for immediate visual feedback
-                self.update_results_table(pd.DataFrame())
-
-                # Delete from database
-                if self.controller.delete_all_results():
-                    self.set_status("All results deleted successfully")
-                    self.write_to_console("All results deleted from database.\n")
-                else:
-                    self.set_status("Failed to delete results")
-                    self.write_to_console(
-                        "Error: Failed to delete results from database.\n"
-                    )
-            except Exception as e:
-                self.set_status(f"Error deleting results: {str(e)}")
-                self.write_to_console(f"Error deleting results: {str(e)}\n")
-    
-    def on_auto_cutoff_changed(self):
-        """Handle auto cutoff checkbox changes"""
-        is_auto = self.auto_cutoff_var.get()
-        self.cutoff_entry.configure(state='disabled' if is_auto else 'normal')
-        # Save the auto cutoff state in settings
-        self.controller.set_setting('auto_cutoff', is_auto)
-        # Keep existing cutoff as minimum threshold when auto is enabled
-        if is_auto and not self.cutoff_var.get():
-            self.cutoff_var.set('1')  # Set default minimum if none exists
-            self.controller.set_setting('cutoff', '1')
-
-    def on_gpu_batch_changed(self, event=None):
-        """Handle GPU batch size selection changes"""
-        self.controller.set_setting('gpu_batch', self.gpu_batch_var.get())
-
-    def on_template_changed(self, event=None):
-        """Handle template selection changes"""
-        # Get the friendly name from the dropdown
-        friendly_name = self.template_var.get()
-        # Get the actual template filename from our mapping
-        template_name = self.template_mapping.get(friendly_name, "ouija_template")
-        # Update the setting with the actual template filename
-        self.controller.set_setting('template', template_name)
-        self.update_config_display()
-
-    def on_random_seed(self):
-        """Set the search seed to random, ouija.exe handles this"""
-        self.starting_seed_entry.delete(0, tk.END)
-        self.starting_seed_entry.insert(0, "random")
-    
-    def on_number_of_seeds_changed(self, event=None):
-        """Handle number of seeds selection changes"""
-        self.controller.set_setting('number_of_seeds', self.number_of_seeds_var.get())
-    
-    def on_save_direct(self):
-        """Save directly to {config_name}.ouija.json in the config directory, no prompt."""
-        config_name = self.config_name_var.get().strip()
-        if not config_name:
-            self.set_status("Please enter a configuration name before saving.")
-            return
-        file_name = config_name.lower().replace(" ", "_") + ".ouija.json"
-        file_path = os.path.join(self.controller.config_model.CONFIG_DIR, file_name)
-        self.controller.save_config(file_path)
-    
-    def on_save_as(self):
-        """Prompt user for file path, pre-filling with config name, and save there."""
-        config_name = self.config_name_var.get().strip()
-        if not config_name:
-            self.set_status("Please enter a configuration name before saving.")
-            return
-        file_name = config_name.lower().replace(" ", "_") + ".ouija.json"
-        file_path = filedialog.asksaveasfilename(
-            initialdir=self.controller.config_model.CONFIG_DIR,
-            initialfile=file_name,
-            defaultextension=".ouija.json",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
-        if file_path:
-            self.controller.save_config(file_path)
-    
-    def on_load_config(self):
-        """Load a configuration"""
-        file_path = filedialog.askopenfilename(
-            initialdir=self.controller.config_model.CONFIG_DIR,
-            title="Load Configuration",
-            filetypes=[("Ouija JSON files", "*.ouija.json"), ("All files", "*.*")]
-        )
-        
-        if file_path:
-            self.controller.load_config(file_path)
-            self.update_config_display()    # Add this to refresh config UI elements
-            self.update_criteria_display()  # Add this to refresh criteria list
-            self.controller.refresh_results()      # Refresh results table once after UI updates
-    
-    def on_add_need(self, category):
-        """Add a need from the selected category"""
-        # The True argument indicates to the dialog that the initial context is a 'Need'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Need: {category}", category, True)
-        if result:
-            item_payload = result["payload"]
-
-            if result["is_need"]:
-                # If it's a Rank or Suit Need, explicitly set desireByAnte to 1 as per requirements
-                if result["type"] == "RankOrSuit":
-                    item_payload["desireByAnte"] = 1
-                # For Standard needs, desireByAnte should already be in item_payload if ante > 0
-                self.controller.add_need(item_payload)
-            else:
-                # If is_need is False (either Rank/Suit selected as Want, or Standard item with Ante 0)
-                # it's treated as a Want. Ensure desireByAnte is not in payload for wants if it was 0.
-                if "desireByAnte" in item_payload and item_payload["desireByAnte"] == 0:
-                    del item_payload["desireByAnte"]
-                self.controller.add_want(item_payload)
-            
-            self.update_criteria_display() # Refresh list after adding
-    
-    def on_add_want(self, category):
-        """Add a want from the selected category"""
-        # The False argument indicates to the dialog that the initial context is a 'Want'
-        result = ItemSelectorDialog.show_dialog(self.root, f"Select Want: {category}", category, False)
-        if result:
-            item_payload = result["payload"]
-            # Ensure desireByAnte is not part of a want payload, 
-            # especially if it might have been added and set to 0 by the dialog for standard items.
-            if "desireByAnte" in item_payload:
-                del item_payload["desireByAnte"]
-            self.controller.add_want(item_payload)
-            self.update_criteria_display() # Refresh list after adding
-
-    def on_remove_selected(self):
-        """Remove the selected criterion"""
-        selected_indices = self.criteria_list.curselection()
-        if selected_indices:
-            self.controller.remove_criterion(selected_indices[0])
-    
-    def on_edit_selected(self):
-        """Edit the selected criterion"""
-        selected_indices = self.criteria_list.curselection()
-        if not selected_indices:
-            return
-            
-        # Get the selected index and determine if it's a need or a want
-        index = selected_indices[0]
-        needs_count = len(self.controller.config_model.needs_list)
-        
-        is_need = index < needs_count
-        
-        # Get the criterion data
-        if is_need:
-            criterion = self.controller.config_model.needs_list[index]
-            category = self.get_category_for_item(criterion["value"])
-        else:
-            criterion = self.controller.config_model.wants_list[index - needs_count]
-            category = self.get_category_for_item(criterion["value"])
-        
-        # Show the dialog with the existing item data
-        result = ItemSelectorDialog.show_dialog(
-            self.root,
-            f"Edit {'Need' if is_need else 'Want'}: {category}",
-            category,
-            is_need,
-            edit_mode=True,
-            existing_item=criterion
-        )
-        
-        if result:
-            item_payload = result["payload"]
-            
-            # Handle Need/Want changes
-            if result["is_need"] != is_need:
-                # Need/Want type changed - remove old and add new
-                self.controller.remove_criterion(index)
-                
-                if result["is_need"]:
-                    self.controller.add_need(item_payload)
-                else:
-                    # Ensure desireByAnte is removed for wants
-                    if "desireByAnte" in item_payload:
-                        del item_payload["desireByAnte"]
-                    self.controller.add_want(item_payload)
-            else:
-                # Same type, just update
-                self.controller.edit_criterion(index, item_payload)
-            
-            self.update_criteria_display()
-    
-    def get_category_for_item(self, item_value):
-        """Determine the category for an item based on its value
-        
-        Args:
-            item_value: The internal item value
-            
-        Returns:
-            The category name
-        """
-        # Check each category for the item value
-        from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
-        
-        item_display_name = get_display_name(item_value)
-        
-        for category, items in AVAILABLE_ITEMS.items():
-            if item_display_name in items:
-                return category
-        
         # Default to Jokers if not found
         return "Jokers"
 
@@ -1909,15 +1574,19 @@ class MainWindow:
             self.fun_buttons_frame.pack(side=tk.RIGHT, padx=(10, 0))
             self.secret_button.config(text="hide fun buttons")
             self.fun_buttons_visible = True
-    
+
     def run_fun_seed_search(self, category):
         """Run a fun seed search for the specified category"""
         if not self.controller:
             return
-        
+
         # Call the controller method to run the fun seed search
         success = self.controller.run_fun_seed_search(category)
         if success:
-            self.write_to_console(f"🎯 Starting {category} seed search! Check the console for progress...\n")
+            self.write_to_console(
+                f"🎯 Starting {category} seed search! Check the console for progress...\n"
+            )
         else:
-            self.write_to_console(f"❌ Failed to start {category} seed search. Check your configuration.\n")
+            self.write_to_console(
+                f"❌ Failed to start {category} seed search. Check your configuration.\n"
+            )

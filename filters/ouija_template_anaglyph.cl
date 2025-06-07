@@ -126,10 +126,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
   // Negative tag tracking
   int negativeTagApplications = 0; // Available negative tag applications
 
-  // Tag tracking for reroll strategy
-  item previousBigBlindTag =
-      RETRY; // Big blind from previous ante becomes next small blind
-
   for (int ante = 1; ante <= maxSearchAnte && valid; ante++) {
     init_unlocks(inst, ante, false);
 
@@ -138,17 +134,23 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     if (ante > 1 && voucher != Hieroglyph && voucher != Petroglyph) {
       activate_voucher(inst, voucher);
 
-      if (voucher == Blank) {
-        jokerSlots++; // Blank gives +1 joker slot
-      } else if (voucher == Antimatter) {
-        jokerSlots = 6; // Antimatter sets total to 6
+      if (voucher == Antimatter) {
+         jokerSlots++; // Blank gives +1 joker slot
       }
     }
 
+
     item smallBlindTag = next_tag(inst, ante);
+    if (ante > 1 && smallBlindTag != Negative_Tag) continue;
 
     // Check if negative tag is triggered and calculate applications
     if (smallBlindTag == Negative_Tag) {
+      // Search wants for the first tag no matter what kind it is:
+      for (int x = 0; x < clampedNumWants; x++) {
+        if (config->Wants[x].value == Negative_Tag) {
+          result->ScoreWants[x] += 1;
+        }
+      }
       // Negative tag gives 1 + totalDoubleTags applications
       negativeTagApplications = 1 + totalDoubleTags;
     }
@@ -165,8 +167,22 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
       ScoreNeeds[x] |= (isSmallBlind | isVoucher);
     }
 
+    // Score wants for tags and vouchers
+    for (int x = 0; x < clampedNumWants; x++) {
+      bool isSmallBlind = (config->Wants[x].value == smallBlindTag);
+      bool isVoucher = (config->Wants[x].value == voucher);
+      if (isSmallBlind || isVoucher) {
+        // Check Showman duplicate rule
+        bool showmanAllows =
+            (result->ScoreWants[x] == 0) || inst->params.showman;
+        if (showmanAllows) {
+          result->ScoreWants[x] += 1;
+        }
+      }
+    }
+
     // Process packs
-    int packChecks = (ante == 1) ? 4 : 6;
+    int packChecks = (ante == 1) ? 4 : 20;
     for (int p = 0; p < packChecks; p++) {
       pack _pack = pack_info(next_pack(inst, ante));
 
@@ -275,7 +291,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     }
 
     // Process shop items
-    int shCount = (ante == 1) ? 4 : ante * 4;
+    int shCount = (ante == 1) ? 4 : 8;
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
       if (shItem.value == RETRY)
@@ -345,11 +361,24 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
     // Get big blind tag and store for next ante's transition check
     item bigBlindTag = next_tag(inst, ante);
+
+      // Search wants for the first tag no matter what kind it is:
+      for (int x = 0; x < clampedNumWants; x++) {
+        if (config->Wants[x].value == Negative_Tag) {
+          result->ScoreWants[x] += 1;
+        }
+      }
+
+      // And Needs
+      for (int x = 0; x < clampedNumNeeds; x++) {
+        if (config->Needs[x].value == Negative_Tag) {
+          ScoreNeeds[x] = true;
+        }
+      }
+
     if (bigBlindTag == Double_Tag) {
       totalDoubleTags++;
     }
-    // Store this big blind tag as it becomes the small blind for next ante
-    previousBigBlindTag = bigBlindTag;
 
     // Anaglyph deck gets +1 free double tag after beating each boss blind
     if (config->deck == Anaglyph_Deck) {
@@ -372,10 +401,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     for (int w = 0; w < clampedNumWants; w++) {
       wants_score += (result->ScoreWants[w] > 0) + result->ScoreWants[w];
     }
-
     result->TotalScore += wants_score;
-    result->TotalScore += result->NegativeJokers;
-    result->TotalScore += totalDoubleTags;
 
     text s_str = s_to_string(&inst->seed);
     for (int i = 0; i < 9; i++) {
