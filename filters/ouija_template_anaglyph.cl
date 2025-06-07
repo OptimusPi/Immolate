@@ -274,9 +274,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
           bool showmanAllows =
               (result->ScoreWants[x] == 0) || inst->params.showman;
 
-          if (showmanAllows) {
-            result->ScoreWants[x] += 1;
-          }
+            result->ScoreWants[x] += negativeTagApplications > 0 ? 1 : 1;
         }
       }
     }

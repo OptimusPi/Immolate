@@ -278,21 +278,6 @@ class ConfigModel:
             return True
         return False
 
-    def get_setting(self, key, default=None):
-        """Get a user setting value by key, with optional default."""
-        settings_map = {
-            "thread_groups": "thread_groups",
-            "starting_seed": "starting_seed",
-            "number_of_seeds": "number_of_seeds",
-            "deck": "deck",
-            "stake": "stake",
-            "cutoff": "cutoff",
-            "gpu_batch": "gpu_batch",
-            "template": "template",
-        }
-        attr = settings_map.get(key, key)
-        return getattr(self, attr, default)
-
     def get_criteria(self):
         """Return the current criteria as a list."""
         criteria = []

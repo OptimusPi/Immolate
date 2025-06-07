@@ -10,12 +10,11 @@
 
 typedef struct {
     char seed[9];           // Bytes 0-8
-    uchar _padding0;        // Byte 9 (explicit padding)
-    ushort TotalScore;      // Bytes 10-11
-    uchar NegativeJokers;   // Byte 12
+    ushort TotalScore;      // Bytes 9-10
+    uchar NegativeJokers;   // Byte 11
+    uchar AnaglyphHits;     // Byte 12
+    int padding;          // Padding to align the structure
     uchar ScoreWants[MAX_DESIRES_KERNEL]; // Bytes 13 onwards
-    int pad1;
-    char pad2;
 } OuijaResult;
 
 #endif

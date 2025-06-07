@@ -317,10 +317,10 @@ int main(int argc, char **argv) {
     } 
 
     // --- Kernel Loading/Building ---
-    FILE *fp;
+    FILE *fp = NULL; // Initialize fp
     char *ssKernelCode = NULL;
     size_t ssKernelSize = 0;
-    cl_program ssKernelProgram;
+    cl_program ssKernelProgram = NULL; // Initialize ssKernelProgram
     int loaded_from_binary = 0;
 
     // Create config buffer
@@ -336,104 +336,123 @@ int main(int argc, char **argv) {
     clErrCheck(err, "clCreateBuffer - Creating seed offset buffer");
 
     char executable_dir[MAX_PATH];
-    char include_path[MAX_PATH+6];
-    char kernel_path[MAX_PATH+12];
-    char binary_path[MAX_PATH];
+    char include_path[MAX_PATH+6]; // For -I "path"
+    char kernel_path[MAX_PATH];    // For main kernel source file like ouija_search.cl
+    char binary_path[MAX_PATH];    // For precompiled filter_name.bin
     char build_options[1024];
+    
     getExecutableDir(executable_dir);
 
+    // Construct include path for OpenCL compiler (e.g., -I "X:\\Immolate")
+    // This allows #include "filters/filter.cl" to work if filters is a subdir of executable_dir
     strcpy_s(include_path, sizeof include_path, "-I \"");
     strcat_s(include_path, sizeof include_path, executable_dir);
     strcat_s(include_path, sizeof include_path, "\"");
 
-    createBinaryPath(executable_dir, filter, binary_path, MAX_PATH);    err = fopen_s(&fp, binary_path, "rb");
-    if (err == 0 && fp != NULL) {
-        printf_s("Found pre-compiled kernel binary: %s\n", binary_path);
-        fseek(fp, 0, SEEK_END);
-        size_t binary_size = ftell(fp);
-        rewind(fp);
-        unsigned char *program_binary = (unsigned char*)malloc(binary_size);
-        if (!program_binary) {
-            fprintf_s(stderr, "Failed to allocate memory for kernel binary.\n");
-            fclose(fp);
-        } else {
-            if (fread(program_binary, 1, binary_size, fp) != binary_size) {
-                fprintf_s(stderr, "Failed to read kernel binary.\n");
-                free(program_binary);
-                fclose(fp);
-            } else {
-                fclose(fp);
-                cl_int binary_status;
-                ssKernelProgram = clCreateProgramWithBinary(ctx, 1, &device, &binary_size, (const unsigned char**)&program_binary, &binary_status, &err);
-                free(program_binary);
+    // Construct path for the pre-compiled binary kernel
+    createBinaryPath(executable_dir, filter, binary_path, MAX_PATH);
 
-                if (err == CL_SUCCESS && binary_status == CL_SUCCESS) {
-                    printf_s("Successfully loaded kernel from binary.\n");
-                    loaded_from_binary = 1;
+    // Attempt to load pre-compiled binary
+    errno_t err_fopen = fopen_s(&fp, binary_path, "rb");
+    if (err_fopen == 0 && fp != NULL) {
+        fseek(fp, 0, SEEK_END);
+        size_t actual_binary_size = ftell(fp);
+        rewind(fp);
+
+        if (actual_binary_size > 0) {
+            unsigned char *program_binary_data = (unsigned char*)malloc(actual_binary_size);
+            if (program_binary_data) {
+                if (fread(program_binary_data, 1, actual_binary_size, fp) == actual_binary_size) {
+                    cl_int binary_status = 0;
+                    ssKernelProgram = clCreateProgramWithBinary(ctx, 1, &device, 
+                                                                &actual_binary_size, 
+                                                                (const unsigned char**)&program_binary_data, 
+                                                                &binary_status, &err);
+                    if (err == CL_SUCCESS && binary_status == CL_SUCCESS) {
+                        loaded_from_binary = 1;
+                    } else {
+                        fprintf_s(stderr, "Error: Failed to create program from binary %s (clCreateProgramWithBinary err: %d, binary_status: %d). Will compile from source.\n", binary_path, err, binary_status);
+                        if (ssKernelProgram) {
+                            clReleaseProgram(ssKernelProgram);
+                            ssKernelProgram = NULL;
+                        }
+                        err = CL_SUCCESS; // Reset OpenCL error as we are falling back to source
+                    }
                 } else {
-                    fprintf_s(stderr, "Failed to create program from binary (err: %d, status: %d). Compiling from source...\n", err, binary_status);
-                    loaded_from_binary = 0;  // Ensure we fall through to source compilation
+                    fprintf_s(stderr, "Error: Failed to read binary file %s. Will compile from source.\n", binary_path);
                 }
+                free(program_binary_data);
+            } else {
+                fprintf_s(stderr, "Error: Failed to allocate memory for binary %s. Will compile from source.\n", binary_path);
             }
+        } else {
+            // Empty binary file, will fall through to source compilation.
+            // fprintf_s(stderr, "Warning: Binary file %s is empty. Will compile from source.\n", binary_path);
         }
-    } else {
-        printf_s("No pre-compiled kernel binary found.\n");
-        loaded_from_binary = 0;  // Ensure we fall through to source compilation
+        fclose(fp);
+        fp = NULL; 
     }
+    // If fopen_s failed, loaded_from_binary remains 0, and we fall through to source compilation.
 
     if (!loaded_from_binary) {
-        strcpy_s(kernel_path, sizeof kernel_path, executable_dir);
-        strcat_s(kernel_path, sizeof kernel_path, PATH_SEPARATOR);
-        strcat_s(kernel_path, sizeof kernel_path, "ouija_search.cl");
+        // Print the user-requested message as the binary was not loaded or failed to load.
+        printf_s("$Template binary is not cached for %s. This only needs to build once. Please wait!\n", filter);
+        fflush(stdout);
 
-        err = fopen_s(&fp, kernel_path, "r");
-        if (!fp) {
-            printf_s("Warning: Kernel source not found at %s, attempting working directory...\n", kernel_path);
-            err = fopen_s(&fp, "ouija_search.cl", "r");
-            if (err != 0 || !fp) {
-                fprintf_s(stderr, "Failed to load kernel source.\n");
-                free(devices);
-                free(platforms);
-                clReleaseCommandQueue(queue);
-                clReleaseContext(ctx);
-                exit(1);
-            }
+        // Construct path to the main kernel source file (e.g., ouija_search.cl, located in executable_dir)
+        snprintf(kernel_path, sizeof(kernel_path), "%s\\\\ouija_search.cl", executable_dir);
+
+        err_fopen = fopen_s(&fp, kernel_path, "r");
+        if (err_fopen != 0 || !fp) {
+            fprintf_s(stderr, "Fatal: Failed to load main kernel source file %s (Error: %d)\n", kernel_path, err_fopen);
+            printf_s("$Error: Main kernel source %s not found. Cannot proceed.\n", kernel_path);
+            fflush(stdout);
+            // Consider proper cleanup before exit if more resources are allocated
+            exit(1); 
         }
-        printf_s("Loading kernel source from %s...\n", kernel_path);
 
         ssKernelCode = (char*)malloc(MAX_CODE_SIZE);
         char* ssKernelBuf = (char*)malloc(MAX_CODE_SIZE);
         if (!ssKernelCode || !ssKernelBuf) {
-            fprintf_s(stderr, "Failed to allocate memory for kernel source code.\n");
-            if (fp) fclose(fp);
-            free(devices);
-            free(platforms);
-            clReleaseCommandQueue(queue);
-            clReleaseContext(ctx);
+            fprintf_s(stderr, "Fatal: Malloc failed for kernel source buffers.\n");
+            if(fp) fclose(fp);
+            // Consider proper cleanup
             exit(1);
         }
 
-        strcpy_s(ssKernelCode, MAX_CODE_SIZE, "#include \"filters/");
+        // Construct kernel source string: prepend #include for specific filter, then append generic kernel code
+        strcpy_s(ssKernelCode, MAX_CODE_SIZE, "#include \"filters/"); // Corrected string literal
         strcat_s(ssKernelCode, MAX_CODE_SIZE, filter);
-        strcat_s(ssKernelCode, MAX_CODE_SIZE, ".cl\"\n\n");
+        strcat_s(ssKernelCode, MAX_CODE_SIZE, ".cl\"\n\n"); // Corrected string literal
 
-        size_t current_len = strlen(ssKernelCode);
-        size_t bytes_read = fread( ssKernelBuf, 1, MAX_CODE_SIZE - current_len - 1, fp);
-        ssKernelBuf[bytes_read] = '\0';
+        size_t current_len = strlen(ssKernelCode); // Initialize current_len here
+        size_t bytes_read = fread(ssKernelBuf, 1, MAX_CODE_SIZE - current_len - 1, fp);
+        
+        if (ferror(fp)) {
+            fprintf_s(stderr, "Fatal: Error reading from kernel source file %s.\n", kernel_path);
+            fclose(fp); free(ssKernelCode); free(ssKernelBuf);
+            // Consider proper cleanup
+            exit(1);
+        }
+        ssKernelBuf[bytes_read] = (char)0; // Null-terminate the buffer
         strcat_s(ssKernelCode, MAX_CODE_SIZE, ssKernelBuf);
         ssKernelSize = strlen(ssKernelCode);
-        fclose( fp );
+
+        fclose(fp);
+        fp = NULL;
         free(ssKernelBuf);
 
-        printf_s("Kernel source loaded. Size: %zu bytes.\n", ssKernelSize);
-
-        ssKernelProgram = clCreateProgramWithSource(ctx, 1, (const char**)&ssKernelCode, (const size_t*)&ssKernelSize, &err);
+        ssKernelProgram = clCreateProgramWithSource(ctx, 1, (const char**)&ssKernelCode, &ssKernelSize, &err);
         clErrCheck(err, "clCreateProgramWithSource - Creating OpenCL program from source");
+        // ssKernelCode is managed by OpenCL after clCreateProgramWithSource; free it in the main cleanup.
     } else {
-        printf_s("Using pre-compiled kernel binary.\n");
+        printf_s("Using pre-compiled kernel binary from %s.\n", binary_path);
+        fflush(stdout);
     }
-    printf_s("Building OpenCL Program...\n");    // OpenCL kernel optimization flags for maximum performance
-    // -cl-mad-enable: Enable multiply-add optimizations
+
+    // Common build step for both binary and source loaded programs
+    printf_s("Building OpenCL Program...\n"); 
+    // Construct build options
     snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
     
     err = clBuildProgram(ssKernelProgram, 1, &device, build_options, NULL, NULL);
@@ -596,7 +615,19 @@ int main(int argc, char **argv) {
     cl_long num_seeds_this_dispatch = 0;     // Number of seeds for the kernel dispatch being prepared
     cl_long num_seeds_last_dispatch = 0;     // Number of seeds processed by the completed kernel whose results are being read
     // Print the CSV header for any consuming applications such as the python mvc.
-    printf_s("+Seed,Score,Negative_Jokers");
+    printf_s("+Seed,Score");
+    // For Jokers found naturally negative, whether wanted or not
+    if (config.scoreNaturalNegatives) {
+        printf_s(",(Natural) Negative");
+    }
+    // For Jokers found naturally negative, that were in Needs and/or Wants list!
+    if (config.scoreDesiredNegatives) {
+        printf_s(",(Desired, Natural) Negative");
+    }
+    // For Jokers that are desired, inside Negative Tags active mechanic, especially on Anaglyph Deck
+    if (config.scoreTagSkipNegatives) {
+        printf_s(",(Desired, Skip Tag) Negative");
+    }
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++) {
         printf_s(",");
         // Only add edition for actual jokers (not Tarot/Spectral cards)
