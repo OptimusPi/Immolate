@@ -46,8 +46,6 @@ class MainWindow:
         self.start_time = None  # Ensure this always exists
         self.search_running = False
         self._search_start_time = None
-
-        # Advanced settings variables
         self.thread_groups_var = tk.StringVar()
         self.gpu_batch_var = tk.StringVar()
         self.cutoff_var = tk.StringVar()
@@ -599,20 +597,7 @@ class MainWindow:
                                     font=("m6x11", 16))
         self.run_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Add gear button for advanced settings
-        self.advanced_button = tk.Button(
-            button_frame,
-            text="⚙",
-            command=self.open_advanced_settings_dialog,
-            bg=BLUE,
-            fg=LIGHT_TEXT,
-            font=("m6x11", 16),
-            width=4,
-            takefocus=False,
-            cursor="hand2",
-        )
-        self.advanced_button.pack(side=tk.LEFT, padx=(8, 0), pady=0)
-
+        
     def create_results_section(self):
         """Create results table section with optimized spacing"""
         self.results_frame = tk.LabelFrame(self.bottom_frame,

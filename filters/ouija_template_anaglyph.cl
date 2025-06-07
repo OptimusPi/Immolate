@@ -1,54 +1,10 @@
 #include "lib/ouija.cl"
 
-/*
- * ANAGLYPH DECK STRATEGY FILTER - PERFECTED IMPLEMENTATION
- *
- * Core Anaglyph strategy mechanics:
- * - Negative jokers don't consume joker slots (key strategy)
- * - Negative tag creates N applications (1 + double_tags_accumulated)
- * - Only No_Edition jokers consume negative tag applications
- * - Score wants in both packs AND shops with proper slot management
- * - Track joker slots: 5 base + voucher effects
- * - Showman duplicate rule handling
- * - Anaglyph deck gets +1 double tag per ante
- */
-
-// Helper function to check if we can take a joker
-bool can_take_joker(jokerdata joker, int filledSlots, int jokerSlots,
-                    int *negativeTagApplications) {
-  // Negative edition jokers never consume slots
-  if (joker.edition == Negative) {
-    return true;
-  }
-
-  // If we have negative tag applications and joker is No_Edition, consume one
-  if (*negativeTagApplications > 0 && joker.edition == No_Edition) {
-    (*negativeTagApplications)--;
-    return true; // Doesn't consume physical slot
-  }
-
-  // Otherwise, need physical slot space
-  return filledSlots < jokerSlots;
-}
-
-// Helper function to handle slot consumption for regular jokers
-void consume_slot_if_needed(jokerdata joker, int *filledSlots, int jokerSlots,
-                            int negativeTagApplications) {
-  // Only consume slot if:
-  // 1. Not negative edition
-  // 2. Not using negative tag application (checked in can_take_joker)
-  // 3. Have space
-  if (joker.edition != Negative && negativeTagApplications == 0 &&
-      *filledSlots < jokerSlots) {
-    (*filledSlots)++;
-  }
-}
 
 // Helper function to handle The Soul card processing
 void handle_the_soul(instance *inst, int ante, __constant OuijaConfig *config,
                      __global OuijaResult *result, bool *ScoreNeeds,
-                     int *filledSlots, int jokerSlots, int clampedNumNeeds,
-                     int clampedNumWants, int *negativeTagApplications) {
+                     int clampedNumNeeds, int clampedNumWants) {
   jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
   result->NegativeJokers += (soulJoker.edition == Negative);
 
@@ -65,11 +21,6 @@ void handle_the_soul(instance *inst, int ante, __constant OuijaConfig *config,
                        (config->Needs[x].jokeredition == soulJoker.edition));
     if (soulMatch || jokerMatch) {
       ScoreNeeds[x] = true;
-      // Handle slot consumption for the joker created by Soul
-      if (soulJoker.joker != RETRY) {
-        consume_slot_if_needed(soulJoker, filledSlots, jokerSlots,
-                               *negativeTagApplications);
-      }
     }
   }
 
@@ -81,16 +32,7 @@ void handle_the_soul(instance *inst, int ante, __constant OuijaConfig *config,
                       ((config->Wants[x].jokeredition == No_Edition) ||
                        (config->Wants[x].jokeredition == soulJoker.edition));
     if (soulMatch || jokerMatch) {
-      // Can we take this joker?
-      if (can_take_joker(soulJoker, *filledSlots, jokerSlots,
-                         negativeTagApplications)) {
-        result->ScoreWants[x] += 1;
-        // Consume slot if needed (handles negative tag consumption internally)
-        if (soulJoker.joker != RETRY) {
-          consume_slot_if_needed(soulJoker, filledSlots, jokerSlots,
-                                 *negativeTagApplications);
-        }
-      }
+       result->ScoreWants[x] += 1;
     }
   }
 }
@@ -153,6 +95,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
       }
       // Negative tag gives 1 + totalDoubleTags applications
       negativeTagApplications = 1 + totalDoubleTags;
+    } else {
+      negativeTagApplications = 0; // Reset if not negative tag
     }
 
     // Count double tags
@@ -196,8 +140,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
           if (tarotCards[t] == The_Soul) {
             handle_the_soul(inst, ante, config, result, ScoreNeeds,
-                            &filledSlots, jokerSlots, clampedNumNeeds,
-                            clampedNumWants, &negativeTagApplications);
+                            clampedNumNeeds, clampedNumWants);
           } else {
             // Score needs and wants for tarot cards
             for (int x = 0; x < clampedNumNeeds; x++) {
@@ -222,8 +165,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
           if (spectralCards[t] == The_Soul) {
             handle_the_soul(inst, ante, config, result, ScoreNeeds,
-                            &filledSlots, jokerSlots, clampedNumNeeds,
-                            clampedNumWants, &negativeTagApplications);
+                            clampedNumNeeds, clampedNumWants);
           } else {
             // Score needs and wants for other spectral cards
             for (int x = 0; x < clampedNumNeeds; x++) {
@@ -261,9 +203,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                  (config->Needs[x].jokeredition == buffoonJokers[t].edition));
             if (jokerMatch) {
               ScoreNeeds[x] = true;
-              // Handle slot consumption for needs
-              consume_slot_if_needed(buffoonJokers[t], &filledSlots, jokerSlots,
-                                     negativeTagApplications);
             }
           }
 
@@ -275,15 +214,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                 ((config->Wants[x].jokeredition == No_Edition) ||
                  (config->Wants[x].jokeredition == buffoonJokers[t].edition));
             if (jokerMatch) {
-              // Can we take this joker?
-              if (can_take_joker(buffoonJokers[t], filledSlots, jokerSlots,
-                                 &negativeTagApplications)) {
                 result->ScoreWants[x] += 1;
-                // Consume slot if needed (handles negative tag consumption
-                // internally)
-                consume_slot_if_needed(buffoonJokers[t], &filledSlots,
-                                       jokerSlots, negativeTagApplications);
-              }
             }
           }
         }
@@ -291,7 +222,10 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     }
 
     // Process shop items
-    int shCount = (ante == 1) ? 4 : 8;
+    int shCount = (ante == 1) ? 4 : 6;
+    if (negativeTagApplications > 0) {
+      shCount = 100;
+    }
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
       if (shItem.value == RETRY)
@@ -313,15 +247,11 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             (config->Needs[x].value == shItem.joker.joker) &&
             ((config->Needs[x].jokeredition == No_Edition) ||
              (config->Needs[x].jokeredition == shItem.joker.edition));
-        bool regularMatch = (config->Needs[x].value == shItem.value);
+        bool regularMatch = (config->Needs[x].value == shItem.value) &&
+                            (shItem.type != ItemType_Joker);
 
         if (jokerMatch || regularMatch) {
           ScoreNeeds[x] = true;
-          // Handle slot consumption for needs
-          if (shItem.type == ItemType_Joker) {
-            consume_slot_if_needed(shItem.joker, &filledSlots, jokerSlots,
-                                   negativeTagApplications);
-          }
         }
       }
 
@@ -333,27 +263,19 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             (config->Wants[x].value == shItem.joker.joker) &&
             ((config->Wants[x].jokeredition == No_Edition) ||
              (config->Wants[x].jokeredition == shItem.joker.edition));
-        bool regularMatch = (config->Wants[x].value == shItem.value);
+        bool regularMatch = (config->Wants[x].value == shItem.value) &&
+                            (shItem.type != ItemType_Joker);
 
-        if (jokerMatch || regularMatch) {
+        if (regularMatch) {
+          // Regular items always get scored
+          result->ScoreWants[x] += 1;
+        } else if (jokerMatch) {
           // Check Showman duplicate rule
           bool showmanAllows =
               (result->ScoreWants[x] == 0) || inst->params.showman;
 
           if (showmanAllows) {
-            // For jokers, check if we can take them
-            if (shItem.type == ItemType_Joker) {
-              if (can_take_joker(shItem.joker, filledSlots, jokerSlots,
-                                 &negativeTagApplications)) {
-                result->ScoreWants[x] += 1;
-                // Consume slot if needed
-                consume_slot_if_needed(shItem.joker, &filledSlots, jokerSlots,
-                                       negativeTagApplications);
-              }
-            } else {
-              // Non-joker items always get scored
-              result->ScoreWants[x] += 1;
-            }
+            result->ScoreWants[x] += 1;
           }
         }
       }

@@ -13,6 +13,47 @@ from tkinter import messagebox
 class ApplicationController:
     """Controller class to coordinate between models and views"""
 
+    def _on_search_results(self, header_columns, result_rows):
+        """Callback for when search results are available (signals to refresh from DB)"""
+        if self.current_view:
+            # Cancel any pending update
+            if self.update_timer_id:
+                self.current_view.root.after_cancel(self.update_timer_id)
+            # Schedule a new update (which will now just call refresh_results)
+            self.update_timer_id = self.current_view.root.after(
+                self.update_debounce_ms, self._process_pending_results)
+
+    def _process_pending_results(self):
+        """Process and refresh results in the UI."""
+        self.refresh_results()
+
+    def _on_console_output(self, line):
+        """Callback for when there's output to the console"""
+        if self.current_view:
+            if isinstance(line, str) and line.startswith("STATUS:"):
+                status_text = line[len("STATUS:"):].strip()
+                import re
+                # If the line contains a stopwatch emoji and a speed, extract and send to set_metrics
+                metrics_match = re.search(r"(⏱️ ?[\d\.]+[KMG]?/s)", status_text)
+                if metrics_match:
+                    self.current_view.set_metrics(metrics_match.group(1))
+                    # Remove the metrics part from the status text (if there's more left, show it as status)
+                    status_text_clean = status_text.replace(metrics_match.group(1), '').strip()
+                    if status_text_clean:
+                        self.current_view.set_status(status_text_clean)
+                else:
+                    self.current_view.set_status(status_text)
+            else:
+                self.current_view.write_to_console(line)
+
+    def _on_search_completed(self):
+        """Callback for when a search process completes"""
+        if self.current_view:
+            self.current_view.write_to_console("--- Search Complete ---\n")
+            # Only set button to inactive if not in a fun search batch
+            if not self.fun_search_active:
+                self.current_view.set_search_running(False)
+
     def __init__(self, config_model, search_model, database_model):
         """Initialize controller with models"""
         self.config_model = config_model
@@ -32,14 +73,16 @@ class ApplicationController:
             console_callback=self._on_console_output,
             process_finished_callback=self._on_search_completed,
         )
+        
         # Initialize state for Funny List search mode
         self.funny_list_active = False
         self.funny_list_words = []
         self.current_funny_list_index = 0
         self.current_config_path_for_search = None
-        self.prank_search_active = False
-        self.prank_search_processes = []
-        self.prank_search_stop_requested = False
+        # Remove prank search variables, use fun search only
+        self.fun_search_active = False
+        self.fun_search_processes = []
+        self.fun_search_stop_requested = False
 
         # Fun search state variables
         self.fun_search_category = None
@@ -160,7 +203,7 @@ class ApplicationController:
     # Search management
     def run_search(self):
         """Start the search process"""
-        if self.search_model.has_active_searches() or self.prank_search_active:
+        if self.search_model.has_active_searches() or self.fun_search_active:
             # If a search is running, the button acts as a stop button
             self.stop_search()
             return
@@ -202,251 +245,200 @@ class ApplicationController:
         return success
 
     def stop_search(self):
-        """Stop all active search processes"""
-        try:
-            success = self.search_model.stop_all_searches()
+        """Stop the currently active search process"""
+        if self.fun_search_active:
+            self.stop_fun_search()
+            return
+        if self.search_model.has_active_searches():
+            self.search_model.stop_all_searches()
             if self.current_view:
-                if success:
-                    self.current_view.set_search_running(False)
-                    self.current_view.set_status("Search stopped.")
-                else:
-                    self.current_view.set_status("Failed to stop search.")
-            return success
-        except Exception as e:
+                self.current_view.set_status("Search stopped by user.")
+                self.current_view.set_search_running(False)
+        self.funny_list_active = False
+
+    def run_fun_seed_search(self, category="NSFW"):
+        """Run the fun seed search feature for a specific category with all padding levels
+        
+        Args:
+            category: Category of fun seeds to search for ("LOL", "GROSS", "NSFW", "COOL")
+        
+        Returns:
+            bool: True if search started successfully, False otherwise
+        """
+        if self.fun_search_active:
+            self.stop_fun_search()
+            # Wait for the stop to complete before starting a new search
+            def start_after_stop():
+                if self.search_model.has_active_searches():
+                    # Poll until all searches are stopped
+                    if self.current_view:
+                        self.current_view.root.after(100, start_after_stop)
+                    return
+                # Now start the new fun search
+                self._start_fun_seed_search(category)
             if self.current_view:
-                self.current_view.set_status(
-                    f"Error stopping search: {str(e)}")
+                self.current_view.root.after(100, start_after_stop)
+            return True
+        else:
+            return self._start_fun_seed_search(category)
+
+    def _start_fun_seed_search(self, category):
+        fun_word_lists = {
+            "LOL": [
+                "LMAO", "ROFL", "HAHA", "JOKE", "MEME", "EPIC", "FAIL", "DERP",
+                "NOOB", "YOLO", "SWAG", "REKT", "TROLL", "PLEB", "KEKS", "LULZ"
+            ],
+            "GROSS": [
+                "FART", "BURP", "SNOT", "POOP", "SLIME", "YUCK", "EWWW", "SICK",
+                "VOMIT", "GUNK", "CRUD", "MOLD", "GRIME", "BILE", "DROOL", "SCUM"
+            ],
+            "NSFW": [
+                "SEXY", "BOOB", "BUTT", "DAMN", "HELL", "SUCK", "BEER", "WINE",
+                "SHOT", "BLOW", "DRUG", "WEED", "HIGH", "DOPE", "ACID", "BUZZ"
+            ],
+            "COOL": [
+                "FIRE", "DOPE", "SICK", "EPIC", "RAGE", "WILD", "BOSS", "HERO",
+                "STAR", "GOLD", "RICH", "FAST", "MEGA", "HUGE", "ROCK", "KING"
+            ]
+        }
+        if category not in fun_word_lists:
+            if self.current_view:
+                messagebox.showerror("Error", f"Unknown category: {category}")
             return False
-
-    def _on_search_results(
-            self, header_columns,
-            result_rows):  # header_columns and result_rows are now None
-        """Callback for when search results are available (signals to refresh from DB)"""
-        if self.current_view:
-            # Cancel any pending update
-            if self.update_timer_id:
-                self.current_view.root.after_cancel(self.update_timer_id)
-
-            # Schedule a new update (which will now just call refresh_results)
-            self.update_timer_id = self.current_view.root.after(
-                self.update_debounce_ms, self._process_pending_results)
-
-    def _process_pending_results(self):
-        """Process pending results after debounce period (now just refreshes from DB)"""
-        # Reset the timer ID
-        self.update_timer_id = None
-
-        # Refresh results directly from the database
-        self.refresh_results()
-
-        # Clear any potentially lingering pending results (though they shouldn't be set anymore)
-        self.pending_results = None
-        self.pending_headers = None
-
-    def _on_console_output(self, line):
-        """Callback for when there's output to the console"""
-        if self.current_view:
-            # Check if this is a status message
-            if line.startswith("STATUS:"):
-                # Extract the status message and set it in the status bar
-                status_message = line[7:].strip()  # Remove "STATUS:" prefix
-
-                # Format time display - convert seconds to days, hours, minutes, seconds
-                import re
-
-                def format_time(match):
-                    seconds = float(match.group(1))
-                    days, remainder = divmod(seconds,
-                                             86400)  # 86400 seconds in a day
-                    hours, remainder = divmod(remainder, 3600)
-                    minutes, seconds = divmod(remainder, 60)
-
-                    if days > 0:
-                        return f"{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s"
-                    elif hours > 0:
-                        return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-                    elif minutes > 0:
-                        return f"{int(minutes)}m {int(seconds)}s"
-                    else:
-                        return f"{int(seconds)}s"
-                    # Replace time values in both elapsed and remaining time sections
-
-                status_message = re.sub(
-                    r"Elapsed time: (\d+\.\d+) seconds",
-                    lambda m: f"Elapsed time: {format_time(m)}",
-                    status_message,
-                )
-                status_message = re.sub(
-                    r"Estimated remaining time: (\d+\.\d+) seconds",
-                    lambda m: f"Estimated remaining time: {format_time(m)}",
-                    status_message,
-                )
-
-                # Check if this is a metrics message (contains clock emoji)
-                if "⏱️" in status_message:
-                    # Split into two parts: status and metrics
-                    parts = status_message.split("⏱️")
-                    if len(parts) == 2:
-                        # Set the main status as the first part
-                        self.current_view.set_status(parts[0].strip())
-                        # Set the metrics as the second part with the clock emoji
-                        self.current_view.set_metrics(f"⏱️{parts[1].strip()}")
-                    else:
-                        self.current_view.set_status(status_message)
-                else:
-                    # Regular status message
-                    self.current_view.set_status(status_message)
-            else:
-                # Regular console output
-                self.current_view.write_to_console(line)
-
-    def _on_search_completed(self):
-        """Callback for when a search process completes"""
-        try:
-            if self.prank_search_active:
-                # Check if this is a fun search (has fun_search_category) or regular prank search
-                if hasattr(self, 'fun_search_category') and self.fun_search_category:
-                    # Fun search mode - handle sequential word/padding combinations
-                    if (self.fun_search_current_word_index
-                            < len(self.fun_search_words)):
-                        word = self.fun_search_words[
-                            self.fun_search_current_word_index]
-                        padding = self.fun_search_padding_levels[
-                            self.fun_search_current_padding_index]
-                        if self.current_view:
-                            self.current_view.write_to_console(
-                                f"    ✅ Completed: {word} (padding {padding})\n"
-                            )
-                    # Advance to next search
-                    self._advance_fun_search_indices()
-
-                    # Check if we're done with all combinations
-                    if self.fun_search_current_word_index >= len(
-                            self.fun_search_words):
-                        # Fun search fully complete
-                        self.prank_search_active = False
-                        self.fun_search_category = None  # Clear the flag
-                        self._stop_auto_refresh(
-                        )  # Stop auto-refresh when done
-                        if self.current_view:
-                            self.current_view.write_to_console(
-                                "🎉 All fun searches complete! Check your results! 🎉\n"
-                            )
-                            self.current_view.set_search_running(False)
-                        self.refresh_results()
-                    else:
-                        # More combinations to search - continue
-                        self._run_next_fun_search()
-                else:
-                    # Fun search mode - handle the next word in the current sequence
-                    if (self.fun_search_current_word_index
-                            < len(self.fun_search_words)):
-                        word = self.fun_search_words[
-                            self.fun_search_current_word_index]
-                        if self.current_view and word:
-                            self.current_view.write_to_console(
-                                f"    ✅ Completed: {word}\n")
-
-                    # Continue with next search in sequence
-                    self._run_next_fun_search()
-
-                    # Check if we've completed all searches in the category
-                    if (self.fun_search_current_word_index >= len(
-                            self.fun_search_words)
-                            and self.fun_search_current_padding_index >= len(
-                                self.fun_search_padding_levels)):
-                        # Fun search fully complete - reset search state
-                        self.prank_search_active = False
-                        if self.current_view:
-                            self.current_view.write_to_console(
-                                f"🎉 All {self.fun_search_category} searches complete! Check your results! 🎉\n"
-                            )
-                            self.current_view.set_search_running(False)
-                        self.refresh_results()
-                        self._stop_auto_refresh()
-                    else:
-                        # More words to search - continue
-                        self._run_next_prank_search()
-            else:
-                # Normal search completion handling
-                self.refresh_results()
-                if self.current_view:
-                    self.current_view.write_to_console(
-                        "--- Search Complete ---\n")
-                    self.current_view.set_search_running(False)
-        except Exception as e:
-            # Log the error but don't crash the UI
+        if self.search_model.has_active_searches():
             if self.current_view:
-                self.current_view.write_to_console(
-                    f"⚠️ Error in search completion: {e}\n")
-            print(f"Error in _on_search_completed: {e}")
-            # Reset prank search state to prevent further issues
-            self.prank_search_active = False
-            if hasattr(self, 'fun_search_category'):
-                self.fun_search_category = None
+                messagebox.showwarning(
+                    "Search Active",
+                    "Please stop the current search before starting a fun seed search.",
+                )
+            return False
+        config_path = self.config_model.get_command_config_path()
+        if not config_path:
+            if self.current_view:
+                messagebox.showerror(
+                    "Error", "Failed to prepare configuration for fun seed search."
+                )
+            return False
+        padding_levels = [1, 2, 3, 4]
+        
+        word_count = len(fun_word_lists[category])
+        total_searches = word_count * len(padding_levels)
+        self.current_view.write_to_console(f"🎉 Starting {category} seed search!\n")
+        self.current_view.write_to_console("=" * 50 + "\n")
+        self.current_view.write_to_console(f"Category: {category}\n")
+        self.current_view.write_to_console(f"Words: {word_count}\n")
+        self.current_view.write_to_console(f"Padding levels: {len(padding_levels)} (1, 11, 111, 1111)\n")
+        self.current_view.write_to_console(f"Total searches: {total_searches}\n")
+        self.current_view.write_to_console("=" * 50 + "\n")
+        self.current_view.set_search_running(True)  # Always set STOP SEARCH at start
+        self.fun_search_active = True
+        self.fun_search_category = category
+        self.fun_search_words = fun_word_lists[category]
+        self.fun_search_padding_levels = padding_levels
+        self.fun_search_current_word_index = 0
+        self.fun_search_current_padding_index = 0
+        self.fun_search_position_index = 0  # Always reset position index at start
+        self._run_next_fun_search()
+        return True
+
+    def stop_fun_search(self):
+        """Stop the active fun search"""
+        if not self.fun_search_active:
+            return False
+        self.fun_search_active = False
+        self.fun_search_stop_requested = True
+        if self.search_model.has_active_searches():
+            self.search_model.stop_all_searches()
+            if self.current_view:
+                self.current_view.write_to_console("🛑 Fun seed search stopped by user.\n")
+                self.current_view.set_status("Search stopped by user.")
+                self.current_view.set_search_running(False)  # Set Let Jimbo Cook at end only
+        else:
             if self.current_view:
                 self.current_view.set_search_running(False)
-
-    # User preference methods
-    def get_setting(self, key, default=None):
-        """Get a user setting value"""
-        # Map settings to config_model properties
-        settings_map = {
-            "thread_groups": "thread_groups",
-            "starting_seed": "starting_seed",
-            "number_of_seeds": "number_of_seeds",
-            "deck": "deck",
-            "stake": "stake",
-            "cutoff": "cutoff",
-            "gpu_batch": "gpu_batch",
-            "template": "template"
-        }
-
-        if key in settings_map:
-            return getattr(self.config_model, settings_map[key], default)
-        return default
-
-    def set_setting(self, key, value):
-        """Set a user setting value"""
-        # Map settings to config_model properties
-        settings_map = {
-            "thread_groups": "thread_groups",
-            "starting_seed": "starting_seed",
-            "number_of_seeds": "number_of_seeds",
-            "deck": "deck",
-            "stake": "stake",
-            "cutoff": "cutoff",
-            "gpu_batch": "gpu_batch",
-            "template": "template"
-        }
-
-        if key in settings_map:
-            setattr(self.config_model, settings_map[key], value)
-            self.config_model.config_modified = True
-            self.config_model.save_user_conf()
-            return True
-        return False
-
-    # Clean up resources
-    def cleanup(self):
-        """Clean up resources before application exit"""
-        # Stop any active searches
-        self.search_model.stop_all_searches()
-
-        # Close database connections
-        self.database_model.close()
-
-        # Save user preferences
-        self.config_model.save_user_conf()
-
-        # Cancel any pending updates
-        if self.update_timer_id and self.current_view:
-            self.current_view.root.after_cancel(self.update_timer_id)
-
-        # Stop auto-refresh if running
-        self._stop_auto_refresh()
-
         return True
+
+    def _run_next_fun_search(self):
+        """Run the next word/padding combo in the fun search sequence, strictly sequentially (never in parallel), and try all left-padded positions."""
+        if not self.fun_search_active or self.fun_search_stop_requested:
+            self.fun_search_active = False
+            self.fun_search_stop_requested = False
+            if self.current_view:
+                self.current_view.set_search_running(False)
+                self.current_view.set_status("Fun seed search stopped or complete.")
+            return
+        words = self.fun_search_words
+        paddings = self.fun_search_padding_levels
+        widx = self.fun_search_current_word_index
+        pidx = self.fun_search_current_padding_index
+        # New: try all left-padded positions for each word/padding
+        if not hasattr(self, 'fun_search_position_index'):
+            self.fun_search_position_index = 0
+        positions = []
+        padding = paddings[pidx]
+        word = words[widx]
+        word_len = len(word)
+        total_len = word_len + padding
+        for i in range(0, total_len - word_len):
+            if total_len - (i + word_len) > 0:
+                positions.append(i)
+        if 0 not in positions:
+            positions.insert(0, 0)
+        positions = sorted(set(positions))
+        if self.fun_search_position_index >= len(positions):
+            self.fun_search_position_index = 0
+            self.fun_search_current_padding_index += 1
+            if self.fun_search_current_padding_index >= len(paddings):
+                self.fun_search_current_padding_index = 0
+                self.fun_search_current_word_index += 1
+            self._run_next_fun_search()
+            return
+        pos = positions[self.fun_search_position_index]
+        left_pad = "1" * pos
+        right_pad = "1" * (total_len - pos - word_len)
+        start_seed = f"{left_pad}{word}{right_pad}"
+        num_seeds = 35 ** (total_len - len(word))
+        if right_pad == "":
+            self.fun_search_position_index += 1
+            self._run_next_fun_search()
+            return
+        if self.current_view:
+            # Do NOT set_search_running(True) here; only set at start of batch
+            progress = ((widx * len(paddings) * len(positions) + pidx * len(positions) + self.fun_search_position_index + 1) /
+                        (len(words) * len(paddings) * len(positions))) * 100
+            self.current_view.write_to_console(
+                f"\n🎯 [{widx * len(paddings) * len(positions) + pidx * len(positions) + self.fun_search_position_index + 1}/"
+                f"{len(words) * len(paddings) * len(positions)}] ({progress:.1f}%) Searching '{start_seed}' (word='{word}', padding={padding}, pos={pos})...\n"
+            )
+            self.current_view.write_to_console(
+                f"    Starting seed: {start_seed} (will search {num_seeds:,} seeds)\n"
+            )
+        def after_search():
+            self.fun_search_position_index += 1
+            self._run_next_fun_search()
+        def poll():
+            while self.search_model.has_active_searches():
+                time.sleep(0.2)
+            if self.fun_search_active and not self.fun_search_stop_requested:
+                # Do NOT set_search_running(True) here; only set at start of batch
+                if self.current_view:
+                    self.current_view.root.after(100, after_search)
+        success = self.search_model.start_search(
+            config_path=self.config_model.get_command_config_path(),
+            starting_seed=start_seed,
+            thread_groups=self.get_setting("thread_groups"),
+            number_of_seeds=num_seeds,
+            db_model=self.database_model,
+            cutoff=self.get_setting("cutoff"),
+            gpu_batch=self.get_setting("gpu_batch"),
+            template=self.get_setting("template"),
+        )
+        if not success and self.current_view:
+            self.current_view.write_to_console(f"    ❌ Failed to start search for {start_seed}\n")
+            self.fun_search_position_index += 1
+            self._run_next_fun_search()
+            return
+        threading.Thread(target=poll, daemon=True).start()
 
     def refresh_results(self):
         """Refresh results from the database"""
@@ -528,147 +520,15 @@ class ApplicationController:
             print(f"Error getting export info: {e}")
             return {"total_rows": 0, "columns": []}
 
-    def run_fun_seed_search(self, category):
-        """Run a fun seed search for a specific category
-        
-        Args:
-            category: Category of fun seeds to search for ("LOL", "GROSS", "NSFW", "COOL")
-            
-        Returns:
-            bool: True if search started successfully, False otherwise
-        """        
-        
-        try:  # Define word lists for each category
-            fun_words = {
-                "LOL": ["LMAO", "ROFL", "HAHA", "JOKE", "MEME", "EPIC", "FAIL", "DERP", "NOOB", "YOLO", "SWAG", "REKT", "TROLL", "PLEB", "KEKS", "LULZ"],
-                "GROSS": ["FART", "BURP", "SNOT", "POOP", "SLIME", "YUCK", "EWWW", "SICK", "VOMIT", "GUNK", "CRUD", "MOLD", "GRIME", "BILE", "DROOL", "SCUM"],
-                "NSFW": ["SEXY", "BOOB", "BUTT", "DAMN", "HELL", "SUCK", "BEER", "WINE", "SHOT", "BLOW", "DRUG", "WEED", "HIGH", "DOPE", "ACID", "BUZZ"],
-                "COOL": ["FIRE", "DOPE", "SICK", "EPIC", "RAGE", "WILD", "BOSS", "HERO", "STAR", "GOLD", "RICH", "FAST", "MEGA", "HUGE", "ROCK", "KING"]
-            }
+    def get_setting(self, key, default=None):
+        """Get a setting from the config model, with optional default."""
+        return self.config_model.get_setting(key, default)
 
-            if category not in fun_words:
-                if self.current_view:
-                    messagebox.showerror(
-                        "Error", f"Unknown fun search category: {category}")
-                return False
+    def set_setting(self, key, value):
+        """Set a setting in the config model."""
+        return self.config_model.set_setting(key, value)
 
-            # Check if a search is already running
-            if self.search_model.has_active_searches(
-            ) or self.prank_search_active:
-                if self.current_view:
-                    messagebox.showwarning(
-                        "Warning",
-                        "A search is already running. Please stop it first.")
-                return False
-
-            # Set up fun search state
-            self.fun_search_category = category
-            self.fun_search_words = fun_words[category]
-            self.fun_search_padding_levels = [0, 1, 2,
-                                              3]  # Different padding levels
-            self.fun_search_current_word_index = 0
-            self.fun_search_current_padding_index = 0
-            self.prank_search_active = True
-
-            if self.current_view:
-                self.current_view.write_to_console(
-                    f"🎭 Starting {category} fun seed search!\n")
-                self.current_view.write_to_console(
-                    f"Searching for: {', '.join(self.fun_search_words)}\n")
-                self.current_view.set_search_running(True)
-
-            # Start the auto-refresh mechanism for live updates
-            self._start_auto_refresh()
-
-            # Start the first search
-            return self._run_next_fun_search()
-
-        except Exception as e:
-            if self.current_view:
-                messagebox.showerror("Error",
-                                     f"Failed to start fun search: {e}")
-            return False
-
-    def _run_next_fun_search(self):
-        """Run the next combination in the fun search sequence"""
-        try:
-            if (self.fun_search_current_word_index
-                    >= len(self.fun_search_words)):
-                return False
-
-            word = self.fun_search_words[self.fun_search_current_word_index]
-            padding = self.fun_search_padding_levels[
-                self.fun_search_current_padding_index]
-
-            # Create search term with padding
-            if padding == 0:
-                search_term = word
-            else:
-                search_term = word + "0" * padding
-
-            if self.current_view:
-                self.current_view.write_to_console(
-                    f"    🔍 Searching: {search_term}\n")
-
-            # Get config path and start search
-            config_path = self.config_model.get_command_config_path()
-            if not config_path:
-                return False            # Ensure database connection
-            self.database_model.connect(config_path)
-            
-            # Start search with the fun search term
-            success = self.search_model.start_search(
-                config_path=config_path,
-                starting_seed=search_term,  # Use the fun word as starting seed
-                thread_groups=self.get_setting("thread_groups"),
-                number_of_seeds=self.get_setting("number_of_seeds"),  # Use UI-specified seed count (FIXED!)
-                db_model=self.database_model,
-                cutoff=self.get_setting("cutoff"),
-                gpu_batch=self.get_setting("gpu_batch"),
-                template=self.get_setting("template"),
-            )
-
-            return success
-
-        except Exception as e:
-            if self.current_view:
-                self.current_view.write_to_console(
-                    f"❌ Error in fun search: {e}\n")
-            return False
-
-    def _advance_fun_search_indices(self):
-        """Advance to the next word/padding combination"""
-        self.fun_search_current_padding_index += 1
-
-        # If we've tried all padding levels for this word, move to next word
-        if self.fun_search_current_padding_index >= len(
-                self.fun_search_padding_levels):
-            self.fun_search_current_padding_index = 0
-            self.fun_search_current_word_index += 1
-
-    def _start_auto_refresh(self):
-        """Start the auto-refresh timer for fun seed searches"""
-        if self.current_view and not self.auto_refresh_timer_id:
-            self.auto_refresh_timer_id = self.current_view.root.after(
-                self.auto_refresh_interval_ms, self._auto_refresh_callback)
-
-    def _auto_refresh_callback(self):
-        """Auto-refresh callback - refreshes results and schedules next refresh"""
-        self.auto_refresh_timer_id = None
-
-        # Only continue if fun search is active
-        if self.prank_search_active and hasattr(
-                self, 'fun_search_category') and self.fun_search_category:
-            # Refresh the results table
-            self.refresh_results()
-
-            # Schedule the next refresh
-            if self.current_view:
-                self.auto_refresh_timer_id = self.current_view.root.after(
-                    self.auto_refresh_interval_ms, self._auto_refresh_callback)
-
-    def _stop_auto_refresh(self):
-        """Stop the auto-refresh timer"""
-        if self.auto_refresh_timer_id and self.current_view:
-            self.current_view.root.after_cancel(self.auto_refresh_timer_id)
-            self.auto_refresh_timer_id = None
+    def cleanup(self):
+        """Perform any cleanup needed before closing the app."""
+        self.config_model.save_user_conf()
+        self.stop_search()

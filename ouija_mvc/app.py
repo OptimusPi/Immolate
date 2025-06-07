@@ -33,7 +33,7 @@ def main():
     # Initialize the root window
     root = tk.Tk()
     root.title("Ouija - Balatro Seed Finder")
-    root.geometry("1200x720")
+    root.geometry("1200x800")
     root.configure(bg="#394D53")
     
     # Initialize models
