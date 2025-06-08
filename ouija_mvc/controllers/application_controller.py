@@ -50,6 +50,9 @@ class ApplicationController:
 
         self.build_running = False  # Track if a build is running
 
+        # Set up callback for database table reset to refresh UI
+        self.database_model.on_results_table_reset = self.refresh_results
+
     def register_view(self, view):
         """Register the main view for callbacks"""
         self.current_view = view
@@ -322,12 +325,9 @@ class ApplicationController:
                             < len(self.fun_search_words)):
                         word = self.fun_search_words[
                             self.fun_search_current_word_index]
-                        padding = self.fun_search_padding_levels[
-                            self.fun_search_current_padding_index]
-                        if self.current_view:
+                        if self.current_view and word:
                             self.current_view.write_to_console(
-                                f"    ✅ Completed: {word} (padding {padding})\n"
-                            )
+                                f"    ✅ Completed: {word}\n")
                             self.current_view.refresh_results_table()  # Force table refresh after each fun search
                     # Advance to next search
                     self._advance_fun_search_indices()
@@ -560,8 +560,7 @@ class ApplicationController:
         Returns:
             bool: True if search started successfully, False otherwise
         """        
-        
-        try:  # Define word lists for each category
+        try:
             fun_words = {
                 "LOL": ["LMAO", "ROFL", "HAHA", "JOKE", "MEME", "EPIC", "FAIL", "DERP", "NOOB", "YOLO", "SWAG", "REKT", "TROLL", "PLEB", "KEKS", "LULZ"],
                 "GROSS": ["FART", "BURP", "SNOT", "POOP", "SLIME", "YUCK", "EWWW", "SICK", "VOMIT", "GUNK", "CRUD", "MOLD", "GRIME", "BILE", "DROOL", "SCUM"],
@@ -575,37 +574,41 @@ class ApplicationController:
                         "Error", f"Unknown fun search category: {category}")
                 return False
 
-            # Check if a search is already running
-            if self.search_model.has_active_searches(
-            ) or self.prank_search_active:
+            if self.search_model.has_active_searches() or self.prank_search_active:
                 if self.current_view:
                     messagebox.showwarning(
                         "Warning",
                         "A search is already running. Please stop it first.")
                 return False
 
-            # Set up fun search state
+            # Generate all valid seeds for each word with all possible left/right/distributed '1' paddings, for lengths from len(word)+1 to 8
+            fun_seeds = []  # List of (seed, right_pad_count)
+            for word in fun_words[category]:
+                max_pad = 8 - len(word)
+                if max_pad < 1:
+                    continue  # skip words too long
+                # For each possible total padding (from 1 to max_pad), always require at least 1 right pad
+                for total_pad in range(1, max_pad + 1):
+                    for left in range(0, total_pad):
+                        right = total_pad - left
+                        if right < 1:
+                            continue  # must have at least one right pad
+                        seed = ("1" * left) + word + ("1" * right)
+                        if len(seed) <= 8:
+                            fun_seeds.append((seed, right))
+            # Remove duplicates (some seeds may be generated twice)
+            fun_seeds = list(dict.fromkeys(fun_seeds))
+
             self.fun_search_category = category
-            self.fun_search_words = fun_words[category]
-            self.fun_search_padding_levels = [0, 1, 2,
-                                              3]  # Different padding levels
+            self.fun_search_words = fun_seeds  # Now a list of (seed, right_pad_count)
             self.fun_search_current_word_index = 0
-            self.fun_search_current_padding_index = 0
             self.prank_search_active = True
 
             if self.current_view:
                 self.current_view.write_to_console(
                     f"🎭 Starting {category} fun seed search!\n")
-                self.current_view.write_to_console(
-                    f"Searching for: {', '.join(self.fun_search_words)}\n")
                 self.current_view.set_search_running(True)
-
-            # Start the auto-refresh mechanism for live updates
-            self._start_auto_refresh()
-
-            # Start the first search
             return self._run_next_fun_search()
-
         except Exception as e:
             if self.current_view:
                 messagebox.showerror("Error",
@@ -613,75 +616,38 @@ class ApplicationController:
             return False
 
     def _run_next_fun_search(self):
-        """Run the next combination in the fun search sequence, with correct -n for fun seeds"""
         try:
-            if (self.fun_search_current_word_index
-                    >= len(self.fun_search_words)):
+            if self.fun_search_current_word_index >= len(self.fun_search_words):
                 return False
-
-            word = self.fun_search_words[self.fun_search_current_word_index]
-            padding = self.fun_search_padding_levels[
-                self.fun_search_current_padding_index]
-
-            # Create search term with padding
-            if padding == 0:
-                search_term = word
-            else:
-                search_term = word + "1" * padding
-
-            # Calculate the correct -n value for the search term
-            # Each character after the base word is a wildcard (35 possibilities)
-            # e.g. SEXY1: 35, SEXY11: 35*35, SEXY111: 35*35*35, etc.
-            base_len = len(word)
-            total_len = len(search_term)
-            wildcard_count = total_len - base_len
-            n_value = 35 ** wildcard_count if wildcard_count > 0 else 35
-
+            search_term, right_pad_count = self.fun_search_words[self.fun_search_current_word_index]
+            # Set n_value based on right_pad_count (number of rightmost '1's)
+            n_value = 35 ** right_pad_count if right_pad_count > 0 else 35
             if self.current_view:
                 self.current_view.write_to_console(
                     f"    🔍 Searching: {search_term} (n={n_value})\n")
-
-            # Get config path and start search
             config_path = self.config_model.get_command_config_path()
             if not config_path:
-                return False            # Ensure database connection
+                return False
             self.database_model.connect(config_path)
-            
-            # Start search with the fun search term and correct -n
             success = self.search_model.start_search(
                 config_path=config_path,
-                starting_seed=search_term,  # Use the fun word as starting seed
+                starting_seed=search_term,
                 thread_groups=self.get_setting("thread_groups"),
-                number_of_seeds=n_value,  # Force correct -n for fun search
+                number_of_seeds=n_value,
                 db_model=self.database_model,
                 cutoff=self.get_setting("cutoff"),
                 gpu_batch=self.get_setting("gpu_batch"),
                 template=self.get_setting("template"),
             )
-
             return success
-
         except Exception as e:
             if self.current_view:
                 self.current_view.write_to_console(
                     f"❌ Error in fun search: {e}\n")
-            return False    
-    
+            return False
+
     def _advance_fun_search_indices(self):
-        """Advance to the next word/padding combination"""
-        self.fun_search_current_padding_index += 1
-
-        # If we've tried all padding levels for this word, move to next word
-        if self.fun_search_current_padding_index >= len(
-                self.fun_search_padding_levels):
-            self.fun_search_current_padding_index = 0
-            self.fun_search_current_word_index += 1
-
-    def _start_auto_refresh(self):
-        """Start the auto-refresh timer for fun seed searches"""
-        if self.current_view and not self.auto_refresh_timer_id:
-            self.auto_refresh_timer_id = self.current_view.root.after(
-                self.auto_refresh_interval_ms, self._auto_refresh_callback)
+        self.fun_search_current_word_index += 1
 
     def _stop_auto_refresh(self):
         """Stop the auto-refresh timer"""

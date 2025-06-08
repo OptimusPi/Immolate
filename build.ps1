@@ -155,17 +155,22 @@ try {
 
 # After all build and optional pre-compilation steps,
 # ensure Ouija.exe is copied to the root directory if the build was successful.
-$FinalSourceExe = Join-Path $BuildDir "Release\\Ouija.exe" # $BuildDir is $PSScriptRoot\\build
+$FinalSourceExe = Join-Path $BuildDir "Release\Ouija.exe" # $BuildDir is $PSScriptRoot\build
 $FinalDestinationExe = Join-Path $ScriptDir "Ouija.exe"   # $ScriptDir is $PSScriptRoot
 
-if (Test-Path $FinalSourceExe) {
-    Write-Host "Copying $FinalSourceExe to $FinalDestinationExe as final step..." -ForegroundColor Green
-    Copy-Item -Path $FinalSourceExe -Destination $FinalDestinationExe -Force
-    Write-Host "Ouija.exe finalized in root directory: $FinalDestinationExe" -ForegroundColor Green
+# Only copy if not already present (from precompilation), or if missing
+if (-not (Test-Path $FinalDestinationExe)) {
+    if (Test-Path $FinalSourceExe) {
+        Write-Host "Copying $FinalSourceExe to $FinalDestinationExe as final step..." -ForegroundColor Green
+        Copy-Item -Path $FinalSourceExe -Destination $FinalDestinationExe -Force
+        Write-Host "Ouija.exe finalized in root directory: $FinalDestinationExe" -ForegroundColor Green
+    } else {
+        # This condition implies the build might have failed to produce the executable,
+        # though cmake --build errors should have stopped the script earlier.
+        Write-Warning "Build output $FinalSourceExe not found after build process. Cannot copy to root directory."
+    }
 } else {
-    # This condition implies the build might have failed to produce the executable,
-    # though cmake --build errors should have stopped the script earlier.
-    Write-Warning "Build output $FinalSourceExe not found after build process. Cannot copy to root directory."
+    Write-Host "Ouija.exe already present in root directory, skipping redundant copy." -ForegroundColor Yellow
 }
 
 Write-Host "Build script finished."

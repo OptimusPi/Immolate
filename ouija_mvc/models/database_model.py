@@ -22,6 +22,7 @@ class DatabaseModel:
         self.current_db_path = None
         self.conn = None
         self.header_columns = None
+        self.on_results_table_reset = None  # Callback for UI refresh after table reset
 
         # Ensure database directory exists
         os.makedirs(self.DB_DIR, exist_ok=True)
@@ -100,14 +101,14 @@ class DatabaseModel:
         if not self.conn:
             return False
         try:
+            table_was_created = False
             if not self.table_exists():
                 try:
                     self.conn.execute(
                         """
                         CREATE TABLE results (
                             Seed TEXT PRIMARY KEY,
-                            Score INTEGER,
-                            Negative_Jokers INTEGER
+                            Score INTEGER
                         )
                         """
                     )
@@ -115,11 +116,17 @@ class DatabaseModel:
                     self.conn.execute(
                         'CREATE INDEX IF NOT EXISTS idx_score ON results ("Score");'
                     )
+                    self.conn.execute(
+                        'CREATE INDEX IF NOT EXISTS idx_seed ON results ("Seed");'
+                    )
+                    table_was_created = True
                 except Exception as e:
                     # Ignore "column already exists" errors which can happen during race conditions
                     error_msg = str(e).lower()
                     if "already exists" not in error_msg and "duplicate column" not in error_msg:
                         raise  # Re-raise any other error
+            if table_was_created and self.on_results_table_reset:
+                self.on_results_table_reset()
             return True
         except Exception as e:
             print(f"Error creating results table: {e}")
@@ -147,7 +154,9 @@ class DatabaseModel:
             
             # Reconnect to create a fresh database
             if self.current_db_path:
-                self.connect(self.current_db_path)  
+                self.connect(self.current_db_path)
+                if self.on_results_table_reset:
+                    self.on_results_table_reset()
                 return True
             return False
             
@@ -274,11 +283,26 @@ class DatabaseModel:
     def ensure_columns_exist(self, columns):
         """Ensure all specified columns exist in the results table."""
         if not self.conn:
+            print("[DB] No connection when ensuring columns exist.")
             return False
 
         try:
             # Get current table schema
-            existing_cols = self.conn.execute("PRAGMA table_info(results)").fetchall()
+            try:
+                existing_cols = self.conn.execute("PRAGMA table_info(results)").fetchall()
+            except Exception as e:
+                print(f"Error fetching table info: {e}")
+                # Attempt to reset connection if possible
+                try:
+                    if self.current_db_path:
+                        print("[DB] Attempting to reconnect due to failed PRAGMA table_info.")
+                        self.connect(self.current_db_path)
+                        existing_cols = self.conn.execute("PRAGMA table_info(results)").fetchall()
+                    else:
+                        return False
+                except Exception as reconnect_error:
+                    print(f"[DB] Reconnection failed: {reconnect_error}")
+                    return False
             existing_col_names = [col[1] for col in existing_cols]
 
             # Add any missing columns
@@ -297,11 +321,12 @@ class DatabaseModel:
                             continue
                     # Update tracking if column was added or already existed
                     existing_col_names.append(col)
-            
+
             self.conn.commit()  # Commit after all column additions
             return True
         except Exception as e:
             print(f"Error ensuring columns exist: {e}")
+            # Optionally, try to reset connection here as well
             return False
 
     def query_results(self, sort_column="Score", descending=True, limit=1000):

@@ -220,7 +220,7 @@ class MainWindow:
 
         # ===== Search Settings Frame =====
         self.search_settings_frame = tk.LabelFrame(self.left_column,
-                                                   text="Search Settings",
+                                                   text="Deck Settings",
                                                    padx=2,
                                                    pady=2,
                                                    bg=BACKGROUND,
@@ -822,35 +822,9 @@ class MainWindow:
                     # Use dtype string check for nullable integer columns
                     if str(dataframe[col].dtype).startswith("Int"):
                         dataframe[col] = dataframe[col].astype("object").where(dataframe[col].notna(), "")
-            # Check for auto cutoff when we hit 1000+ results
-            if self.search_running and self.auto_cutoff_var.get() and len(dataframe) >= 1000:
-                sorted_scores = dataframe['Score'].sort_values(ascending=False)
-                cutoff_score = sorted_scores.iloc[499]  # 0-based index for 500th result
-                current_cutoff = self.cutoff_var.get()
-                try:
-                    current_cutoff_val = float(current_cutoff) if current_cutoff else 0
-                    if cutoff_score > current_cutoff_val:
-                        new_cutoff = str(int(cutoff_score))
-                        self.cutoff_var.set(new_cutoff)
-                        self.controller.set_setting('cutoff', new_cutoff)
-                        
-                        # Also update the config model directly to ensure it's saved
-                        self.controller.config_model.cutoff = new_cutoff
-                        # Save the config to ensure the new cutoff persists
-                        self.controller.config_model.save()
-                        
-                        self.set_status(f"Auto cutoff triggered: Using score {cutoff_score} from 500th result")
-                        self.write_to_console(f"\nAuto cutoff triggered: Found {len(dataframe)} results, using score {cutoff_score} from 500th result\n")
-                        
-                        # Debug output to verify auto cutoff is working
-                        self.write_to_console(f"Debug: Auto cutoff set to {new_cutoff}, search will restart with new cutoff\n")
-                        
-                        # Stop current search and restart with new cutoff
-                        self.controller.stop_search()
-                        # Wait for search to stop cleanly, then restart
-                        self.root.after(1500, lambda: self._restart_search_with_new_cutoff())
-                except ValueError:
-                    self.write_to_console("Error: Failed to parse cutoff value for auto cutoff\n")
+            # No auto-cutoff logic here; UI just supplies the cutoff parameter.
+            # The cutoff value is passed to the controller/search, which handles any logic.
+            # (Legacy: UI used to adjust cutoff automatically, but this is now handled in the backend.)
             # Format numeric columns
             for col in dataframe.columns:
                 if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
@@ -997,7 +971,9 @@ class MainWindow:
 
     def on_cutoff_changed(self, *args):
         """Handle cutoff score changes"""
-        self.controller.set_setting('cutoff', self.cutoff_var.get())
+        # Only update if not in auto mode
+        if not self.auto_cutoff_var.get():
+            self.controller.set_setting('cutoff', self.cutoff_var.get())
 
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
@@ -1349,15 +1325,28 @@ class MainWindow:
                 self.write_to_console(f"Error deleting results: {str(e)}\n")
 
     def on_auto_cutoff_changed(self):
-        """Handle auto cutoff checkbox changes"""
-        is_auto = self.auto_cutoff_var.get()
-        self.cutoff_entry.configure(state='disabled' if is_auto else 'normal')
-        # Save the auto cutoff state in settings
-        self.controller.set_setting('auto_cutoff', is_auto)
-        # Keep existing cutoff as minimum threshold when auto is enabled
-        if is_auto and not self.cutoff_var.get():
-            self.cutoff_var.set('1')  # Set default minimum if none exists
-            self.controller.set_setting('cutoff', '1')
+        """Handle toggling of the auto cutoff checkbox."""
+        import numpy as np
+        if self.auto_cutoff_var.get():
+            # If auto is enabled, set the cutoff box to 'auto' and disable editing
+            self.cutoff_var.set('auto')
+            self.cutoff_entry.config(state='disabled')
+            self.controller.set_setting('cutoff', 'auto')
+        else:
+            # If auto is disabled, re-enable editing and set to median of top 100 scores if available
+            self.cutoff_entry.config(state='normal')
+            median_score = ''
+            if hasattr(self, 'latest_df') and self.latest_df is not None and 'Score' in self.latest_df.columns:
+                try:
+                    scores = self.latest_df['Score'].dropna().sort_values(ascending=False)
+                    top_scores = scores.iloc[:100] if len(scores) >= 100 else scores
+                    if not top_scores.empty:
+                        median_val = int(np.median(top_scores))
+                        median_score = str(median_val)
+                except Exception:
+                    pass
+            self.cutoff_var.set(median_score)
+            self.controller.set_setting('cutoff', median_score)
 
     def _restart_search_with_new_cutoff(self):
         """Helper method to restart search after auto cutoff is triggered"""
