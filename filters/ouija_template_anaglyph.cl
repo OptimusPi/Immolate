@@ -1,12 +1,33 @@
 #include "lib/ouija.cl"
 
-
 // Helper function to handle The Soul card processing
 void handle_the_soul(instance *inst, int ante, __constant OuijaConfig *config,
                      __global OuijaResult *result, bool *ScoreNeeds,
                      int clampedNumNeeds, int clampedNumWants) {
   jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
-  result->NegativeJokers += (soulJoker.edition == Negative);
+  
+  // Score negative jokers based on config flags
+  bool isNaturallyNegative = (soulJoker.edition == Negative);
+  bool isDesiredJoker = false;
+  
+  // Check if this joker is in our wants list (desired)
+  for (int x = 0; x < clampedNumWants; x++) {
+    if ((config->Wants[x].jokeredition != RETRY) &&
+        (config->Wants[x].value == soulJoker.joker) &&
+        ((config->Wants[x].jokeredition == No_Edition) ||
+         (config->Wants[x].jokeredition == soulJoker.edition))) {
+      isDesiredJoker = true;
+      break;
+    }
+  }
+  
+  // Score based on config flags
+  if (config->scoreNaturalNegatives && isNaturallyNegative) {
+    result->NaturalNegativeJokers += 1;
+  }
+  if (config->scoreDesiredNegatives && isDesiredJoker && isNaturallyNegative) {
+    result->DesiredNegativeJokers += 1;
+  }
 
   if (soulJoker.joker == Showman) {
     inst->params.showman = true;
@@ -32,18 +53,18 @@ void handle_the_soul(instance *inst, int ante, __constant OuijaConfig *config,
                       ((config->Wants[x].jokeredition == No_Edition) ||
                        (config->Wants[x].jokeredition == soulJoker.edition));
     if (soulMatch || jokerMatch) {
-       result->ScoreWants[x] += 1;
+      result->ScoreWants[x] += 1;
     }
   }
 }
 
 void ouija_filter(instance *inst, __constant OuijaConfig *config,
                   __global OuijaResult *result) {
-
   bool valid = true;
   // Initialize result struct
   result->TotalScore = 1;
-  result->NegativeJokers = 0;
+  result->NaturalNegativeJokers = 0;
+  result->DesiredNegativeJokers = 0;
 
   // Initialize ScoreWants array
   for (int i = 0; i < MAX_DESIRES_KERNEL; i++) {
@@ -77,13 +98,13 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
       activate_voucher(inst, voucher);
 
       if (voucher == Antimatter) {
-         jokerSlots++; // Blank gives +1 joker slot
+        jokerSlots++; // Blank gives +1 joker slot
       }
     }
 
-
     item smallBlindTag = next_tag(inst, ante);
-    if (ante > 1 && smallBlindTag != Negative_Tag) continue;
+    if (ante > 1 && smallBlindTag != Negative_Tag)
+      continue;
 
     // Check if negative tag is triggered and calculate applications
     if (smallBlindTag == Negative_Tag) {
@@ -186,13 +207,32 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
         for (int t = 0; t < _pack.size; t++) {
           if (buffoonJokers[t].joker == RETRY)
-            continue;
-
-          if (buffoonJokers[t].joker == Showman) {
+            continue;          if (buffoonJokers[t].joker == Showman) {
             inst->params.showman = true;
           }
 
-          result->NegativeJokers += (buffoonJokers[t].edition == Negative);
+          // Score negative jokers based on config flags
+          bool isNaturallyNegative = (buffoonJokers[t].edition == Negative);
+          bool isDesiredJoker = false;
+          
+          // Check if this joker is in our wants list (desired)
+          for (int x = 0; x < clampedNumWants; x++) {
+            if ((config->Wants[x].jokeredition != RETRY) &&
+                (config->Wants[x].value == buffoonJokers[t].joker) &&
+                ((config->Wants[x].jokeredition == No_Edition) ||
+                 (config->Wants[x].jokeredition == buffoonJokers[t].edition))) {
+              isDesiredJoker = true;
+              break;
+            }
+          }
+          
+          // Score based on config flags
+          if (config->scoreNaturalNegatives && isNaturallyNegative) {
+            result->NaturalNegativeJokers += 1;
+          }
+          if (config->scoreDesiredNegatives && isDesiredJoker && isNaturallyNegative) {
+            result->DesiredNegativeJokers += 1;
+          }
 
           // Score needs for jokers
           for (int x = 0; x < clampedNumNeeds; x++) {
@@ -214,7 +254,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                 ((config->Wants[x].jokeredition == No_Edition) ||
                  (config->Wants[x].jokeredition == buffoonJokers[t].edition));
             if (jokerMatch) {
-                result->ScoreWants[x] += 1;
+              result->ScoreWants[x] += 1;
             }
           }
         }
@@ -233,10 +273,37 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
       if (shItem.value == Showman) {
         inst->params.showman = true;
-      }
-
-      if (shItem.type == ItemType_Joker) {
-        result->NegativeJokers += (shItem.joker.edition == Negative);
+      }      if (shItem.type == ItemType_Joker) {
+        // Score negative jokers based on config flags
+        bool isNaturallyNegative = (shItem.joker.edition == Negative);
+        bool isDesiredJoker = false;
+        bool canBeMadeNegative = false;
+        
+        // Check if this joker is in our wants list (desired)
+        for (int x = 0; x < clampedNumWants; x++) {
+          if ((config->Wants[x].jokeredition != RETRY) &&
+              (config->Wants[x].value == shItem.joker.joker) &&
+              ((config->Wants[x].jokeredition == No_Edition) ||
+               (config->Wants[x].jokeredition == shItem.joker.edition))) {
+            isDesiredJoker = true;
+            break;
+          }
+        }
+        
+        // Check if we can make this joker negative via skip tag mechanics
+        // This happens when we have negative tag applications available and can skip to make jokers negative
+        if (negativeTagApplications > 0 && isDesiredJoker && !isNaturallyNegative) {
+          canBeMadeNegative = true;
+          negativeTagApplications--; // Use one application
+        }
+        
+        // Score based on config flags
+        if (config->scoreNaturalNegatives && isNaturallyNegative) {
+          result->NaturalNegativeJokers += 1;
+        }
+        if (config->scoreDesiredNegatives && isDesiredJoker && (isNaturallyNegative || canBeMadeNegative)) {
+          result->DesiredNegativeJokers += 1;
+        }
       }
 
       // Score needs from shop
@@ -270,16 +337,16 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
           // Regular items always get scored
           result->ScoreWants[x] += 1;
         } else if (jokerMatch) {
-          // Check Showman duplicate rule
+          // Check Showman duplicate rule          
           bool showmanAllows =
               (result->ScoreWants[x] == 0) || inst->params.showman;
           if (showmanAllows) {
             result->ScoreWants[x] += 1;
-          }
-          else if (negativeTagApplications > 0) {
+            // Note: Negative joker scoring handled above in main shop processing
+          } else if (negativeTagApplications > 0) {
             // If negative tag is applied, score it regardless
             result->ScoreWants[x] += 1;
-            result->AnaglyphHits += (shItem.joker.edition == Negative);
+            // Note: Negative joker scoring handled above in main shop processing
           }
         }
       }
@@ -288,19 +355,25 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     // Get big blind tag and store for next ante's transition check
     item bigBlindTag = next_tag(inst, ante);
 
-      // Search wants for the first tag no matter what kind it is:
-      for (int x = 0; x < clampedNumWants; x++) {
-        if (config->Wants[x].value == Negative_Tag) {
-          result->ScoreWants[x] += 1;
-        }
+    // Search wants for the first tag no matter what kind it is:
+    for (int x = 0; x < clampedNumWants; x++) {
+      if (config->Wants[x].value == bigBlindTag) {
+        result->ScoreWants[x] += 1;
       }
+      if (config->Wants[x].value == smallBlindTag) {
+        result->ScoreWants[x] += 1;
+      }
+    }
 
-      // And Needs
-      for (int x = 0; x < clampedNumNeeds; x++) {
-        if (config->Needs[x].value == Negative_Tag) {
-          ScoreNeeds[x] = true;
-        }
+    // And Needs
+    for (int x = 0; x < clampedNumNeeds; x++) {
+      if (config->Needs[x].value == bigBlindTag) {
+        ScoreNeeds[x] = true;
       }
+      if (config->Needs[x].value == smallBlindTag) {
+        ScoreNeeds[x] = true;
+      }
+    }
 
     if (bigBlindTag == Double_Tag) {
       totalDoubleTags++;
@@ -320,14 +393,21 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
         break;
       }
     }
-  }
-  // Calculate final score
+  }  // Calculate final score
   if (valid) {
     int wants_score = 0;
     for (int w = 0; w < clampedNumWants; w++) {
       wants_score += (result->ScoreWants[w] > 0) + result->ScoreWants[w];
     }
     result->TotalScore += wants_score;
+    
+    // Add negative joker scores based on configuration
+    if (config->scoreNaturalNegatives) {
+      result->TotalScore += result->NaturalNegativeJokers;
+    }
+    if (config->scoreDesiredNegatives) {
+      result->TotalScore += result->DesiredNegativeJokers;
+    }
 
     text s_str = s_to_string(&inst->seed);
     for (int i = 0; i < 9; i++) {

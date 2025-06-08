@@ -9,11 +9,12 @@
 #include "lib/ouija.cl" // Include the necessary headers for item and jokerdata types
 
 typedef struct {
-    char seed[9];           // Bytes 0-8
-    ushort TotalScore;      // Bytes 9-10
-    uchar NegativeJokers;   // Byte 11
-    uchar NegativeJokersFromSkipTag; // Byte 12
-    uchar ScoreWants[MAX_DESIRES_KERNEL]; // Bytes 13 onwards
+    char seed[9];                // Bytes 0-8
+    char padding;                // Byte 9 - explicit padding
+    ushort TotalScore;           // Bytes 10-11
+    uchar NaturalNegativeJokers; // Byte 12
+    uchar DesiredNegativeJokers; // Byte 13
+    uchar ScoreWants[MAX_DESIRES_KERNEL]; // Bytes 14 onwards
 } OuijaResult;
 
 #endif

@@ -11,7 +11,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
   // Initialize result struct efficiently
   result->TotalScore = 1;
-  result->NegativeJokers = 0;
+  result->NaturalNegativeJokers = 0;
+  result->DesiredNegativeJokers = 0;
 
   // Host already clears the entire buffer with clEnqueueFillBuffer - no need to
   // clear arrays in kernel
@@ -117,7 +118,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 #endif
       if (shItem.value == Showman)
         inst->params.showman = true;
-      result->NegativeJokers +=
+      result->NaturalNegativeJokers +=
           (shItem.type == ItemType_Joker && shItem.joker.edition == Negative);
       for (int x = 0; x < clampedNumNeeds; x++) {
         bool jokerMatch =
@@ -130,6 +131,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                              config->Needs[x].value == shItem.value);
         bool matched = (jokerMatch | regularMatch);
         ScoreNeeds[x] |= matched;
+        if (jokerMatch && shItem.joker.edition == Negative) {
+          result->DesiredNegativeJokers += 1;
+        }
 #ifdef _debugPrints1
         if (matched) {
           printf("[Kernel] Need %d matched in ante %d\n", x, ante);
@@ -184,7 +188,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             print_item(soulJoker.joker);
             printf("\n");
 #endif
-            result->NegativeJokers += (soulJoker.edition == Negative);
+            result->NaturalNegativeJokers += (soulJoker.edition == Negative);
             for (int x = 0; x < clampedNumNeeds; x++) {
 #ifdef _debugPrints1
               printf("[Kernel] Checking need %d for The Soul\n", x);
@@ -220,6 +224,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
               }
 #endif
               ScoreNeeds[x] |= (soulMatch | jokerMatch);
+              if (jokerMatch && soulJoker.edition == Negative) {
+                result->DesiredNegativeJokers += 1;
+              }
             }
             for (int x = 0; x < clampedNumWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
@@ -229,6 +236,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                   ((config->Wants[x].jokeredition == No_Edition) ||
                    (config->Wants[x].jokeredition == soulJoker.edition));
               result->ScoreWants[x] += (soulMatch + jokerMatch);
+              if (jokerMatch && soulJoker.edition == Negative) {
+                result->DesiredNegativeJokers += 1;
+              }
             }
           } else {
             for (int x = 0; x < clampedNumNeeds; x++) {
@@ -252,7 +262,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             continue;
           if (spectralCards[t] == The_Soul) {
             jokerdata soulJoker = next_joker_with_info(inst, S_Soul, ante);
-            result->NegativeJokers += (soulJoker.edition == Negative);
+            result->NaturalNegativeJokers += (soulJoker.edition == Negative);
             for (int x = 0; x < clampedNumNeeds; x++) {
               bool soulMatch = (config->Needs[x].value == The_Soul);
               bool jokerMatch =
@@ -261,6 +271,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                   ((config->Needs[x].jokeredition == No_Edition) ||
                    (config->Needs[x].jokeredition == soulJoker.edition));
               ScoreNeeds[x] |= (soulMatch | jokerMatch);
+              if (jokerMatch && soulJoker.edition == Negative) {
+                result->DesiredNegativeJokers += 1;
+              }
             }
             for (int x = 0; x < clampedNumWants; x++) {
               int soulMatch = (config->Wants[x].value == The_Soul);
@@ -270,6 +283,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                   ((config->Wants[x].jokeredition == No_Edition) ||
                    (config->Wants[x].jokeredition == soulJoker.edition));
               result->ScoreWants[x] += (soulMatch + jokerMatch);
+              if (jokerMatch && soulJoker.edition == Negative) {
+                result->DesiredNegativeJokers += 1;
+              }
             }
           } else {
             for (int x = 0; x < clampedNumNeeds; x++) {
@@ -289,7 +305,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             continue;
           if (buffoonJokers[t].joker == Showman)
             inst->params.showman = true;
-          result->NegativeJokers += (buffoonJokers[t].edition == Negative);
+          result->NaturalNegativeJokers += (buffoonJokers[t].edition == Negative);
           for (int x = 0; x < clampedNumNeeds; x++) {
             bool jokerMatch =
                 (config->Needs[x].jokeredition != RETRY) &&
@@ -297,6 +313,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
                 ((config->Needs[x].jokeredition == No_Edition) ||
                  (config->Needs[x].jokeredition == buffoonJokers[t].edition));
             ScoreNeeds[x] |= jokerMatch;
+            if (jokerMatch && buffoonJokers[t].edition == Negative) {
+              result->DesiredNegativeJokers += 1;
+            }
           }
           for (int x = 0; x < clampedNumWants; x++) {
             int jokerMatch =
@@ -307,6 +326,9 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             result->ScoreWants[x] +=
                 jokerMatch &&
                 (result->ScoreWants[x] == 0 || inst->params.showman == true);
+            if (jokerMatch && buffoonJokers[t].edition == Negative) {
+              result->DesiredNegativeJokers += 1;
+            }
           }
         }
       }
@@ -335,7 +357,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     }
 
     result->TotalScore += wants_score;
-    result->TotalScore += result->NegativeJokers;
+    result->TotalScore += result->NaturalNegativeJokers;
+    result->TotalScore += result->DesiredNegativeJokers;
   } else {
     // Invalid seed gets zero score
     result->TotalScore = 0;

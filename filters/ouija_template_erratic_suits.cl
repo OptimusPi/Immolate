@@ -25,7 +25,8 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
   }
 
   result->TotalScore = max_score;
-  result->NegativeJokers = 0;
+  result->NaturalNegativeJokers = 0;
+  result->DesiredNegativeJokers = 0;
 
   // Convert seed to string
   text s_str = s_to_string(&inst->seed);

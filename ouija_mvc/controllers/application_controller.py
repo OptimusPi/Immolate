@@ -33,21 +33,13 @@ class ApplicationController:
             process_finished_callback=self._on_search_completed,
         )
         # Initialize state for Funny List search mode
-        self.funny_list_active = False
-        self.funny_list_words = []
-        self.current_funny_list_index = 0
-        self.current_config_path_for_search = None
-        self.prank_search_active = False
-        self.prank_search_processes = []
-        self.prank_search_stop_requested = False
-
-        # Fun search state variables
+        # Use a single flag for fun search state
+        self.fun_search_active = False
         self.fun_search_category = None
         self.fun_search_words = []
         self.fun_search_padding_levels = []
         self.fun_search_current_word_index = 0
         self.fun_search_current_padding_index = 0
-
         self.build_running = False  # Track if a build is running
 
         # Set up callback for database table reset to refresh UI
@@ -165,7 +157,7 @@ class ApplicationController:
     # Search management
     def run_search(self):
         """Start the search process"""
-        if self.search_model.has_active_searches() or self.prank_search_active:
+        if self.search_model.has_active_searches() or self.fun_search_active:
             # If a search is running, the button acts as a stop button
             self.stop_search()
             return
@@ -197,6 +189,7 @@ class ApplicationController:
             cutoff=self.get_setting("cutoff"),
             gpu_batch=self.get_setting("gpu_batch"),
             template=self.get_setting("template"),
+            filter_name=self.get_config_name(),  # Pass filter name for output
         )
         if success and self.current_view:
             self.current_view.set_search_running(True)
@@ -207,10 +200,10 @@ class ApplicationController:
         return success
 
     def stop_search(self):
-        """Stop all active search processes and cancel any fun/prank batch in progress"""
+        """Stop all active search processes and cancel any fun search in progress"""
         try:
-            # Cancel any fun/prank batch in progress
-            self.prank_search_active = False
+            # Cancel any fun search in progress
+            self.fun_search_active = False
             self.fun_search_category = None
             self.fun_search_words = []
             self.fun_search_padding_levels = []
@@ -317,8 +310,7 @@ class ApplicationController:
     def _on_search_completed(self):
         """Callback for when a search process completes"""
         try:
-            if self.prank_search_active:
-                # Check if this is a fun search (has fun_search_category) or regular prank search
+            if self.fun_search_active:
                 if hasattr(self, 'fun_search_category') and self.fun_search_category:
                     # Fun search mode - handle sequential word/padding combinations
                     if (self.fun_search_current_word_index
@@ -336,7 +328,7 @@ class ApplicationController:
                     if self.fun_search_current_word_index >= len(
                             self.fun_search_words):
                         # Fun search fully complete
-                        self.prank_search_active = False
+                        self.fun_search_active = False
                         self.fun_search_category = None  # Clear the flag
                         self._stop_auto_refresh()  # Stop auto-refresh when done
                         if self.current_view:
@@ -350,13 +342,8 @@ class ApplicationController:
                         self._run_next_fun_search()
                 else:
                     # Fun search mode - handle the next word in the current sequence
-                    if (self.fun_search_current_word_index
-                            < len(self.fun_search_words)):
-                        word = self.fun_search_words[
-                            self.fun_search_current_word_index]
-                        if self.current_view and word:
-                            self.current_view.write_to_console(
-                                f"✅ Completed: {word}\n")
+                    if (self.fun_search_current_word_index < len(self.fun_search_words)):
+                        word = self.fun_search_words[self.fun_search_current_word_index]
 
                     # Continue with next search in sequence
                     self._run_next_fun_search()
@@ -367,7 +354,7 @@ class ApplicationController:
                             and self.fun_search_current_padding_index >= len(
                                 self.fun_search_padding_levels)):
                         # Fun search fully complete - reset search state
-                        self.prank_search_active = False
+                        self.fun_search_active = False
                         if self.current_view:
                             self.current_view.write_to_console(
                                 f"🎉 All {self.fun_search_category} searches complete! Check your results! 🎉\n"
@@ -391,8 +378,8 @@ class ApplicationController:
                 self.current_view.write_to_console(
                     f"⚠️ Error in search completion: {e}\n")
             print(f"Error in _on_search_completed: {e}")
-            # Reset prank search state to prevent further issues
-            self.prank_search_active = False
+            # Reset fun search state to prevent further issues
+            self.fun_search_active = False
             if hasattr(self, 'fun_search_category'):
                 self.fun_search_category = None
             if self.current_view:
@@ -410,7 +397,10 @@ class ApplicationController:
             "stake": "stake",
             "cutoff": "cutoff",
             "gpu_batch": "gpu_batch",
-            "template": "template"
+            "template": "template",
+            "score_natural_negatives": "score_natural_negatives",
+            "score_tag_skip_negatives": "score_tag_skip_negatives",
+            "score_desired_negatives": "score_desired_negatives",
         }
 
         if key in settings_map:
@@ -428,7 +418,10 @@ class ApplicationController:
             "stake": "stake",
             "cutoff": "cutoff",
             "gpu_batch": "gpu_batch",
-            "template": "template"
+            "template": "template",
+            "score_natural_negatives": "score_natural_negatives",
+            "score_tag_skip_negatives": "score_tag_skip_negatives",
+            "score_desired_negatives": "score_desired_negatives",
         }
 
         if key in settings_map:
@@ -573,7 +566,7 @@ class ApplicationController:
                         "Error", f"Unknown fun search category: {category}")
                 return False
 
-            if self.search_model.has_active_searches() or self.prank_search_active:
+            if self.search_model.has_active_searches() or self.fun_search_active:
                 if self.current_view:
                     messagebox.showwarning(
                         "Warning",
@@ -601,7 +594,7 @@ class ApplicationController:
             self.fun_search_category = category
             self.fun_search_words = fun_seeds  # Now a list of (seed, right_pad_count)
             self.fun_search_current_word_index = 0
-            self.prank_search_active = True
+            self.fun_search_active = True
 
             if self.current_view:
                 self.current_view.write_to_console(
@@ -675,6 +668,9 @@ class ApplicationController:
                     self.current_view.write_to_console("\n⚙️ Running kernel build...\n")
                 for line in process.stdout:
                     if self.current_view:
+                        # Ensure each output ends with a newline
+                        if not line.endswith('\n'):
+                            line += '\n'
                         self.current_view.write_to_console(line)
                 process.wait()
                 if process.returncode == 0:
@@ -750,3 +746,20 @@ class ApplicationController:
     def get_current_config_path(self):
         """Return the currently loaded config path, or None if not set."""
         return getattr(self.config_model, "loaded_config_path", None)
+
+    # --- Negative Joker Scoring Flags ---
+    def get_score_natural_negatives(self):
+        return self.config_model.score_natural_negatives
+    def set_score_natural_negatives(self, value):
+        self.config_model.score_natural_negatives = value
+        self.config_model.config_modified = True
+    def get_score_tag_skip_negatives(self):
+        return self.config_model.score_tag_skip_negatives
+    def set_score_tag_skip_negatives(self, value):
+        self.config_model.score_tag_skip_negatives = value
+        self.config_model.config_modified = True
+    def get_score_desired_negatives(self):
+        return self.config_model.score_desired_negatives
+    def set_score_desired_negatives(self, value):
+        self.config_model.score_desired_negatives = value
+        self.config_model.config_modified = True

@@ -21,18 +21,22 @@ if ($Clean) {
     if (Test-Path $BuildDir) {
         Write-Host "Cleaning build directory: $BuildDir"
         Remove-Item -Recurse -Force $BuildDir
+        Write-Host ""
     } else {
         Write-Host "Build directory does not exist, no need to clean."
     }
+    Write-Host ""
 
     # Clean ouija_search.bin from project root
     $mainKernelBin = Join-Path $ScriptDir "ouija_search.bin"
     if (Test-Path $mainKernelBin) {
         Write-Host "Removing main kernel binary: $mainKernelBin"
         Remove-Item -Force $mainKernelBin
+        Write-Host ""
     } else {
         Write-Host "Main kernel binary not found, no need to clean: $mainKernelBin"
     }
+    Write-Host ""
 
     # Clean all ouija_*.bin files from filters directory
     $filterBinFiles = Get-ChildItem -Path $FiltersDir -Filter "ouija_*.bin"
@@ -42,8 +46,6 @@ if ($Clean) {
             Write-Host "  Removing $($binFile.FullName)"
             Remove-Item -Force $binFile.FullName
         }
-    } else {
-        Write-Host "No filter kernel binaries found in $FiltersDir, no need to clean."
     }
 }
 
@@ -99,14 +101,36 @@ try {
                 Write-Host "Pre-compiling main kernel: ouija_search.cl (in parallel with filters)"
                 Write-Host "Ouija executable for main kernel: $ouijaExeInRootDir"
                 Write-Host "--------------------------------------------------"
-                $jobs = @()
-                # Add main kernel job
+                $jobs = @()                # Add main kernel job
                 $mainKernelScriptBlock = {
                     param($currentCopiedExePath)
                     $mainKernelArgs = @("-n", "0")
-                    $mainKernelCommand = "& `"$currentCopiedExePath`" $mainKernelArgs"
-                    Write-Host "Starting job for main kernel (Command: $mainKernelCommand)"
-                    Invoke-Expression $mainKernelCommand
+                    Write-Host "Starting job for main kernel: ouija_search.cl"
+                    try {
+                        $process = Start-Process -FilePath $currentCopiedExePath -ArgumentList $mainKernelArgs -Wait -PassThru -RedirectStandardOutput "main_kernel_stdout.txt" -RedirectStandardError "main_kernel_stderr.txt" -NoNewWindow
+                        $stdout = Get-Content "main_kernel_stdout.txt" -Raw 2>$null
+                        $stderr = Get-Content "main_kernel_stderr.txt" -Raw 2>$null
+                        
+                        if ($process.ExitCode -ne 0) {
+                            $errorMsg = "Main kernel compilation failed with exit code $($process.ExitCode)"
+                            if ($stderr) {
+                                $errorMsg += "`nSTDERR: $stderr"
+                            }
+                            if ($stdout) {
+                                $errorMsg += "`nSTDOUT: $stdout"
+                            }
+                            throw $errorMsg
+                        } else {
+                            Write-Host "Main kernel compilation completed successfully"
+                            if ($stdout) {
+                                Write-Host "STDOUT: $stdout"
+                            }
+                        }
+                    } finally {
+                        # Clean up temporary files
+                        Remove-Item "main_kernel_stdout.txt" -ErrorAction SilentlyContinue
+                        Remove-Item "main_kernel_stderr.txt" -ErrorAction SilentlyContinue
+                    }
                 }
                 $jobs += Start-Job -ScriptBlock $mainKernelScriptBlock -ArgumentList $ouijaExeInRootDir
 
@@ -125,16 +149,55 @@ try {
                     $scriptBlock = {
                         param($currentCopiedExePath, $currentFilterName)
                         $filterCommandArgs = @("-f", $currentFilterName, "-n", "0") # Compile-only mode
-                        $commandToRun = "& `"$currentCopiedExePath`" $filterCommandArgs"
-                        Write-Host "Starting job for filter: $currentFilterName (Command: $commandToRun)"
-                        Invoke-Expression $commandToRun # Ouija.exe in root will find filters in ./filters/
+                        Write-Host "Starting job for filter: $currentFilterName"
+                        try {
+                            $stdoutFile = "filter_${currentFilterName}_stdout.txt"
+                            $stderrFile = "filter_${currentFilterName}_stderr.txt"
+                            $process = Start-Process -FilePath $currentCopiedExePath -ArgumentList $filterCommandArgs -Wait -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile -NoNewWindow
+                            $stdout = Get-Content $stdoutFile -Raw 2>$null
+                            $stderr = Get-Content $stderrFile -Raw 2>$null
+                            
+                            if ($process.ExitCode -ne 0) {
+                                $errorMsg = "Filter '$currentFilterName' compilation failed with exit code $($process.ExitCode)"
+                                if ($stderr) {
+                                    $errorMsg += "`nSTDERR: $stderr"
+                                }
+                                if ($stdout) {
+                                    $errorMsg += "`nSTDOUT: $stdout"
+                                }
+                                throw $errorMsg
+                            } else {
+                                Write-Host "Filter '$currentFilterName' compilation completed successfully"
+                                if ($stdout) {
+                                    Write-Host "STDOUT: $stdout"
+                                }
+                            }
+                        } finally {
+                            # Clean up temporary files
+                            Remove-Item "filter_${currentFilterName}_stdout.txt" -ErrorAction SilentlyContinue
+                            Remove-Item "filter_${currentFilterName}_stderr.txt" -ErrorAction SilentlyContinue
+                        }
                     }
                     $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $ouijaExeInRootDir, $filterName
                 }
 
                 Write-Host "Waiting for all kernel compilation jobs to complete..."
-                $jobs | Wait-Job | Receive-Job # Add -ErrorAction SilentlyContinue to Receive-Job if needed
-                Write-Host "All kernel compilation jobs finished."
+                $hasErrors = $false
+                foreach ($job in $jobs) {
+                    $jobResult = Wait-Job $job | Receive-Job
+                    if ($job.State -eq "Failed") {
+                        $hasErrors = $true
+                        Write-Error "Compilation job failed: $($job.ChildJobs[0].JobStateInfo.Reason.Message)"
+                    } elseif ($jobResult) {
+                        Write-Host $jobResult
+                    }
+                }
+                
+                if ($hasErrors) {
+                    throw "One or more kernel compilation jobs failed. Check the error messages above for details."
+                }
+                
+                Write-Host "All kernel compilation jobs finished successfully."
 
             } catch {
                 Write-Error "An error occurred during the pre-compilation process: $($_.Exception.Message)"
@@ -148,29 +211,10 @@ try {
     Write-Error "Build process failed: $($_.Exception.Message)"
     exit 1
 } finally {
-    if ($PWD.Path -eq $BuildDir) { # Ensure we pop location only if we pushed it
+    if ($PWD.Path -eq $BuildDir) {
         Pop-Location
     }
 }
 
-# After all build and optional pre-compilation steps,
-# ensure Ouija.exe is copied to the root directory if the build was successful.
-$FinalSourceExe = Join-Path $BuildDir "Release\Ouija.exe" # $BuildDir is $PSScriptRoot\build
-$FinalDestinationExe = Join-Path $ScriptDir "Ouija.exe"   # $ScriptDir is $PSScriptRoot
-
-# Only copy if not already present (from precompilation), or if missing
-if (-not (Test-Path $FinalDestinationExe)) {
-    if (Test-Path $FinalSourceExe) {
-        Write-Host "Copying $FinalSourceExe to $FinalDestinationExe as final step..." -ForegroundColor Green
-        Copy-Item -Path $FinalSourceExe -Destination $FinalDestinationExe -Force
-        Write-Host "Ouija.exe finalized in root directory: $FinalDestinationExe" -ForegroundColor Green
-    } else {
-        # This condition implies the build might have failed to produce the executable,
-        # though cmake --build errors should have stopped the script earlier.
-        Write-Warning "Build output $FinalSourceExe not found after build process. Cannot copy to root directory."
-    }
-} else {
-    Write-Host "Ouija.exe already present in root directory, skipping redundant copy." -ForegroundColor Yellow
-}
-
-Write-Host "Build script finished."
+Write-Host "✅ Build script finished."
+Write-Host ""

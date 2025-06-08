@@ -440,7 +440,7 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        fprintf_s(stderr, "Error: Failed to create program from binary %s (clCreateProgramWithBinary err: %d, binary_status: %d). Will compile from source.\\n", binary_path, err, binary_status);
+                        fprintf_s(stderr, "Error: Failed to create program from binary %s (clCreateProgramWithBinary err: %d, binary_status: %d). Will compile from source.\n", binary_path, err, binary_status);
                         if (ssKernelProgram)
                         {
                             clReleaseProgram(ssKernelProgram);
@@ -451,19 +451,19 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    fprintf_s(stderr, "Error: Failed to read binary file %s. Will compile from source.\\n", binary_path);
+                    fprintf_s(stderr, "Error: Failed to read binary file %s. Will compile from source.\n", binary_path);
                 }
                 free(program_binary_data);
             }
             else
             {
-                fprintf_s(stderr, "Error: Failed to allocate memory for binary %s. Will compile from source.\\n", binary_path);
+                fprintf_s(stderr, "Error: Failed to allocate memory for binary %s. Will compile from source.\n", binary_path);
             }
         }
         else
         {
             // Empty binary file, will fall through to source compilation.
-            // fprintf_s(stderr, "Warning: Binary file %s is empty. Will compile from source.\\n", binary_path);
+            // fprintf_s(stderr, "Warning: Binary file %s is empty. Will compile from source.\n", binary_path);
         }
         fclose(fp);
         fp = NULL;
@@ -482,8 +482,8 @@ int main(int argc, char **argv)
         err_fopen = fopen_s(&fp, kernel_path, "r");
         if (err_fopen != 0 || !fp)
         {
-            fprintf_s(stderr, "Fatal: Failed to load main kernel source file %s (Error: %d)\\n", kernel_path, err_fopen);
-            printf_s("$Error: Main kernel source %s not found. Cannot proceed.\\n", kernel_path);
+            fprintf_s(stderr, "Fatal: Failed to load main kernel source file %s (Error: %d)\n", kernel_path, err_fopen);
+            printf_s("$Error: Main kernel source %s not found. Cannot proceed.\n", kernel_path);
             fflush(stdout);
             // Consider proper cleanup before exit if more resources are allocated
             exit(1);
@@ -493,7 +493,7 @@ int main(int argc, char **argv)
         char *ssKernelBuf = (char *)malloc(MAX_CODE_SIZE);
         if (!ssKernelCode || !ssKernelBuf)
         {
-            fprintf_s(stderr, "Fatal: Malloc failed for kernel source buffers.\\n");
+            fprintf_s(stderr, "Fatal: Malloc failed for kernel source buffers.\n");
             if (fp)
                 fclose(fp);
             // Consider proper cleanup
@@ -510,7 +510,7 @@ int main(int argc, char **argv)
 
         if (ferror(fp))
         {
-            fprintf_s(stderr, "Fatal: Error reading from kernel source file %s.\\n", kernel_path);
+            fprintf_s(stderr, "Fatal: Error reading from kernel source file %s.\n", kernel_path);
             fclose(fp);
             free(ssKernelCode);
             free(ssKernelBuf);
@@ -531,12 +531,12 @@ int main(int argc, char **argv)
     }
     else
     {
-        printf_s("Using pre-compiled kernel binary from %s.\\n", binary_path);
+        printf_s("Using pre-compiled kernel binary from %s.\n", binary_path);
         fflush(stdout);
     }
 
     // Common build step for both binary and source loaded programs
-    printf_s("Building OpenCL Program...\\n");
+    printf_s("Building OpenCL Program...\n");
     // Construct build options
     snprintf(build_options, sizeof(build_options), "%s -cl-mad-enable", include_path);
 
@@ -739,17 +739,12 @@ int main(int argc, char **argv)
     // For Jokers found naturally negative, whether wanted or not
     if (config.scoreNaturalNegatives)
     {
-        printf_s(",(Natural) Negative");
+        printf_s(",Natural Negative Jokers");
     }
     // For Jokers found naturally negative, that were in Needs and/or Wants list!
     if (config.scoreDesiredNegatives)
     {
-        printf_s(",(Desired, Natural) Negative");
-    }
-    // For Jokers that are desired, inside Negative Tags active mechanic, especially on Anaglyph Deck
-    if (config.scoreTagSkipNegatives)
-    {
-        printf_s(",(Desired, Skip Tag) Negative");
+        printf_s(",Natural Negative Jokers Desired");
     }
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++)
     {
@@ -909,14 +904,19 @@ int main(int argc, char **argv)
                 if (result->seed[0] == '\0')
                     continue; // Skip if kernel returned empty seed (e.g. filter didn't pass)
                 if (result->TotalScore > batch_high_score)
-                    batch_high_score = result->TotalScore;
+                    batch_high_score = result->TotalScore;                
                 if (result->TotalScore >= cutoff)
                 {
                     seeds_scored_total++;
-                    printf_s("|%s,%d,%d",
-                             result->seed,
-                             result->TotalScore,
-                             result->NegativeJokers);
+                    printf_s("|%s,%d,", result->seed,result->TotalScore);
+                    if (config.scoreNaturalNegatives)
+                    {
+                        printf_s("%d,", result->NaturalNegativeJokers);
+                    }
+                    if (config.scoreDesiredNegatives)
+                    {
+                        printf_s("%d,", result->DesiredNegativeJokers);
+                    }
                     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++)
                     {
                         printf_s(",%d", (int)result->ScoreWants[w]);

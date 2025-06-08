@@ -21,14 +21,10 @@ typedef struct {
     Desire Needs[MAX_DESIRES_KERNEL];  // Array of Needs
     Desire Wants[MAX_DESIRES_KERNEL];  // Array of Wants
     int maxSearchAnte;                 // Maximum Ante to search through (Changed back to int)
-    bool includeNegativeJokers;        // DEPRECATED - REMOVE
-    bool includeNegativeAnaglyphHits;  // DEPRECATED - REMOVE
     item deck;                         // Deck to use
     item stake;                        // Stake to use
-    // New scoring flags - ensure alignment with host
     bool scoreNaturalNegatives;    // Score jokers that are naturally negative
-    bool scoreDesiredNegatives;   // Score desired jokers that are naturally negative
-    bool scoreTagSkipNegatives;   // Score desired jokers that are negative due to skip tags (e.g., Anaglyph)
+    bool scoreDesiredNegatives;   // Score desired jokers that are naturally negative or from skip tag negative mechanic
 } OuijaConfig;
 
 #endif

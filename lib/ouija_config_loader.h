@@ -19,12 +19,11 @@
 #endif
 
 typedef struct {
-    item value;         // Item or joker ID
-    item jokeredition;      // Joker edition if type is Joker, otherwise value = RETRY
+    item value;           // Item or joker ID
+    item jokeredition;    // Joker edition if type is Joker, otherwise value = RETRY
     cl_int desireByAnte;  // Ante by which this item should be found
 } HostDesire;
 
-// Simple version of the config - we're only passing basic values for now
 typedef struct {
     cl_int numNeeds;
     cl_int numWants;

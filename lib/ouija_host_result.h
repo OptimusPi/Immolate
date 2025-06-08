@@ -13,10 +13,11 @@
 
 typedef struct {
     cl_char seed[9];            // Bytes 0-8
-    cl_ushort TotalScore;       // Bytes 9-10
-    cl_uchar NegativeJokers;    // Byte 11
-    cl_uchar NegativeJokersFromSkipTag; // Byte 12
-    cl_uchar ScoreWants[MAX_DESIRES_HOST]; // Bytes 13 onwards
+    cl_char padding;            // Byte 9 - explicit padding
+    cl_ushort TotalScore;       // Bytes 10-11
+    cl_uchar NaturalNegativeJokers; // Byte 12
+    cl_uchar DesiredNegativeJokers; // Byte 13
+    cl_uchar ScoreWants[MAX_DESIRES_HOST]; // Bytes 14 onwards
 } OuijaHostResult;
 
 #endif

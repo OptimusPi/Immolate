@@ -460,6 +460,35 @@ class MainWindow:
         self.cutoff_var.trace_add("write", self.on_cutoff_changed)
         row += 1
 
+        # --- Negative Joker Scoring Flags Section ---
+        scoring_frame = tk.LabelFrame(self.left_column,
+                                      text="Score Negative Jokers in column?",
+                                      padx=5,
+                                      pady=5,
+                                      bg=BACKGROUND,
+                                      fg=LIGHT_TEXT,
+                                      font=("m6x11", 13))
+        scoring_frame.pack(fill=tk.X, expand=False, padx=2, pady=(2, 5))
+        self.score_natural_negatives_var = tk.BooleanVar()
+        self.score_tag_skip_negatives_var = tk.BooleanVar()
+        self.score_desired_negatives_var = tk.BooleanVar()
+        self.natural_neg_check = tk.Checkbutton(
+            scoring_frame, text="Natural Negative", variable=self.score_natural_negatives_var,
+            bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12),
+            command=self.on_score_natural_negatives_changed, anchor="w")
+        self.natural_neg_check.pack(anchor="w")
+        self.tag_skip_neg_check = tk.Checkbutton(
+            scoring_frame, text="Skip Tag Negatives", variable=self.score_tag_skip_negatives_var,
+            bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12),
+            command=self.on_score_tag_skip_negatives_changed, anchor="w")
+        self.tag_skip_neg_check.pack(anchor="w")
+        self.desired_neg_check = tk.Checkbutton(
+            scoring_frame, text="Desires that are Negative", variable=self.score_desired_negatives_var,
+            bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12),
+            command=self.on_score_desired_negatives_changed, anchor="w")
+        self.desired_neg_check.pack(anchor="w")
+        row += 1
+
         # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
 
@@ -882,6 +911,8 @@ class MainWindow:
         Args:
             is_running: Boolean indicating if search is running
         """
+        if self.search_running == is_running:
+            return  # Prevent duplicate finish/stop messages
         self.search_running = is_running
         if is_running:
             self.run_button.config(text="STOP SEARCH", bg=RED)
@@ -1245,6 +1276,11 @@ class MainWindow:
         # This will trigger on_cutoff_changed and sync the checkbox
         self.on_cutoff_changed()
 
+        # Sync scoring flags
+        self.score_natural_negatives_var.set(self.controller.get_score_natural_negatives())
+        self.score_tag_skip_negatives_var.set(self.controller.get_score_tag_skip_negatives())
+        self.score_desired_negatives_var.set(self.controller.get_score_desired_negatives())
+
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""
         # Clear current list
@@ -1353,6 +1389,18 @@ class MainWindow:
             if self.cutoff_var.get() == "auto":
                 self.cutoff_var.set(last_manual)
             self.controller.set_setting('cutoff', self.cutoff_var.get())
+
+    def on_score_natural_negatives_changed(self):
+        """Handle changes to the score natural negatives checkbox"""
+        self.controller.set_score_natural_negatives(self.score_natural_negatives_var.get())
+
+    def on_score_tag_skip_negatives_changed(self):
+        """Handle changes to the score tag skip negatives checkbox"""
+        self.controller.set_score_tag_skip_negatives(self.score_tag_skip_negatives_var.get())
+
+    def on_score_desired_negatives_changed(self):
+        """Handle changes to the score desired negatives checkbox"""
+        self.controller.set_score_desired_negatives(self.score_desired_negatives_var.get())
 
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""

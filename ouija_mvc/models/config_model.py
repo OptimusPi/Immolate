@@ -33,6 +33,10 @@ class ConfigModel:
         self.cutoff = "1"
         self.gpu_batch = "16"  # Default GPU batch size
         self.template = "ouija_template"  # Default template filter
+        # --- Negative joker scoring flags ---
+        self.score_natural_negatives = False
+        self.score_tag_skip_negatives = False
+        self.score_desired_negatives = False
 
         # Create config directory if it doesn't exist
         os.makedirs(self.CONFIG_DIR, exist_ok=True)
@@ -128,6 +132,11 @@ class ConfigModel:
                 stake_name = filter_config["stake"].replace("_", " ")
                 self.stake = stake_name
 
+            # Load negative joker scoring flags
+            self.score_natural_negatives = filter_config.get("scoreNaturalNegatives", False)
+            self.score_tag_skip_negatives = filter_config.get("scoreTagSkipNegatives", False)
+            self.score_desired_negatives = filter_config.get("scoreDesiredNegatives", False)
+
             # Update state tracking
             self.loaded_config_path = file_path
             self.config_loaded_from_file = True
@@ -165,11 +174,12 @@ class ConfigModel:
                 "Needs": self.needs_list,
                 "Wants": self.wants_list,
                 "maxSearchAnte": self.calculate_max_search_ante(),
-                # Default to searching all antes
-                "deck": self.deck.replace(" ",
-                                          "_"),  # Convert to internal format
-                "stake": self.stake.replace(" ",
-                                            "_"),  # Convert to internal format
+                "deck": self.deck.replace(" ", "_"),
+                "stake": self.stake.replace(" ", "_"),
+                # --- Negative joker scoring flags ---
+                "scoreNaturalNegatives": self.score_natural_negatives,
+                "scoreTagSkipNegatives": self.score_tag_skip_negatives,
+                "scoreDesiredNegatives": self.score_desired_negatives,
             },
         }
 
@@ -247,14 +257,11 @@ class ConfigModel:
 
     def get_command_config_path(self):
         """Get the configuration path to use for the command line"""
-        # Always use the config name from the input box, or generate a random one if not supplied
+        # Use the config name from the input box, or fall back to 'default.ouija.json'
         if self.config_name:
-            file_name = self.config_name.lower().replace(" ",
-                                                         "_") + ".ouija.json"
+            file_name = self.config_name.lower().replace(" ", "_") + ".ouija.json"
         else:
-            rand_name = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=8))
-            file_name = f"ouija_{rand_name}.ouija.json"
+            file_name = "default.ouija.json"
         file_path = os.path.join(self.CONFIG_DIR, file_name)
         self.save_config(file_path)
         return file_path
@@ -270,6 +277,9 @@ class ConfigModel:
             "cutoff": "cutoff",
             "gpu_batch": "gpu_batch",
             "template": "template",
+            "score_natural_negatives": "score_natural_negatives",
+            "score_tag_skip_negatives": "score_tag_skip_negatives",
+            "score_desired_negatives": "score_desired_negatives",
         }
         if key in settings_map:
             setattr(self, settings_map[key], value)
@@ -277,6 +287,25 @@ class ConfigModel:
             self.save_user_conf()
             return True
         return False
+
+    def get_setting(self, key, default=None):
+        """Get a user setting value"""
+        settings_map = {
+            "thread_groups": "thread_groups",
+            "starting_seed": "starting_seed",
+            "number_of_seeds": "number_of_seeds",
+            "deck": "deck",
+            "stake": "stake",
+            "cutoff": "cutoff",
+            "gpu_batch": "gpu_batch",
+            "template": "template",
+            "score_natural_negatives": "score_natural_negatives",
+            "score_tag_skip_negatives": "score_tag_skip_negatives",
+            "score_desired_negatives": "score_desired_negatives",
+        }
+        if key in settings_map:
+            return getattr(self, settings_map[key], default)
+        return default
 
     def get_criteria(self):
         """Return the current criteria as a list."""

@@ -122,6 +122,7 @@ class SearchModel:
         cutoff=None,
         gpu_batch=None,
         template=None,
+        filter_name=None,  # NEW: pass filter name for output
     ):
         """Start the search process with the given parameters, including cutoff, gpu_batch, and template."""
         self.cutoff = cutoff
@@ -130,9 +131,10 @@ class SearchModel:
             config_path, starting_seed, thread_groups, number_of_seeds, template
         )
 
-        # Log the command
+        # Log the command with filter name (not config path)
         if self.console_callback:
-            self.console_callback(f"Executing: {command}\n")
+            shown_name = filter_name or template or "(unknown filter)"
+            self.console_callback(f"Executing filter: {shown_name}\n")
 
         try:
             # Start the process
