@@ -107,8 +107,8 @@ class MainWindow:
         self._search_results_count = 0
 
         # Redirect stdout and stderr to both terminal and GUI
-        sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
-        sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
+        # sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
+        # sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
 
     def setup_font(self):
         """Set up custom font for the application with slightly larger size"""
@@ -606,8 +606,8 @@ class MainWindow:
         self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
 
         # Redirect stdout and stderr to both terminal and GUI
-        sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
-        sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
+        # sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
+        # sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
 
         # Button at bottom with fixed height
         button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
@@ -812,28 +812,6 @@ class MainWindow:
         # Call once immediately, then start the loop
         self.refresh_results_table()
 
-    def _get_percentile_score(self, df, percentile=0.5):
-        """Get the score at a given percentile from the results dataframe
-        
-        Args:
-            df: DataFrame containing results
-            percentile: The percentile (0-1) to get the score for
-            
-        Returns:
-            The score at the given percentile, or None if no results
-        """
-        if df is None or df.empty or 'Score' not in df.columns:
-            return 1
-
-        # Sort by Score in descending order and get the value at the percentile
-        sorted_scores = df['Score'].sort_values(ascending=False)
-        if sorted_scores.empty:
-            return 1
-        index = int(len(sorted_scores) * percentile)
-        if index >= len(sorted_scores):
-            return sorted_scores.iloc[-1]  # Return lowest score if percentile is too high
-        return sorted_scores.iloc[index]
-
     def update_results_table(self, dataframe):
         """Update results table with new data and handle auto cutoff if enabled"""
         self.latest_df = dataframe
@@ -855,7 +833,6 @@ class MainWindow:
             self.pt.model.df = display_df
         else:
             self.pt.model.df = pd.DataFrame()
-            self.write_to_console("No results to display. The results table is empty.\n")
 
         self.pt.redraw()
         self._adjust_table_column_widths()
@@ -990,10 +967,19 @@ class MainWindow:
                                     self.thread_groups_var.get())
 
     def on_cutoff_changed(self, *args):
-        """Handle cutoff score changes"""
-        # Only update if not in auto mode
-        if not self.auto_cutoff_var.get():
-            self.controller.set_setting('cutoff', self.cutoff_var.get())
+        """Handle cutoff score changes and sync auto checkbox if needed"""
+        value = self.cutoff_var.get()
+        if value.strip().lower() == "auto":
+            if not self.auto_cutoff_var.get():
+                self.auto_cutoff_var.set(True)
+            self.cutoff_entry.config(state="disabled")
+        else:
+            # Save last manual value for restoration
+            self._last_manual_cutoff = value
+            if self.auto_cutoff_var.get():
+                self.auto_cutoff_var.set(False)
+            self.cutoff_entry.config(state="normal")
+        self.controller.set_setting('cutoff', value)
 
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
@@ -1250,6 +1236,15 @@ class MainWindow:
         if not is_auto:
             self.cutoff_var.set(self.controller.get_setting('cutoff', ''))
 
+        # Ensure cutoff and auto checkbox are always in sync on config load
+        cutoff_val = self.controller.get_setting('cutoff', None)
+        if cutoff_val is not None:
+            self.cutoff_var.set(str(cutoff_val))
+        else:
+            self.cutoff_var.set("")
+        # This will trigger on_cutoff_changed and sync the checkbox
+        self.on_cutoff_changed()
+
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""
         # Clear current list
@@ -1344,39 +1339,20 @@ class MainWindow:
                 self.set_status(f"Error deleting results: {str(e)}")
                 self.write_to_console(f"Error deleting results: {str(e)}\n")
 
-    def on_auto_cutoff_changed(self):
-        """Handle toggling of the auto cutoff checkbox."""
-        import numpy as np
+    def on_auto_cutoff_changed(self, *args):
+        """Handle changes to the auto cutoff checkbox, keeping cutoff_var and checkbox in sync"""
         if self.auto_cutoff_var.get():
-            # If auto is enabled, set the cutoff box to 'auto' and disable editing
-            self.cutoff_var.set('auto')
-            self.cutoff_entry.config(state='disabled')
+            # Checkbox checked: set cutoff to 'auto' and disable entry
+            self.cutoff_var.set("auto")
+            self.cutoff_entry.config(state="disabled")
             self.controller.set_setting('cutoff', 'auto')
         else:
-            # If auto is disabled, re-enable editing and set to median of top 100 scores if available
-            self.cutoff_entry.config(state='normal')
-            median_score = ''
-            if hasattr(self, 'latest_df') and self.latest_df is not None and 'Score' in self.latest_df.columns:
-                try:
-                    scores = self.latest_df['Score'].dropna().sort_values(ascending=False)
-                    if not scores.empty:
-                        top_scores = scores.iloc[:100] if len(scores) >= 100 else scores
-                        if not top_scores.empty:
-                            median_val = int(np.median(top_scores))
-                            median_score = str(median_val)
-                except Exception:
-                    pass
-            self.cutoff_var.set(median_score)
-            self.controller.set_setting('cutoff', median_score)
-
-    def _restart_search_with_new_cutoff(self):
-        """Helper method to restart search after auto cutoff is triggered"""
-        if not self.search_running:
-            self.write_to_console("Debug: Restarting search with new cutoff value\n")
-            self.controller.run_search()
-        else:
-            self.write_to_console("Debug: Search still running, scheduling retry\n")
-            self.root.after(500, lambda: self._restart_search_with_new_cutoff())
+            # Checkbox unchecked: restore last manual value or clear, and enable entry
+            last_manual = getattr(self, '_last_manual_cutoff', "")
+            self.cutoff_entry.config(state="normal")
+            if self.cutoff_var.get() == "auto":
+                self.cutoff_var.set(last_manual)
+            self.controller.set_setting('cutoff', self.cutoff_var.get())
 
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
@@ -1578,17 +1554,27 @@ class MainWindow:
             self.fun_buttons_visible = True
 
     def run_fun_seed_search(self, category):
-        """Run a fun seed search for the specified category"""
-        if not self.controller:
-            return
+        """Run a fun seed search for the specified category, with robust error handling"""
+        import traceback
+        try:
+            if not self.controller:
+                return
 
-        # Call the controller method to run the fun seed search
-        success = self.controller.run_fun_seed_search(category)
-        if success:
-            self.write_to_console(
-                f"🎯 Starting {category} seed search! Check the console for progress...\n"
-            )
-        else:
-            self.write_to_console(
-                f"❌ Failed to start {category} seed search. Check your configuration.\n"
-            )
+            # Call the controller method to run the fun seed search
+            success = self.controller.run_fun_seed_search(category)
+            if success:
+                self.write_to_console(
+                    f"🎯 Starting {category} seed search! Check the console for progress...\n"
+                )
+            else:
+                self.write_to_console(
+                    f"❌ Failed to start {category} seed search. Check your configuration.\n"
+                )
+        except Exception as e:
+            self.write_to_console(f"[ERROR] Exception in fun seed search: {e}\n")
+            traceback.print_exc()
+            import sys
+            import io
+            buf = io.StringIO()
+            traceback.print_exc(file=buf)
+            self.write_to_console(buf.getvalue())

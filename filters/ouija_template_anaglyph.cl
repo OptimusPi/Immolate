@@ -273,8 +273,14 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
           // Check Showman duplicate rule
           bool showmanAllows =
               (result->ScoreWants[x] == 0) || inst->params.showman;
-
-            result->ScoreWants[x] += negativeTagApplications > 0 ? 1 : 1;
+          if (showmanAllows) {
+            result->ScoreWants[x] += 1;
+          }
+          else if (negativeTagApplications > 0) {
+            // If negative tag is applied, score it regardless
+            result->ScoreWants[x] += 1;
+            result->AnaglyphHits += (shItem.joker.edition == Negative);
+          }
         }
       }
     }
