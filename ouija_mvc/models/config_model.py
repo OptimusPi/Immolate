@@ -35,7 +35,6 @@ class ConfigModel:
         self.template = "ouija_template"  # Default template filter
         # --- Negative joker scoring flags ---
         self.score_natural_negatives = False
-        self.score_tag_skip_negatives = False
         self.score_desired_negatives = False
 
         # Create config directory if it doesn't exist
@@ -133,9 +132,8 @@ class ConfigModel:
                 self.stake = stake_name
 
             # Load negative joker scoring flags
-            self.score_natural_negatives = filter_config.get("scoreNaturalNegatives", False)
-            self.score_tag_skip_negatives = filter_config.get("scoreTagSkipNegatives", False)
-            self.score_desired_negatives = filter_config.get("scoreDesiredNegatives", False)
+            self.score_natural_negatives = filter_config.get("scoreNaturalNegatives", True)
+            self.score_desired_negatives = filter_config.get("scoreDesiredNegatives", True)
 
             # Update state tracking
             self.loaded_config_path = file_path
@@ -178,7 +176,6 @@ class ConfigModel:
                 "stake": self.stake.replace(" ", "_"),
                 # --- Negative joker scoring flags ---
                 "scoreNaturalNegatives": self.score_natural_negatives,
-                "scoreTagSkipNegatives": self.score_tag_skip_negatives,
                 "scoreDesiredNegatives": self.score_desired_negatives,
             },
         }
@@ -278,7 +275,6 @@ class ConfigModel:
             "gpu_batch": "gpu_batch",
             "template": "template",
             "score_natural_negatives": "score_natural_negatives",
-            "score_tag_skip_negatives": "score_tag_skip_negatives",
             "score_desired_negatives": "score_desired_negatives",
         }
         if key in settings_map:
@@ -300,7 +296,6 @@ class ConfigModel:
             "gpu_batch": "gpu_batch",
             "template": "template",
             "score_natural_negatives": "score_natural_negatives",
-            "score_tag_skip_negatives": "score_tag_skip_negatives",
             "score_desired_negatives": "score_desired_negatives",
         }
         if key in settings_map:

@@ -220,7 +220,6 @@ class SearchModel:
                         col.strip()
                         for col in line.replace("+Seed", "Seed")
                         .strip()
-                        .replace(" ", "_")
                         .replace("!", "")
                         .split(",")
                         if col.strip() != ""
@@ -232,19 +231,7 @@ class SearchModel:
                             self.console_callback(
                                 f"Warning: Duplicate headers found: {header_columns}\n"
                             )  # Validate header names but only warn about truly problematic ones
-                    # DuckDB can handle numeric column names, so only flag empty or problematic names
-                    invalid_headers = [
-                        col
-                        for col in header_columns
-                        if not col
-                        or not col.replace("_", "").replace("-", "").isalnum()
-                    ]
-                    if invalid_headers:
-                        if self.console_callback:
-                            self.console_callback(
-                                f"Warning: Invalid header names found: {invalid_headers}\n"
-                            )
-
+                    
                     header_found = True
 
                     # Create table in database

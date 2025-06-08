@@ -36,7 +36,6 @@ typedef struct {
     // New scoring flags
     cl_bool scoreNaturalNegatives;    // Score jokers that are naturally negative
     cl_bool scoreDesiredNegatives;   // Score desired jokers that are naturally negative
-    cl_bool scoreTagSkipNegatives;   // Score desired jokers that are negative due to skip tags (e.g., Anaglyph)
 } OuijaConfig;
 
 // Load configuration from JSON file
@@ -155,7 +154,6 @@ found_path_or_continue_parsing:
     // Initialize new scoring flags to false (0) - BEFORE parsing them
     config->scoreNaturalNegatives = 0;
     config->scoreDesiredNegatives = 0;
-    config->scoreTagSkipNegatives = 0;
 
     // Extract numNeeds - ONCE
     char* num_needs_str = strstr(filter_config, "\"numNeeds\"");
@@ -478,22 +476,6 @@ found_path_or_continue_parsing:
         }
     }
     printf_s("loaded scoreDesiredNegatives: %d\n", config->scoreDesiredNegatives);
-
-    // Extract scoreTagSkipNegatives
-    char* score_tag_skip_negatives_str = strstr(filter_config, "\"scoreTagSkipNegatives\"");
-    if (score_tag_skip_negatives_str) {
-        char* value_start = strchr(score_tag_skip_negatives_str, ':');
-        if (value_start) {
-            value_start++; // Move past ':'
-            while (*value_start == ' ' || *value_start == '\t' || *value_start == '\n' || *value_start == '\r') value_start++; // Skip whitespace
-            if (strncmp(value_start, "true", 4) == 0) {
-                config->scoreTagSkipNegatives = 1;
-            } else {
-                config->scoreTagSkipNegatives = 0; // Default to false if not "true"
-            }
-        }
-    }
-    printf_s("loaded scoreTagSkipNegatives: %d\n", config->scoreTagSkipNegatives);
     
     free(json_content);
     printf_s("Successfully loaded configuration from %s\n", config_path);

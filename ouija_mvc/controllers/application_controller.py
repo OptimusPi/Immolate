@@ -399,8 +399,7 @@ class ApplicationController:
             "gpu_batch": "gpu_batch",
             "template": "template",
             "score_natural_negatives": "score_natural_negatives",
-            "score_tag_skip_negatives": "score_tag_skip_negatives",
-            "score_desired_negatives": "score_desired_negatives",
+            "score_desired_negatives": "score_desired_negatives"
         }
 
         if key in settings_map:
@@ -420,8 +419,7 @@ class ApplicationController:
             "gpu_batch": "gpu_batch",
             "template": "template",
             "score_natural_negatives": "score_natural_negatives",
-            "score_tag_skip_negatives": "score_tag_skip_negatives",
-            "score_desired_negatives": "score_desired_negatives",
+            "score_desired_negatives": "score_desired_negatives"
         }
 
         if key in settings_map:
@@ -750,16 +748,14 @@ class ApplicationController:
     # --- Negative Joker Scoring Flags ---
     def get_score_natural_negatives(self):
         return self.config_model.score_natural_negatives
+    
     def set_score_natural_negatives(self, value):
         self.config_model.score_natural_negatives = value
         self.config_model.config_modified = True
-    def get_score_tag_skip_negatives(self):
-        return self.config_model.score_tag_skip_negatives
-    def set_score_tag_skip_negatives(self, value):
-        self.config_model.score_tag_skip_negatives = value
-        self.config_model.config_modified = True
+
     def get_score_desired_negatives(self):
         return self.config_model.score_desired_negatives
+    
     def set_score_desired_negatives(self, value):
         self.config_model.score_desired_negatives = value
         self.config_model.config_modified = True

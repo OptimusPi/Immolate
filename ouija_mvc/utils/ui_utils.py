@@ -151,7 +151,7 @@ class StatusBar(tk.Frame):
         
         # Initialize with default values
         self.set_status("Ready")
-        self.set_metrics("")
+        self.set_metrics("𝜋❤️you")
     
     def set_status(self, text):
         """Set the main status text (left-aligned)

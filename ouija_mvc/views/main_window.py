@@ -12,17 +12,15 @@ import json
 
 # Import from our own modules
 from .dialogs import ItemSelectorDialog
-from ..utils.ui_utils import (
-    add_tooltip, StatusBar, ScrollableFrame,
-    BLUE, RED, GREEN, BACKGROUND, DARK_BACKGROUND, LIGHT_TEXT
-)
+from ..utils.ui_utils import (add_tooltip, StatusBar, ScrollableFrame, BLUE,
+                              RED, GREEN, BACKGROUND, DARK_BACKGROUND,
+                              LIGHT_TEXT)
 from ..utils.game_data import AVAILABLE_ITEMS, get_display_name
 from ouija_mvc.models.database_model import DatabaseModel
 
 
-
-
 class StdoutRedirector:
+
     def __init__(self, gui_write_func, orig_stream):
         self.gui_write_func = gui_write_func
         self.orig_stream = orig_stream
@@ -36,6 +34,7 @@ class StdoutRedirector:
     def flush(self):
         self.orig_stream.flush()
 
+
 class MainWindow:
     """Main window view for Ouija Seed Finder application"""
 
@@ -44,7 +43,7 @@ class MainWindow:
         "Default": "ouija_template",
         "Erratic Ranks": "ouija_template_erratic_ranks",
         "Erratic Suits": "ouija_template_erratic_suits",
-        "Anaglyph Negatives": "ouija_template_anaglyph",
+        "Anaglyph": "ouija_template_anaglyph",
         "Natural Negatives": "ouija_template_negatives",
     }
 
@@ -290,116 +289,6 @@ class MainWindow:
         self.stake_dropdown.bind("<<ComboboxSelected>>", self.on_stake_changed)
         row += 1
 
-        # Seed label and entry
-        tk.Label(self.search_settings_frame,
-                 text="Starting Seed:",
-                 bg=BACKGROUND,
-                 fg=LIGHT_TEXT,
-                 font=("m6x11", 12)).grid(row=row,
-                                          column=0,
-                                          sticky="w",
-                                          pady=2)
-        seed_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
-        seed_frame.grid(row=row, column=1, sticky="ew", pady=2)
-        self.starting_seed_var = tk.StringVar()
-
-        # Adjust the button and frame to ensure proper width
-        seed_frame.columnconfigure(0, weight=1)
-        seed_frame.columnconfigure(1, weight=0)
-
-        self.starting_seed_entry = tk.Entry(
-            seed_frame,
-            textvariable=self.starting_seed_var,
-            font=("m6x11", 12))
-        self.starting_seed_entry.grid(row=0, column=0, sticky="ew")
-        random_seed_button = tk.Button(seed_frame,
-                                       text="🎲",
-                                       bg=GREEN,
-                                       fg=LIGHT_TEXT,
-                                       command=self.on_random_seed,
-                                       font=("m6x11", 12),
-                                       width=6)
-        random_seed_button.grid(row=0, column=1, padx=(8, 0))
-        row += 1
-
-        # Search size dropdown
-        tk.Label(self.search_settings_frame,
-                 text="Search Size:",
-                 bg=BACKGROUND,
-                 fg=LIGHT_TEXT,
-                 font=("m6x11", 12)).grid(row=row,
-                                          column=0,
-                                          sticky="w",
-                                          pady=2)
-
-        self.number_of_seeds_var = tk.StringVar()
-        self.number_of_seeds_dropdown = ttk.Combobox(
-            self.search_settings_frame,
-            textvariable=self.number_of_seeds_var,
-            state="readonly",
-            font=("m6x11", 12))
-        self.number_of_seeds_dropdown['values'] = [
-            "All", "1 Single Seed", "1K", "100K", "1M", "100M", "1B", "10B",
-            "100B"
-        ]
-        self.number_of_seeds_dropdown.grid(row=row,
-                                           column=1,
-                                           sticky="ew",
-                                           pady=2)
-        self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>",
-                                           self.on_number_of_seeds_changed)
-        row += 1
-
-        # Thread groups
-        tk.Label(self.search_settings_frame,
-                 text="Thread Groups:",
-                 bg=BACKGROUND,
-                 fg=LIGHT_TEXT,
-                 font=("m6x11", 12)).grid(row=row,
-                                          column=0,
-                                          sticky="w",
-                                          pady=2)
-
-        self.thread_groups_var = tk.StringVar()
-        self.thread_groups_dropdown = ttk.Combobox(
-            self.search_settings_frame,
-            textvariable=self.thread_groups_var,
-            state="readonly",
-            font=("m6x11", 12))
-        self.thread_groups_dropdown['values'] = [
-            "Single", "16", "32", "64", "128", "256"
-        ]
-        self.thread_groups_dropdown.grid(row=row,
-                                         column=1,
-                                         sticky="ew",
-                                         pady=2)
-        self.thread_groups_dropdown.bind("<<ComboboxSelected>>",
-                                         self.on_thread_groups_changed)
-        row += 1
-
-        # GPU Batch dropdown
-        tk.Label(self.search_settings_frame,
-                 text="GPU Batch Size:",
-                 bg=BACKGROUND,
-                 fg=LIGHT_TEXT,
-                 font=("m6x11", 12)).grid(row=row,
-                                          column=0,
-                                          sticky="w",
-                                          pady=2)
-        self.gpu_batch_var = tk.StringVar()
-        self.gpu_batch_dropdown = ttk.Combobox(self.search_settings_frame,
-                                               textvariable=self.gpu_batch_var,
-                                               state="readonly",
-                                               font=("m6x11", 12))
-        self.gpu_batch_dropdown['values'] = [
-            "1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024",
-            "2048", "4096", "8192"
-        ]
-        self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
-        self.gpu_batch_dropdown.bind("<<ComboboxSelected>>",
-                                     self.on_gpu_batch_changed)
-        row += 1
-
         # Template dropdown
         tk.Label(self.search_settings_frame,
                  text="Template:",
@@ -421,9 +310,91 @@ class MainWindow:
                                     self.on_template_changed)
         row += 1
 
-        # Cutoff entry
-        tk.Label(self.search_settings_frame,
-                 text="Cutoff Score:",
+        # --- Extra Scoring Settings ---
+        scoring_frame = tk.LabelFrame(
+            self.left_column,
+            text="Extra Scoring Settings",
+            padx=5,
+            pady=5,
+            bg=BACKGROUND,
+            fg=LIGHT_TEXT,
+            font=("m6x11", 13))
+        scoring_frame.pack(fill=tk.X, expand=False, padx=2, pady=(2, 5))
+
+        self.score_natural_negatives_var = tk.BooleanVar(value=True)
+        self.score_desired_negatives_var = tk.BooleanVar(value=True)
+
+        self.natural_neg_check = tk.Checkbutton(
+            scoring_frame,
+            text="Score Column for Natural Negative (Any Joker)",
+            variable=self.score_natural_negatives_var,
+            selectcolor=BACKGROUND,
+            activeforeground=LIGHT_TEXT,
+            foreground=LIGHT_TEXT,
+            background=BACKGROUND,
+            activebackground=DARK_BACKGROUND,
+            anchor="w",
+            font=("m6x11", 12),
+            command=self.on_score_natural_negatives_changed)
+        self.natural_neg_check.pack(anchor="w")
+
+        self.desired_negative_check = tk.Checkbutton(
+            scoring_frame,
+            text="Score Column for Desired Negative (+Negative Tag Logic)",
+            variable=self.score_desired_negatives_var,
+            selectcolor=BACKGROUND,
+            activeforeground=LIGHT_TEXT,
+            foreground=LIGHT_TEXT,
+            background=BACKGROUND,
+            activebackground=DARK_BACKGROUND,
+            anchor="w",
+            font=("m6x11", 12),
+            command=self.on_score_desired_negatives_changed)
+        self.desired_negative_check.pack(anchor="w")
+
+        # Create a grid section within scoring_frame for the remaining controls
+        grid_section = tk.Frame(scoring_frame, bg=BACKGROUND)
+        grid_section.pack(fill=tk.X, pady=(10, 0))
+
+        # Configure grid section
+        grid_section.columnconfigure(1, weight=1)
+
+        row = 0
+        
+        # Seed label and entry
+        tk.Label(grid_section,
+                 text="Starting Seed:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
+        
+        seed_entry_frame = tk.Frame(grid_section, bg=BACKGROUND)
+        seed_entry_frame.grid(row=row, column=1, sticky="ew", pady=2)
+        seed_entry_frame.columnconfigure(0, weight=1)
+        
+        self.starting_seed_var = tk.StringVar()
+        self.starting_seed_entry = tk.Entry(
+            seed_entry_frame,
+            textvariable=self.starting_seed_var,
+            font=("m6x11", 12))
+        self.starting_seed_entry.grid(row=0, column=0, sticky="ew")
+        
+        random_seed_button = tk.Button(seed_entry_frame,
+                                       text="🎲",
+                                       bg=GREEN,
+                                       fg=LIGHT_TEXT,
+                                       command=self.on_random_seed,
+                                       font=("m6x11", 12),
+                                       width=6)
+        random_seed_button.grid(row=0, column=1, padx=(5, 0))
+        row += 1
+
+        # Search size dropdown
+        tk.Label(grid_section,
+                 text="Search Size:",
                  bg=BACKGROUND,
                  fg=LIGHT_TEXT,
                  font=("m6x11", 12)).grid(row=row,
@@ -431,69 +402,26 @@ class MainWindow:
                                           sticky="w",
                                           pady=2)
 
-        # Create a frame to hold both the cutoff entry and auto checkbox
-        cutoff_frame = tk.Frame(self.search_settings_frame, bg=BACKGROUND)
-        cutoff_frame.grid(row=row, column=1, sticky="ew", pady=2)
-        cutoff_frame.columnconfigure(0,
-                                     weight=1)  # Entry takes available space
-
-        self.cutoff_var = tk.StringVar()
-        self.cutoff_entry = tk.Entry(cutoff_frame,
-                                     textvariable=self.cutoff_var,
-                                     font=("m6x11", 12))
-        self.cutoff_entry.grid(row=0, column=0, sticky="ew")
-
-        # Add Auto checkbox
-        tk.Label(cutoff_frame,
-                 text="Auto?",
-                 bg=BACKGROUND,
-                 fg=LIGHT_TEXT,
-                 font=("m6x11", 12)).grid(row=0, column=1, padx=(8, 4))
-        self.auto_cutoff_var = tk.BooleanVar(value=False)
-        self.auto_cutoff_check = tk.Checkbutton(
-            cutoff_frame,
-            variable=self.auto_cutoff_var,
-            bg=BACKGROUND,
-            activebackground=BACKGROUND,
-            command=self.on_auto_cutoff_changed)
-        self.auto_cutoff_check.grid(row=0, column=2)
-        self.cutoff_var.trace_add("write", self.on_cutoff_changed)
-        row += 1
-
-        # --- Negative Joker Scoring Flags Section ---
-        scoring_frame = tk.LabelFrame(self.left_column,
-                                      text="Score Negative Jokers in column?",
-                                      padx=5,
-                                      pady=5,
-                                      bg=BACKGROUND,
-                                      fg=LIGHT_TEXT,
-                                      font=("m6x11", 13))
-        scoring_frame.pack(fill=tk.X, expand=False, padx=2, pady=(2, 5))
-        self.score_natural_negatives_var = tk.BooleanVar()
-        self.score_tag_skip_negatives_var = tk.BooleanVar()
-        self.score_desired_negatives_var = tk.BooleanVar()
-        self.natural_neg_check = tk.Checkbutton(
-            scoring_frame, text="Natural Negative", variable=self.score_natural_negatives_var,
-            bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12),
-            command=self.on_score_natural_negatives_changed, anchor="w")
-        self.natural_neg_check.pack(anchor="w")
-        self.tag_skip_neg_check = tk.Checkbutton(
-            scoring_frame, text="Skip Tag Negatives", variable=self.score_tag_skip_negatives_var,
-            bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12),
-            command=self.on_score_tag_skip_negatives_changed, anchor="w")
-        self.tag_skip_neg_check.pack(anchor="w")
-        self.desired_neg_check = tk.Checkbutton(
-            scoring_frame, text="Desires that are Negative", variable=self.score_desired_negatives_var,
-            bg=BACKGROUND, fg=LIGHT_TEXT, font=("m6x11", 12),
-            command=self.on_score_desired_negatives_changed, anchor="w")
-        self.desired_neg_check.pack(anchor="w")
-        row += 1
+        self.number_of_seeds_var = tk.StringVar()
+        self.number_of_seeds_dropdown = ttk.Combobox(
+            grid_section,
+            textvariable=self.number_of_seeds_var,
+            state="readonly",
+            font=("m6x11", 12))
+        
+        self.number_of_seeds_dropdown['values'] = [
+            "All", "1 Single Seed", "1K", "100K", "1M", "100M", "1B", "10B",
+            "100B"
+        ]
+        self.number_of_seeds_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.number_of_seeds_dropdown.bind("<<ComboboxSelected>>",
+                                           self.on_number_of_seeds_changed)
 
         # Configure column weights
         self.search_settings_frame.columnconfigure(1, weight=1)
 
         # Make the grid rows more compact
-        for row in range(8):  # Assuming we have about 8 rows in the grid
+        for row in range(4):  # Assuming we have about 8 rows in the grid
             self.search_settings_frame.grid_rowconfigure(
                 row, pad=1)  # Minimal row padding
 
@@ -620,6 +548,8 @@ class MainWindow:
             0, weight=1)  # Console gets all extra space
         run_container.grid_rowconfigure(
             1, weight=0)  # Button row has fixed height
+        run_container.grid_rowconfigure(
+            2, weight=0)  # Button row has fixed height
         run_container.grid_columnconfigure(0, weight=1)  # Full width
 
         # Console output at top now, using grid
@@ -636,11 +566,112 @@ class MainWindow:
 
         # Redirect stdout and stderr to both terminal and GUI
         # sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
-        # sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
+        # sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)        # GPU and Cutoff settings frame between console and buttons
+        gpu_frame = tk.Frame(run_container, bg=BACKGROUND, height=100)
+        gpu_frame.grid(row=3, column=0, sticky="ew", padx=5, pady=(5, 0))
+        gpu_frame.grid_propagate(False)  # Prevent shrinking
+
+        # Configure grid for the GPU frame
+        gpu_frame.columnconfigure(1,
+                                  weight=1)  # Make dropdown column expandable
+
+        # GPU Batch dropdown
+        tk.Label(gpu_frame,
+                 text="GPU Batch Size:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=0,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2,
+                                          padx=(0, 5))
+
+        self.gpu_batch_var = tk.StringVar()
+        self.gpu_batch_dropdown = ttk.Combobox(gpu_frame,
+                                               textvariable=self.gpu_batch_var,
+                                               state="readonly",
+                                               font=("m6x11", 12))
+        self.gpu_batch_dropdown['values'] = [
+            "1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024",
+            "2048", "4096", "8192"
+        ]
+        row = 0
+        self.gpu_batch_dropdown.grid(row=row, column=1, sticky="ew", pady=2)
+        self.gpu_batch_dropdown.bind("<<ComboboxSelected>>",
+                                     self.on_gpu_batch_changed)
+        row += 1
+
+        # Thread groups
+        tk.Label(gpu_frame,
+                 text="Thread Groups:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2)
+
+        self.thread_groups_var = tk.StringVar()
+        self.thread_groups_dropdown = ttk.Combobox(
+            gpu_frame,
+            textvariable=self.thread_groups_var,
+            state="readonly",
+            font=("m6x11", 12))
+        self.thread_groups_dropdown.grid(row=row,
+                                     column=1,   
+                                     sticky="ew",
+                                     pady=2)
+        
+        self.thread_groups_dropdown['values'] = [
+            "Single", "16", "32", "64", "128", "256"
+        ]
+        self.thread_groups_dropdown.bind("<<ComboboxSelected>>",
+                                         self.on_thread_groups_changed)
+        row += 1
+
+        # Cutoff entry
+        tk.Label(gpu_frame,
+                 text="Cutoff Score:",
+                 bg=BACKGROUND,
+                 fg=LIGHT_TEXT,
+                 font=("m6x11", 12)).grid(row=row,
+                                          column=0,
+                                          sticky="w",
+                                          pady=2,
+                                          padx=(0, 5))
+        row += 1
+
+        # Create a frame to hold both the cutoff entry and auto checkbox
+        cutoff_frame = tk.Frame(gpu_frame, bg=BACKGROUND)
+        cutoff_frame.grid(row=2, column=1, sticky="ew", pady=2)
+        cutoff_frame.columnconfigure(0,
+                                     weight=1)  # Entry takes available space
+
+        self.cutoff_var = tk.StringVar()
+        self.cutoff_entry = tk.Entry(cutoff_frame,
+                                     textvariable=self.cutoff_var,
+                                     font=("m6x11", 12))
+        self.cutoff_entry.grid(row=0, column=0, sticky="ew")
+
+        # Add Auto checkbox
+        self.auto_cutoff_var = tk.BooleanVar(value=False)
+        self.auto_cutoff_check = tk.Checkbutton(
+            cutoff_frame,
+            text="Auto?",
+            variable=self.auto_cutoff_var,
+            bg=BACKGROUND,
+            selectcolor=BACKGROUND,
+            fg=LIGHT_TEXT,
+            activebackground=BACKGROUND,
+            anchor="w",
+            font=("m6x11", 12),
+            command=self.on_auto_cutoff_changed)
+        self.auto_cutoff_check.grid(row=0, column=2)
+        self.cutoff_var.trace_add("write", self.on_cutoff_changed)
 
         # Button at bottom with fixed height
         button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
-        button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5, 0))
+        button_frame.grid(row=2, column=0, sticky="sew", padx=0, pady=(5, 0))
         button_frame.grid_propagate(False)  # Prevent shrinking
         self.run_button = tk.Button(button_frame,
                                     text="Let Jimbo Cook!",
@@ -836,9 +867,10 @@ class MainWindow:
 
         def refresh_loop():
             self.refresh_results_table()
-            self.root.after(2000, refresh_loop)
+            self.root.after(
+                2000,
+                refresh_loop)  # Call once immediately, then start the loop
 
-        # Call once immediately, then start the loop
         self.refresh_results_table()
 
     def update_results_table(self, dataframe):
@@ -850,11 +882,14 @@ class MainWindow:
             # Only fillna('') for display, do not convert dtypes to object
             display_df = dataframe.copy()
             for col in display_df.columns:
-                if pd.api.types.is_integer_dtype(display_df[col]) or pd.api.types.is_float_dtype(display_df[col]):
+                if pd.api.types.is_integer_dtype(
+                        display_df[col]) or pd.api.types.is_float_dtype(
+                            display_df[col]):
                     display_df[col] = display_df[col].fillna('')
             # Format numeric columns for display
             for col in display_df.columns:
-                if col != 'Seed' and pd.api.types.is_numeric_dtype(display_df[col]):
+                if col != 'Seed' and pd.api.types.is_numeric_dtype(
+                        display_df[col]):
                     if hasattr(self.pt, 'columnformats'):
                         if col not in self.pt.columnformats:
                             self.pt.columnformats[col] = {}
@@ -865,20 +900,15 @@ class MainWindow:
 
         self.pt.redraw()
         self._adjust_table_column_widths()
-        self._search_results_count = len(dataframe) if dataframe is not None else 0
+        self._search_results_count = len(
+            dataframe) if dataframe is not None else 0
 
     def refresh_results_table(self):
         """Reload the results table from the database and update the UI."""
         from ouija_mvc.models.database_model import DatabaseModel
-        db_model = DatabaseModel()
-
-        # Try to get the current config path from the controller first
+        db_model = DatabaseModel(
+        )  # Try to get the current config path from the controller first
         config_path = self.controller.get_current_config_path()
-
-        # Fall back to last saved config if needed
-        if not config_path:
-            # Try to get the current config path from the controller first
-            config_path = self.controller.get_current_config_path()
 
         # Fall back to last saved config if needed
         if not config_path:
@@ -1272,14 +1302,16 @@ class MainWindow:
         if cutoff_val is not None:
             self.cutoff_var.set(str(cutoff_val))
         else:
-            self.cutoff_var.set("")
-        # This will trigger on_cutoff_changed and sync the checkbox
+            self.cutoff_var.set(
+                ""
+            )  # This will trigger on_cutoff_changed and sync the checkbox
         self.on_cutoff_changed()
 
         # Sync scoring flags
-        self.score_natural_negatives_var.set(self.controller.get_score_natural_negatives())
-        self.score_tag_skip_negatives_var.set(self.controller.get_score_tag_skip_negatives())
-        self.score_desired_negatives_var.set(self.controller.get_score_desired_negatives())
+        self.score_natural_negatives_var.set(
+            self.controller.get_setting('score_natural_negatives', True))
+        self.score_desired_negatives_var.set(
+            self.controller.get_setting('score_desired_negatives', True))
 
     def update_criteria_display(self):
         """Update the criteria list with current needs and wants"""
@@ -1390,17 +1422,15 @@ class MainWindow:
                 self.cutoff_var.set(last_manual)
             self.controller.set_setting('cutoff', self.cutoff_var.get())
 
-    def on_score_natural_negatives_changed(self):
+    def on_score_natural_negatives_changed(self, *args):
         """Handle changes to the score natural negatives checkbox"""
-        self.controller.set_score_natural_negatives(self.score_natural_negatives_var.get())
+        self.controller.set_setting('score_natural_negatives',
+                                    self.score_natural_negatives_var.get())
 
-    def on_score_tag_skip_negatives_changed(self):
+    def on_score_desired_negatives_changed(self, *args):
         """Handle changes to the score tag skip negatives checkbox"""
-        self.controller.set_score_tag_skip_negatives(self.score_tag_skip_negatives_var.get())
-
-    def on_score_desired_negatives_changed(self):
-        """Handle changes to the score desired negatives checkbox"""
-        self.controller.set_score_desired_negatives(self.score_desired_negatives_var.get())
+        self.controller.set_setting('score_tag_skip_negatives',
+                                    self.score_desired_negatives_var.get())
 
     def on_gpu_batch_changed(self, event=None):
         """Handle GPU batch size selection changes"""
@@ -1619,7 +1649,8 @@ class MainWindow:
                     f"❌ Failed to start {category} seed search. Check your configuration.\n"
                 )
         except Exception as e:
-            self.write_to_console(f"[ERROR] Exception in fun seed search: {e}\n")
+            self.write_to_console(
+                f"[ERROR] Exception in fun seed search: {e}\n")
             traceback.print_exc()
             import sys
             import io
