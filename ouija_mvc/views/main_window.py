@@ -760,24 +760,12 @@ class MainWindow:
 
         # Calculate header width based on column name length
         for col in columns:
-            # For headers with underscores, replace _ with space to get true visual width
-            display_name = str(col).replace('_', ' ')
-            # Use a larger character width factor (12 pixels per character)
-            header_width = len(
-                display_name) * 12 + 25  # 12px per char + 25px padding
-
-            # For numeric columns except 'Seed', ensure minimum width
-            if col != 'Seed' and pd.api.types.is_numeric_dtype(
-                    self.pt.model.df[col]):
-                header_width = max(header_width,
-                                   60)  # Minimum width for numeric columns
+            display_name = str(col)
+            header_width = len(display_name) * 11
 
             # Special handling for Seed column - make 50% wider
-            if col == 'Seed':
-                header_width = header_width * 1.5
-            # Special handling for Negative_* columns - add extra width
-            elif col.startswith('Negative_'):
-                header_width += 20  # Extra padding for Negative_ columns
+            if display_name == 'Seed':
+                header_width = header_width * 2.5
 
             # Set the width, use max of calculated width or existing width
             if col in self.pt.colwidths:
@@ -825,14 +813,20 @@ class MainWindow:
 
     def update_results_table(self, dataframe):
         """Update results table with new data and handle auto cutoff if enabled"""
+        import pandas as pd
         self.latest_df = dataframe
         if dataframe is not None:
+            # Fix: Convert nullable integer columns to object and fill with '' to avoid TypeError in pandastable
+            for col in dataframe.columns:
+                if pd.api.types.is_integer_dtype(dataframe[col]):
+                    # Use dtype string check for nullable integer columns
+                    if str(dataframe[col].dtype).startswith("Int"):
+                        dataframe[col] = dataframe[col].astype("object").where(dataframe[col].notna(), "")
             # Check for auto cutoff when we hit 1000+ results
-            if self.search_running and self.auto_cutoff_var.get() and len(dataframe) >= 1000:                # Sort scores in descending order and get the 500th score
+            if self.search_running and self.auto_cutoff_var.get() and len(dataframe) >= 1000:
                 sorted_scores = dataframe['Score'].sort_values(ascending=False)
                 cutoff_score = sorted_scores.iloc[499]  # 0-based index for 500th result
                 current_cutoff = self.cutoff_var.get()
-
                 try:
                     current_cutoff_val = float(current_cutoff) if current_cutoff else 0
                     if cutoff_score > current_cutoff_val:
@@ -857,11 +851,9 @@ class MainWindow:
                         self.root.after(1500, lambda: self._restart_search_with_new_cutoff())
                 except ValueError:
                     self.write_to_console("Error: Failed to parse cutoff value for auto cutoff\n")
-
             # Format numeric columns
             for col in dataframe.columns:
-                if col != 'Seed' and pd.api.types.is_numeric_dtype(
-                        dataframe[col]):
+                if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
                     if hasattr(self.pt, 'columnformats'):
                         if col not in self.pt.columnformats:
                             self.pt.columnformats[col] = {}

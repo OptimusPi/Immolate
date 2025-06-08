@@ -48,6 +48,8 @@ class ApplicationController:
         self.fun_search_current_word_index = 0
         self.fun_search_current_padding_index = 0
 
+        self.build_running = False  # Track if a build is running
+
     def register_view(self, view):
         """Register the main view for callbacks"""
         self.current_view = view
@@ -202,8 +204,17 @@ class ApplicationController:
         return success
 
     def stop_search(self):
-        """Stop all active search processes"""
+        """Stop all active search processes and cancel any fun/prank batch in progress"""
         try:
+            # Cancel any fun/prank batch in progress
+            self.prank_search_active = False
+            self.fun_search_category = None
+            self.fun_search_words = []
+            self.fun_search_padding_levels = []
+            self.fun_search_current_word_index = 0
+            self.fun_search_current_padding_index = 0
+            self._stop_auto_refresh()
+
             success = self.search_model.stop_all_searches()
             if self.current_view:
                 if success:
@@ -317,6 +328,7 @@ class ApplicationController:
                             self.current_view.write_to_console(
                                 f"    ✅ Completed: {word} (padding {padding})\n"
                             )
+                            self.current_view.refresh_results_table()  # Force table refresh after each fun search
                     # Advance to next search
                     self._advance_fun_search_indices()
 
@@ -601,7 +613,7 @@ class ApplicationController:
             return False
 
     def _run_next_fun_search(self):
-        """Run the next combination in the fun search sequence"""
+        """Run the next combination in the fun search sequence, with correct -n for fun seeds"""
         try:
             if (self.fun_search_current_word_index
                     >= len(self.fun_search_words)):
@@ -615,11 +627,19 @@ class ApplicationController:
             if padding == 0:
                 search_term = word
             else:
-                search_term = word + "0" * padding
+                search_term = word + "1" * padding
+
+            # Calculate the correct -n value for the search term
+            # Each character after the base word is a wildcard (35 possibilities)
+            # e.g. SEXY1: 35, SEXY11: 35*35, SEXY111: 35*35*35, etc.
+            base_len = len(word)
+            total_len = len(search_term)
+            wildcard_count = total_len - base_len
+            n_value = 35 ** wildcard_count if wildcard_count > 0 else 35
 
             if self.current_view:
                 self.current_view.write_to_console(
-                    f"    🔍 Searching: {search_term}\n")
+                    f"    🔍 Searching: {search_term} (n={n_value})\n")
 
             # Get config path and start search
             config_path = self.config_model.get_command_config_path()
@@ -627,12 +647,12 @@ class ApplicationController:
                 return False            # Ensure database connection
             self.database_model.connect(config_path)
             
-            # Start search with the fun search term
+            # Start search with the fun search term and correct -n
             success = self.search_model.start_search(
                 config_path=config_path,
                 starting_seed=search_term,  # Use the fun word as starting seed
                 thread_groups=self.get_setting("thread_groups"),
-                number_of_seeds=self.get_setting("number_of_seeds"),  # Use UI-specified seed count (FIXED!)
+                number_of_seeds=n_value,  # Force correct -n for fun search
                 db_model=self.database_model,
                 cutoff=self.get_setting("cutoff"),
                 gpu_batch=self.get_setting("gpu_batch"),
@@ -668,3 +688,100 @@ class ApplicationController:
         if self.auto_refresh_timer_id and self.current_view:
             self.current_view.root.after_cancel(self.auto_refresh_timer_id)
             self.auto_refresh_timer_id = None
+
+    def _auto_refresh_callback(self):
+        """Callback for auto-refreshing during fun/prank seed searches"""
+        if self.current_view:
+            self.current_view.refresh_results_table()
+        # Schedule the next auto-refresh if still active
+        if getattr(self, 'prank_search_active', False) and self.current_view:
+            self.auto_refresh_timer_id = self.current_view.root.after(
+                self.auto_refresh_interval_ms, self._auto_refresh_callback)
+
+    def _run_build_script(self, on_complete=None):
+        """Run build.ps1 -PrecompileKernels and stream output to the console. Calls on_complete when done."""
+        def run_and_stream():
+            try:
+                # Use subprocess.Popen to run the build script and stream output
+                process = subprocess.Popen([
+                    'powershell', '-ExecutionPolicy', 'Bypass', '-File', 'build.ps1', '-PrecompileKernels'
+                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=os.getcwd())
+                if self.current_view:
+                    self.current_view.write_to_console("\n⚙️ Running kernel build...\n")
+                for line in process.stdout:
+                    if self.current_view:
+                        self.current_view.write_to_console(line)
+                process.wait()
+                if process.returncode == 0:
+                    if self.current_view:
+                        self.current_view.write_to_console("\n✅ Kernel build complete!\n")
+                    # Mark installation success in ouija_user.conf
+                    try:
+                        conf_path = os.path.join(os.getcwd(), 'ouija_user.conf')
+                        if os.path.exists(conf_path):
+                            with open(conf_path, 'r') as f:
+                                conf = json.load(f)
+                        else:
+                            conf = {}
+                        conf['installation_success'] = True
+                        with open(conf_path, 'w') as f:
+                            json.dump(conf, f, indent=2)
+                    except Exception as e:
+                        if self.current_view:
+                            self.current_view.write_to_console(f"[Warning] Could not update ouija_user.conf: {e}\n")
+                else:
+                    if self.current_view:
+                        self.current_view.write_to_console("\n❌ Kernel build failed!\n")
+                if on_complete:
+                    on_complete()
+            except Exception as e:
+                if self.current_view:
+                    self.current_view.write_to_console(f"[Error] Kernel build crashed: {e}\n")
+                if on_complete:
+                    on_complete()
+        # Run in a thread so the UI doesn't freeze
+        threading.Thread(target=run_and_stream, daemon=True).start()
+
+    def is_kernel_build_needed(self):
+        """Check if kernel binaries are missing or installation is incomplete."""
+        # Check ouija_user.conf for installation_success
+        conf_path = os.path.join(os.getcwd(), 'ouija_user.conf')
+        try:
+            if os.path.exists(conf_path):
+                with open(conf_path, 'r') as f:
+                    conf = json.load(f)
+                if conf.get('installation_success'):
+                    return False
+        except Exception:
+            pass
+        # Check for Ouija.exe and at least one .bin kernel file
+        exe_path = os.path.join(os.getcwd(), 'Ouija.exe')
+        kernels_dir = os.path.join(os.getcwd(), 'filters')
+        has_exe = os.path.exists(exe_path)
+        has_bin = False
+        if os.path.isdir(kernels_dir):
+            for fname in os.listdir(kernels_dir):
+                if fname.endswith('.bin'):
+                    has_bin = True
+                    break
+        return not (has_exe and has_bin)
+
+    def run_kernel_build(self, on_complete=None):
+        """Public method to trigger kernel build and track build state."""
+        if self.build_running:
+            if self.current_view:
+                self.current_view.write_to_console("[Info] Kernel build already running.\n")
+            return
+        self.build_running = True
+        def build_done():
+            self.build_running = False
+            if on_complete:
+                on_complete()
+            # Optionally notify the UI
+            if self.current_view:
+                self.current_view.set_status("Kernel build finished.")
+        self._run_build_script(on_complete=build_done)
+
+    def get_current_config_path(self):
+        """Return the currently loaded config path, or None if not set."""
+        return getattr(self.config_model, "loaded_config_path", None)

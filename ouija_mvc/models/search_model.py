@@ -72,23 +72,22 @@ class SearchModel:
         )  # Ensure thread_groups is string for map lookup
         command_parts.extend(["-g", thread_groups_value])
 
-        # Add number of seeds if specified
-        # number_of_seeds can be an int (calculated for Funny Seeds) or string (from dropdown)
+        # Add number of seeds if specified (always pass -n if not None)
+        n_value = None
         if isinstance(number_of_seeds, int):
-            command_parts.extend(["-n", str(number_of_seeds)])
+            n_value = str(number_of_seeds)
         elif isinstance(number_of_seeds, str):
-            number_of_seeds_value = self.SEED_COUNT_MAP.get(number_of_seeds)
-            if number_of_seeds_value is not None:
-                command_parts.extend(["-n", number_of_seeds_value])
-            elif (
-                number_of_seeds.isdigit()
-            ):  # Handle cases where it's a string number not in map
-                command_parts.extend(["-n", number_of_seeds])
-            # Else: if it's something like "All Seeds" and maps to None, or unhandled string, -n is omitted as intended.
+            mapped = self.SEED_COUNT_MAP.get(number_of_seeds)
+            if mapped is not None:
+                n_value = mapped
+            elif number_of_seeds.isdigit():
+                n_value = number_of_seeds
+        if n_value is not None:
+            command_parts.extend(["-n", str(n_value)])
 
-        # Add config path if provided
+        # Add config path if provided (do NOT quote, Ouija.exe expects raw path)
         if config_path:
-            command_parts.extend(["--config", f'"{config_path}"'])
+            command_parts.extend(["--config", config_path])
 
         # Add cutoff if provided
         if self.cutoff:
