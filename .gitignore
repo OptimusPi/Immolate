@@ -82,3 +82,4 @@ ouija_mvc/views/__pycache__/main_window.cpython-311.pyc
 /ouija_configs
 /ouija_database
 ouija_csv_exports/erraticperkeoranks.ouija.csv
+vcpkg/
