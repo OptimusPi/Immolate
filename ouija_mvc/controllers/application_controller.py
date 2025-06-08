@@ -327,7 +327,7 @@ class ApplicationController:
                             self.fun_search_current_word_index]
                         if self.current_view and word:
                             self.current_view.write_to_console(
-                                f"    ✅ Completed: {word}\n")
+                                f"✅ Completed: {word}\n")
                             self.current_view.refresh_results_table()  # Force table refresh after each fun search
                     # Advance to next search
                     self._advance_fun_search_indices()
@@ -338,8 +338,7 @@ class ApplicationController:
                         # Fun search fully complete
                         self.prank_search_active = False
                         self.fun_search_category = None  # Clear the flag
-                        self._stop_auto_refresh(
-                        )  # Stop auto-refresh when done
+                        self._stop_auto_refresh()  # Stop auto-refresh when done
                         if self.current_view:
                             self.current_view.write_to_console(
                                 "🎉 All fun searches complete! Check your results! 🎉\n"
@@ -357,7 +356,7 @@ class ApplicationController:
                             self.fun_search_current_word_index]
                         if self.current_view and word:
                             self.current_view.write_to_console(
-                                f"    ✅ Completed: {word}\n")
+                                f"✅ Completed: {word}\n")
 
                     # Continue with next search in sequence
                     self._run_next_fun_search()

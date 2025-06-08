@@ -22,6 +22,20 @@ from ouija_mvc.models.database_model import DatabaseModel
 
 
 
+class StdoutRedirector:
+    def __init__(self, gui_write_func, orig_stream):
+        self.gui_write_func = gui_write_func
+        self.orig_stream = orig_stream
+
+    def write(self, text):
+        self.orig_stream.write(text)
+        self.orig_stream.flush()
+        if text.strip():
+            self.gui_write_func(text)
+
+    def flush(self):
+        self.orig_stream.flush()
+
 class MainWindow:
     """Main window view for Ouija Seed Finder application"""
 
@@ -91,6 +105,10 @@ class MainWindow:
         self._status_update_id = None
         self._last_results_count = 0
         self._search_results_count = 0
+
+        # Redirect stdout and stderr to both terminal and GUI
+        sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
+        sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
 
     def setup_font(self):
         """Set up custom font for the application with slightly larger size"""
@@ -587,6 +605,10 @@ class MainWindow:
                                    insertbackground='white')
         self.output_text.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
 
+        # Redirect stdout and stderr to both terminal and GUI
+        sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
+        sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
+
         # Button at bottom with fixed height
         button_frame = tk.Frame(run_container, bg=BACKGROUND, height=50)
         button_frame.grid(row=1, column=0, sticky="sew", padx=0, pady=(5, 0))
@@ -801,41 +823,39 @@ class MainWindow:
             The score at the given percentile, or None if no results
         """
         if df is None or df.empty or 'Score' not in df.columns:
-            return None
+            return 1
 
         # Sort by Score in descending order and get the value at the percentile
         sorted_scores = df['Score'].sort_values(ascending=False)
+        if sorted_scores.empty:
+            return 1
         index = int(len(sorted_scores) * percentile)
         if index >= len(sorted_scores):
-            return sorted_scores.iloc[
-                -1]  # Return lowest score if percentile is too high
+            return sorted_scores.iloc[-1]  # Return lowest score if percentile is too high
         return sorted_scores.iloc[index]
 
     def update_results_table(self, dataframe):
         """Update results table with new data and handle auto cutoff if enabled"""
-        import pandas as pd
         self.latest_df = dataframe
-        if dataframe is not None:
-            # Fix: Convert nullable integer columns to object and fill with '' to avoid TypeError in pandastable
-            for col in dataframe.columns:
-                if pd.api.types.is_integer_dtype(dataframe[col]):
-                    # Use dtype string check for nullable integer columns
-                    if str(dataframe[col].dtype).startswith("Int"):
-                        dataframe[col] = dataframe[col].astype("object").where(dataframe[col].notna(), "")
-            # No auto-cutoff logic here; UI just supplies the cutoff parameter.
-            # The cutoff value is passed to the controller/search, which handles any logic.
-            # (Legacy: UI used to adjust cutoff automatically, but this is now handled in the backend.)
-            # Format numeric columns
-            for col in dataframe.columns:
-                if col != 'Seed' and pd.api.types.is_numeric_dtype(dataframe[col]):
+        import pandas as pd
+        if dataframe is not None and not dataframe.empty:
+            # Ensure all columns are of a robust type for display
+            # Only fillna('') for display, do not convert dtypes to object
+            display_df = dataframe.copy()
+            for col in display_df.columns:
+                if pd.api.types.is_integer_dtype(display_df[col]) or pd.api.types.is_float_dtype(display_df[col]):
+                    display_df[col] = display_df[col].fillna('')
+            # Format numeric columns for display
+            for col in display_df.columns:
+                if col != 'Seed' and pd.api.types.is_numeric_dtype(display_df[col]):
                     if hasattr(self.pt, 'columnformats'):
                         if col not in self.pt.columnformats:
                             self.pt.columnformats[col] = {}
                         self.pt.columnformats[col]['precision'] = 0
-
-            self.pt.model.df = dataframe
+            self.pt.model.df = display_df
         else:
             self.pt.model.df = pd.DataFrame()
+            self.write_to_console("No results to display. The results table is empty.\n")
 
         self.pt.redraw()
         self._adjust_table_column_widths()
@@ -1339,10 +1359,11 @@ class MainWindow:
             if hasattr(self, 'latest_df') and self.latest_df is not None and 'Score' in self.latest_df.columns:
                 try:
                     scores = self.latest_df['Score'].dropna().sort_values(ascending=False)
-                    top_scores = scores.iloc[:100] if len(scores) >= 100 else scores
-                    if not top_scores.empty:
-                        median_val = int(np.median(top_scores))
-                        median_score = str(median_val)
+                    if not scores.empty:
+                        top_scores = scores.iloc[:100] if len(scores) >= 100 else scores
+                        if not top_scores.empty:
+                            median_val = int(np.median(top_scores))
+                            median_score = str(median_val)
                 except Exception:
                     pass
             self.cutoff_var.set(median_score)
