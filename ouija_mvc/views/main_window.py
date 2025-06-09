@@ -109,6 +109,8 @@ class MainWindow:
         # sys.stdout = StdoutRedirector(self.write_to_console, sys.__stdout__)
         # sys.stderr = StdoutRedirector(self.write_to_console, sys.__stderr__)
 
+        self.latest_df = None  # Initialize latest_df to avoid attribute errors
+
     def setup_font(self):
         """Set up custom font for the application with slightly larger size"""
         # Use system monospace font as fallback if m6x11 not available
@@ -825,6 +827,7 @@ class MainWindow:
             self.pt.columnformats['default'] = {'precision': 0}
 
             self.latest_df = None
+
             self._setup_initial_table()
 
     def _adjust_table_column_widths(self):
@@ -876,38 +879,29 @@ class MainWindow:
     def update_results_table(self, dataframe):
         """Update results table with new data and handle auto cutoff if enabled"""
         self.latest_df = dataframe
-        import pandas as pd
         if dataframe is not None and not dataframe.empty:
             # Ensure all columns are of a robust type for display
-            # Only fillna('') for display, do not convert dtypes to object
             display_df = dataframe.copy()
             for col in display_df.columns:
-                if pd.api.types.is_integer_dtype(
-                        display_df[col]) or pd.api.types.is_float_dtype(
-                            display_df[col]):
-                    display_df[col] = display_df[col].fillna('')
-            # Format numeric columns for display
-            for col in display_df.columns:
-                if col != 'Seed' and pd.api.types.is_numeric_dtype(
-                        display_df[col]):
-                    if hasattr(self.pt, 'columnformats'):
-                        if col not in self.pt.columnformats:
-                            self.pt.columnformats[col] = {}
-                        self.pt.columnformats[col]['precision'] = 0
+                if pd.api.types.is_integer_dtype(display_df[col]):
+                    display_df[col] = display_df[col].fillna(0)  # Fill NaN for integers
+                elif pd.api.types.is_float_dtype(display_df[col]):
+                    display_df[col] = display_df[col].fillna(0).map(lambda x: f'{x:.2f}')  # Format floats only
+
             self.pt.model.df = display_df
         else:
             self.pt.model.df = pd.DataFrame()
 
         self.pt.redraw()
         self._adjust_table_column_widths()
-        self._search_results_count = len(
-            dataframe) if dataframe is not None else 0
+        self._search_results_count = len(dataframe) if dataframe is not None else 0
 
     def refresh_results_table(self):
         """Reload the results table from the database and update the UI."""
         from ouija_mvc.models.database_model import DatabaseModel
-        db_model = DatabaseModel(
-        )  # Try to get the current config path from the controller first
+        db_model = DatabaseModel()
+
+        # Try to get the current config path from the controller first
         config_path = self.controller.get_current_config_path()
 
         # Fall back to last saved config if needed
@@ -919,11 +913,9 @@ class MainWindow:
             except Exception:
                 config_path = None
 
-        if config_path and db_model.connect(
-                config_path) and db_model.table_exists():
+        if config_path and db_model.connect(config_path) and db_model.table_exists():
             df = db_model.get_dataframe()
-            if df is not None and (self.latest_df is None
-                                   or not df.equals(self.latest_df)):
+            if df is not None and (self.latest_df is None or not df.equals(self.latest_df)):
                 self.update_results_table(df)
 
                 # Update metrics if search is running
@@ -1657,3 +1649,26 @@ class MainWindow:
             buf = io.StringIO()
             traceback.print_exc(file=buf)
             self.write_to_console(buf.getvalue())
+
+    def update_results_table(self, dataframe):
+        """Update results table with new data and handle auto cutoff if enabled"""
+        self.latest_df = dataframe
+        if dataframe is not None and not dataframe.empty:
+            # Ensure all columns are of a robust type for display
+            display_df = dataframe.copy()
+            for col in display_df.columns:
+                if col == "Seed":
+                    # Ensure Seed column is treated as 8-character string
+                    display_df[col] = display_df[col].astype(str).str.zfill(8)
+                elif pd.api.types.is_integer_dtype(display_df[col]):
+                    display_df[col] = display_df[col].fillna(0)  # Fill NaN for integers
+                elif pd.api.types.is_float_dtype(display_df[col]):
+                    display_df[col] = display_df[col].fillna(0).map(lambda x: f'{x:.2f}')  # Format floats only
+
+            self.pt.model.df = display_df
+        else:
+            self.pt.model.df = pd.DataFrame()
+
+        self.pt.redraw()
+        self._adjust_table_column_widths()
+        self._search_results_count = len(dataframe) if dataframe is not None else 0
