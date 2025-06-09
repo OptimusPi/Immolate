@@ -311,60 +311,34 @@ class ApplicationController:
         """Callback for when a search process completes"""
         try:
             if self.fun_search_active:
+                # Fun search logic
                 if hasattr(self, 'fun_search_category') and self.fun_search_category:
-                    # Fun search mode - handle sequential word/padding combinations
-                    if (self.fun_search_current_word_index
-                            < len(self.fun_search_words)):
-                        word = self.fun_search_words[
-                            self.fun_search_current_word_index]
+                    if (self.fun_search_current_word_index < len(self.fun_search_words)):
+                        word = self.fun_search_words[self.fun_search_current_word_index]
                         if self.current_view and word:
                             self.current_view.write_to_console(
                                 f"✅ Completed: {word}\n")
                             self.current_view.refresh_results_table()  # Force table refresh after each fun search
-                    # Advance to next search
-                    self._advance_fun_search_indices()
 
-                    # Check if we're done with all combinations
-                    if self.fun_search_current_word_index >= len(
-                            self.fun_search_words):
-                        # Fun search fully complete
-                        self.fun_search_active = False
-                        self.fun_search_category = None  # Clear the flag
-                        self._stop_auto_refresh()  # Stop auto-refresh when done
-                        if self.current_view:
-                            self.current_view.write_to_console(
-                                "🎉 All fun searches complete! Check your results! 🎉\n"
-                            )
-                            self.current_view.set_search_running(False)
-                        self.refresh_results()
-                    else:
-                        # More combinations to search - continue
-                        self._run_next_fun_search()
+                # Advance to next search
+                self._advance_fun_search_indices()
+
+                # Check if we're done with all combinations
+                if (self.fun_search_current_word_index >= len(self.fun_search_words)
+                        and self.fun_search_current_padding_index >= len(self.fun_search_padding_levels)):
+                    # Fun search fully complete
+                    self.fun_search_active = False
+                    self.fun_search_category = None  # Clear the flag
+                    self._stop_auto_refresh()  # Stop auto-refresh when done
+                    if self.current_view:
+                        self.current_view.write_to_console(
+                            f"🎉 All {self.fun_search_category} searches complete! Check your results! 🎉\n"
+                        )
+                        self.current_view.set_search_running(False)
+                    self.refresh_results()
                 else:
-                    # Fun search mode - handle the next word in the current sequence
-                    if (self.fun_search_current_word_index < len(self.fun_search_words)):
-                        word = self.fun_search_words[self.fun_search_current_word_index]
-
-                    # Continue with next search in sequence
-                    self._run_next_fun_search()
-
-                    # Check if we've completed all searches in the category
-                    if (self.fun_search_current_word_index >= len(
-                            self.fun_search_words)
-                            and self.fun_search_current_padding_index >= len(
-                                self.fun_search_padding_levels)):
-                        # Fun search fully complete - reset search state
-                        self.fun_search_active = False
-                        if self.current_view:
-                            self.current_view.write_to_console(
-                                f"🎉 All {self.fun_search_category} searches complete! Check your results! 🎉\n"
-                            )
-                            self.current_view.set_search_running(False)
-                        self.refresh_results()
-                        self._stop_auto_refresh()
-                    else:
-                        # More words to search - continue
-                        self._run_next_prank_search()
+                    # More combinations to search - continue
+                    self._run_next_fun_seed_search()  # Corrected method name
             else:
                 # Normal search completion handling
                 self.refresh_results()
@@ -453,9 +427,13 @@ class ApplicationController:
     def refresh_results(self):
         """Refresh results from the database"""
         df = self.database_model.get_dataframe()
-        if df is not None and self.current_view:
-            self.current_view.update_results_table(df)
-        return df is not None
+        if df is not None:
+            if not df.empty:
+                self.current_view.update_results_table(df)
+                return True
+        if self.current_view:
+            self.current_view.write_to_console("⚠️ No results found in the database.\n")
+        return False
 
     def delete_all_results(self):
         """Delete all results from the database
@@ -598,14 +576,14 @@ class ApplicationController:
                 self.current_view.write_to_console(
                     f"🎭 Starting {category} fun seed search!\n")
                 self.current_view.set_search_running(True)
-            return self._run_next_fun_search()
+            return self._run_next_fun_seed_search()
         except Exception as e:
             if self.current_view:
                 messagebox.showerror("Error",
                                      f"Failed to start fun search: {e}")
             return False
 
-    def _run_next_fun_search(self):
+    def _run_next_fun_seed_search(self):
         try:
             if self.fun_search_current_word_index >= len(self.fun_search_words):
                 return False
@@ -759,3 +737,12 @@ class ApplicationController:
     def set_score_desired_negatives(self, value):
         self.config_model.score_desired_negatives = value
         self.config_model.config_modified = True
+
+    def refresh_results_table(self, df):
+        """Update the results table with new data"""
+        if df is None or df.empty:
+            self.write_to_console("⚠️ No data to display in the results table.\n")
+            return
+        # Proceed with updating the table
+        self.results_table.updateModel(df)
+        self.results_table.redraw()

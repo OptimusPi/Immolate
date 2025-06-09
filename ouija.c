@@ -742,9 +742,10 @@ int main(int argc, char **argv)
         printf_s(",Natural Negative Jokers");
     }
     // For Jokers found naturally negative, that were in Needs and/or Wants list!
+    // Also for jokers made negative with skip tag mechanics, that were in needs/wants list!
     if (config.scoreDesiredNegatives)
     {
-        printf_s(",Natural Negative Jokers Desired");
+        printf_s(",Desired Negative Jokers");
     }
     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++)
     {
@@ -849,6 +850,8 @@ int main(int argc, char **argv)
     // printf_s("[HOST] total_potential_batches: %lld\n", total_potential_batches);
     fflush(stdout);
 
+    int is_first_batch = 1; // Track if this is the first batch
+
     for (cl_long batch_idx = 0; batch_idx < total_potential_batches; ++batch_idx)
     {
         if (num_seeds_this_dispatch == 0 && batch_idx == 0)
@@ -902,13 +905,20 @@ int main(int argc, char **argv)
             {
                 OuijaHostResult *result = &mapped_results[i];
                 if (result->seed[0] == '\0')
-                    continue; // Skip if kernel returned empty seed (e.g. filter didn't pass)
+                    continue; // Skip if kernel returned empty seed (e.g., filter didn't pass)
+
                 if (result->TotalScore > batch_high_score)
-                    batch_high_score = result->TotalScore;                
+                    batch_high_score = result->TotalScore;
+
                 if (result->TotalScore >= cutoff)
                 {
+                    if (is_first_batch && result->TotalScore == cutoff)
+                    {
+                        // Skip printing scores equal to the cutoff during the first batch
+                        continue;
+                    }
                     seeds_scored_total++;
-                    printf_s("|%s,%d,", result->seed,result->TotalScore);
+                    printf_s("|%s,%d,", result->seed, result->TotalScore);
                     if (config.scoreNaturalNegatives)
                     {
                         printf_s("%d,", result->NaturalNegativeJokers);
@@ -930,6 +940,13 @@ int main(int argc, char **argv)
             {
                 printf_s("[AUTO] Raising cutoff from %d to %d (highest in batch)\n", cutoff, batch_high_score);
                 cutoff = batch_high_score;
+            }
+            // After processing the first batch, update the cutoff and reset the flag
+            if (is_first_batch)
+            {
+                cutoff = batch_high_score;
+                is_first_batch = 0; // First batch processing is complete
+                printf_s("[AUTO] First batch cutoff set to %d\n", cutoff);
             }
             if (svm_supported)
             {

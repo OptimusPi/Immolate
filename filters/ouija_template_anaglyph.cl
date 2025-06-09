@@ -103,8 +103,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     }
 
     item smallBlindTag = next_tag(inst, ante);
-    if (ante > 1 && smallBlindTag != Negative_Tag)
-      continue;
 
     // Check if negative tag is triggered and calculate applications
     if (smallBlindTag == Negative_Tag) {
@@ -264,7 +262,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
     // Process shop items
     int shCount = (ante == 1) ? 4 : 6;
     if (negativeTagApplications > 0) {
-      shCount = 100;
+      shCount = ante*10;
     }
     for (int sh = 0; sh < shCount; sh++) {
       shopitem shItem = next_shop_item(inst, ante);
@@ -295,6 +293,10 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
         if (negativeTagApplications > 0 && isDesiredJoker && !isNaturallyNegative) {
           canBeMadeNegative = true;
           negativeTagApplications--; // Use one application
+          if (negativeTagApplications == 0) {
+            shCount = 0;
+            break;
+          }
         }
         
         // Score based on config flags
@@ -346,6 +348,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
           } else if (negativeTagApplications > 0) {
             // If negative tag is applied, score it regardless
             result->ScoreWants[x] += 1;
+            negativeTagApplications--; // Use one application
             // Note: Negative joker scoring handled above in main shop processing
           }
         }
