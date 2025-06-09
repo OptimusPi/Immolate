@@ -764,7 +764,8 @@ int main(int argc, char **argv)
     clock_t start_time = clock();
     clock_t ticker = clock();
     if (numSeeds > 0)
-    { // Only print if we are actually searching
+    { 
+        // Only print if we are actually searching
         printf_s("Starting seed search...\n");
         fflush(stdout);
     }
@@ -783,15 +784,6 @@ int main(int argc, char **argv)
     {
         num_seeds_this_dispatch = (numSeeds > batch_capacity) ? batch_capacity : numSeeds;
         seed_offset_for_kernel = 0; // First batch starts at offset 0 from startingSeed
-
-        // Host-side debug print for initial batch
-        // printf_s("[HOST] Launching initial kernel batch: batch_idx=0, seed_offset=%lld, num_seeds=%lld\n", seed_offset_for_kernel, num_seeds_this_dispatch);
-        // printf_s("[HOST] Config: numNeeds=%d, numWants=%d, maxSearchAnte=%d\n", config.numNeeds, config.numWants, config.maxSearchAnte);
-        char seedStr[9] = {0};
-        for (int j = 0; j < 8 && startingSeed.s[j] != '\0'; j++)
-            seedStr[j] = startingSeed.s[j];
-        // printf_s("[HOST] Starting seed: %s\n", seedStr);
-        // fflush(stdout);
 
         printf_s("Setting params for initial batch...\n");
         err = clSetKernelArg(ssKernel, 0, sizeof(cl_char8), &startingSeed);
@@ -918,14 +910,13 @@ int main(int argc, char **argv)
                         continue;
                     }
                     seeds_scored_total++;
-                    printf_s("|%s,%d,", result->seed, result->TotalScore);
-                    if (config.scoreNaturalNegatives)
+                    printf_s("|%s,%d,", result->seed, result->TotalScore);                    if (config.scoreNaturalNegatives)
                     {
-                        printf_s("%d,", result->NaturalNegativeJokers);
+                        printf_s("%d", result->NaturalNegativeJokers);
                     }
                     if (config.scoreDesiredNegatives)
                     {
-                        printf_s("%d,", result->DesiredNegativeJokers);
+                        printf_s("%d", result->DesiredNegativeJokers);
                     }
                     for (int w = 0; w < config.numWants && w < MAX_DESIRES_HOST; w++)
                     {

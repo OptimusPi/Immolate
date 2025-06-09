@@ -24,13 +24,7 @@ void handle_the_soul(instance *inst, int ante, __constant OuijaConfig *config,
   // Score based on config flags
   if (config->scoreNaturalNegatives && isNaturallyNegative) {
     result->NaturalNegativeJokers += 1;
-  }
-  if (config->scoreDesiredNegatives && isDesiredJoker && isNaturallyNegative) {
-    result->DesiredNegativeJokers += 1;
-  }
-
-  if (soulJoker.joker == Showman) {
-    inst->params.showman = true;
+    result->DesiredNegativeJokers += 1; // we always desire negative legendaries! :) 
   }
 
   // Score needs for Soul and the joker it creates
@@ -88,6 +82,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
   // Negative tag tracking
   int negativeTagApplications = 0; // Available negative tag applications
+  bool zoneTriggered = false; // Whether we are in the trigger zone
 
   for (int ante = 1; ante <= maxSearchAnte && valid; ante++) {
     init_unlocks(inst, ante, false);
@@ -144,8 +139,124 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
       }
     }
 
+    // Process shop items
+    int shCount = (ante == 1) ? 4 : 6;
+    bool inTriggerZone = false;
+    if (negativeTagApplications > 0) {
+      shCount = 20;
+    }
+    for (int sh = 0; sh < shCount; sh++) {
+      shopitem shItem = next_shop_item(inst, ante);
+      if (shItem.value == RETRY)
+        continue;
+
+      if (shItem.value == Showman) {
+        inst->params.showman = true;
+      }      
+      if (shItem.type == ItemType_Joker) {
+        // Score negative jokers based on config flags
+        bool isNaturallyNegative = (shItem.joker.edition == Negative);
+        bool isDesiredJoker = false;
+        bool canBeMadeNegative = false;
+
+        // Check if this joker is in our wants list (desired)
+        for (int x = 0; x < clampedNumWants; x++) {
+          if ((config->Wants[x].jokeredition != RETRY) &&
+              (config->Wants[x].value == shItem.joker.joker) &&
+              ((config->Wants[x].jokeredition == No_Edition) ||
+               (config->Wants[x].jokeredition == shItem.joker.edition))) {
+            isDesiredJoker = true;
+            break;
+          }
+        }
+
+        // Check if this joker is in our needs list (desired)
+        for (int x = 0; x < clampedNumWants; x++) {
+          if ((config->Needs[x].jokeredition != RETRY) &&
+              (config->Needs[x].value == shItem.joker.joker) &&
+              ((config->Needs[x].jokeredition == No_Edition) ||
+               (config->Needs[x].jokeredition == shItem.joker.edition))) {
+            isDesiredJoker = true;
+            break;
+          }
+        }
+
+        // Check if we can make this joker negative via skip tag mechanics
+        // This happens when we have negative tag applications available and can skip to make jokers negative
+        if (negativeTagApplications > 0 && isDesiredJoker) {
+          if (inTriggerZone == false)
+            inTriggerZone = true; // We are now in the trigger zone
+        }
+
+        if (inTriggerZone){
+          if(negativeTagApplications > 0) {
+            canBeMadeNegative = true;
+          }
+          else {
+            inTriggerZone = false; // Exit trigger zone after using applications
+          }
+        }
+        
+        // Score based on config flags
+        if (config->scoreNaturalNegatives && isNaturallyNegative) {
+          result->NaturalNegativeJokers += 1;
+        }
+        if (config->scoreDesiredNegatives && isDesiredJoker && (isNaturallyNegative || canBeMadeNegative)) {
+          result->DesiredNegativeJokers += 1;
+        }
+      }
+
+      // Score needs from shop
+      for (int x = 0; x < clampedNumNeeds; x++) {
+        bool jokerMatch =
+            (shItem.type == ItemType_Joker) &&
+            (config->Needs[x].jokeredition != RETRY) &&
+            (config->Needs[x].value == shItem.joker.joker) &&
+            ((config->Needs[x].jokeredition == No_Edition) ||
+             (config->Needs[x].jokeredition == shItem.joker.edition));
+        bool regularMatch = (config->Needs[x].value == shItem.value) &&
+                            (shItem.type != ItemType_Joker);
+
+        if (jokerMatch || regularMatch) {
+          ScoreNeeds[x] = true;
+        }
+      }
+
+      // Score wants from shop with proper slot management
+      for (int x = 0; x < clampedNumWants; x++) {
+        bool jokerMatch =
+            (shItem.type == ItemType_Joker) &&
+            (config->Wants[x].jokeredition != RETRY) &&
+            (config->Wants[x].value == shItem.joker.joker) &&
+            ((config->Wants[x].jokeredition == No_Edition) ||
+             (config->Wants[x].jokeredition == shItem.joker.edition));
+        bool regularMatch = (config->Wants[x].value == shItem.value) &&
+                            (shItem.type != ItemType_Joker);
+
+        if (regularMatch) {
+          // Regular items always get scored
+          result->ScoreWants[x] += 1;        
+        } else if (jokerMatch) {
+          // Check Showman duplicate rule          
+          bool showmanAllows =
+              (result->ScoreWants[x] == 0) || inst->params.showman;
+          if (showmanAllows) {
+            result->ScoreWants[x] += 1;
+            // Note: Negative joker scoring handled above in main shop processing
+          } else if (negativeTagApplications > 0 && 
+                     config->Wants[x].jokeredition == No_Edition &&
+                     shItem.joker.edition == No_Edition) {
+            // If negative tag is applied to make a positive joker negative, score it
+            result->ScoreWants[x] += 1;
+            negativeTagApplications--; // Use one application
+            // Note: Negative joker scoring handled above in main shop processing
+          }
+        }
+      }
+    }
+
     // Process packs
-    int packChecks = (ante == 1) ? 4 : 20;
+    int packChecks = (ante == 1) ? 4 : 6;
     for (int p = 0; p < packChecks; p++) {
       pack _pack = pack_info(next_pack(inst, ante));
 
@@ -205,12 +316,14 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
 
         for (int t = 0; t < _pack.size; t++) {
           if (buffoonJokers[t].joker == RETRY)
-            continue;          if (buffoonJokers[t].joker == Showman) {
+            continue;          
+          if (buffoonJokers[t].joker == Showman) {
             inst->params.showman = true;
           }
 
           // Score negative jokers based on config flags
           bool isNaturallyNegative = (buffoonJokers[t].edition == Negative);
+          bool isTagNegative = false;
           bool isDesiredJoker = false;
           
           // Check if this joker is in our wants list (desired)
@@ -223,7 +336,7 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
               break;
             }
           }
-          
+
           // Score based on config flags
           if (config->scoreNaturalNegatives && isNaturallyNegative) {
             result->NaturalNegativeJokers += 1;
@@ -254,102 +367,6 @@ void ouija_filter(instance *inst, __constant OuijaConfig *config,
             if (jokerMatch) {
               result->ScoreWants[x] += 1;
             }
-          }
-        }
-      }
-    }
-
-    // Process shop items
-    int shCount = (ante == 1) ? 4 : 6;
-    if (negativeTagApplications > 0) {
-      shCount = ante*10;
-    }
-    for (int sh = 0; sh < shCount; sh++) {
-      shopitem shItem = next_shop_item(inst, ante);
-      if (shItem.value == RETRY)
-        continue;
-
-      if (shItem.value == Showman) {
-        inst->params.showman = true;
-      }      if (shItem.type == ItemType_Joker) {
-        // Score negative jokers based on config flags
-        bool isNaturallyNegative = (shItem.joker.edition == Negative);
-        bool isDesiredJoker = false;
-        bool canBeMadeNegative = false;
-        
-        // Check if this joker is in our wants list (desired)
-        for (int x = 0; x < clampedNumWants; x++) {
-          if ((config->Wants[x].jokeredition != RETRY) &&
-              (config->Wants[x].value == shItem.joker.joker) &&
-              ((config->Wants[x].jokeredition == No_Edition) ||
-               (config->Wants[x].jokeredition == shItem.joker.edition))) {
-            isDesiredJoker = true;
-            break;
-          }
-        }
-        
-        // Check if we can make this joker negative via skip tag mechanics
-        // This happens when we have negative tag applications available and can skip to make jokers negative
-        if (negativeTagApplications > 0 && isDesiredJoker && !isNaturallyNegative) {
-          canBeMadeNegative = true;
-          negativeTagApplications--; // Use one application
-          if (negativeTagApplications == 0) {
-            shCount = 0;
-            break;
-          }
-        }
-        
-        // Score based on config flags
-        if (config->scoreNaturalNegatives && isNaturallyNegative) {
-          result->NaturalNegativeJokers += 1;
-        }
-        if (config->scoreDesiredNegatives && isDesiredJoker && (isNaturallyNegative || canBeMadeNegative)) {
-          result->DesiredNegativeJokers += 1;
-        }
-      }
-
-      // Score needs from shop
-      for (int x = 0; x < clampedNumNeeds; x++) {
-        bool jokerMatch =
-            (shItem.type == ItemType_Joker) &&
-            (config->Needs[x].jokeredition != RETRY) &&
-            (config->Needs[x].value == shItem.joker.joker) &&
-            ((config->Needs[x].jokeredition == No_Edition) ||
-             (config->Needs[x].jokeredition == shItem.joker.edition));
-        bool regularMatch = (config->Needs[x].value == shItem.value) &&
-                            (shItem.type != ItemType_Joker);
-
-        if (jokerMatch || regularMatch) {
-          ScoreNeeds[x] = true;
-        }
-      }
-
-      // Score wants from shop with proper slot management
-      for (int x = 0; x < clampedNumWants; x++) {
-        bool jokerMatch =
-            (shItem.type == ItemType_Joker) &&
-            (config->Wants[x].jokeredition != RETRY) &&
-            (config->Wants[x].value == shItem.joker.joker) &&
-            ((config->Wants[x].jokeredition == No_Edition) ||
-             (config->Wants[x].jokeredition == shItem.joker.edition));
-        bool regularMatch = (config->Wants[x].value == shItem.value) &&
-                            (shItem.type != ItemType_Joker);
-
-        if (regularMatch) {
-          // Regular items always get scored
-          result->ScoreWants[x] += 1;
-        } else if (jokerMatch) {
-          // Check Showman duplicate rule          
-          bool showmanAllows =
-              (result->ScoreWants[x] == 0) || inst->params.showman;
-          if (showmanAllows) {
-            result->ScoreWants[x] += 1;
-            // Note: Negative joker scoring handled above in main shop processing
-          } else if (negativeTagApplications > 0) {
-            // If negative tag is applied, score it regardless
-            result->ScoreWants[x] += 1;
-            negativeTagApplications--; // Use one application
-            // Note: Negative joker scoring handled above in main shop processing
           }
         }
       }

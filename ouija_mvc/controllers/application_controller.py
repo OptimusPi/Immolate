@@ -531,9 +531,9 @@ class ApplicationController:
         try:
             fun_words = {
                 "LOL": ["LMAO", "ROFL", "HAHA", "JOKE", "MEME", "EPIC", "FAIL", "DERP", "NOOB", "YOLO", "SWAG", "REKT", "TROLL", "PLEB", "KEKS", "LULZ"],
-                "GROSS": ["FART", "BURP", "SNOT", "POOP", "SLIME", "YUCK", "EWWW", "SICK", "VOMIT", "GUNK", "CRUD", "MOLD", "GRIME", "BILE", "DROOL", "SCUM"],
-                "NSFW": ["SEXY", "BOOB", "BUTT", "DAMN", "HELL", "SUCK", "BEER", "WINE", "SHOT", "BLOW", "DRUG", "WEED", "HIGH", "DOPE", "ACID", "BUZZ"],
-                "COOL": ["FIRE", "DOPE", "SICK", "EPIC", "RAGE", "WILD", "BOSS", "HERO", "STAR", "GOLD", "RICH", "FAST", "MEGA", "HUGE", "ROCK", "KING"]
+                "GROSS": ["FART", "BUTT", "BURP", "SNOT", "POOP", "SLIME", "YUCK", "EWWW", "SICK", "VOMIT", "GUNK", "CRUD", "MOLD", "GRIME", "BILE", "DROOL", "SCUM"],
+                "NSFW": ["SEXY", "BOOB", "ASSS", "PENIS", "PUSSY", "COCK", "PUSSY", "SQUIRT", "WET", "THROB", "CUMMY", "CUM", "CUM", "CLIT", "SHIT", "HELL", "SUCK", "BEER", "WINE", "FUCK", "BLOW", "DRUG", "WEED", "HIGH", "DOPE", "ACID", "CUNT"],
+                "COOL": ["PILUV", "FIRE", "DOPE", "SICK", "EPIC", "RAGE", "WILD", "YEAH", "BOSS", "HERO", "STAR", "GOLD", "RICH", "DAMN", "MEGA", "HUGE", "ROCK", "KING"]
             }
 
             if category not in fun_words:

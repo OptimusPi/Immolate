@@ -69,7 +69,16 @@ try {
     # For MSBuild directly if you have a solution (adjust path/name as needed):
     # msbuild Ouija.sln /p:Configuration=Release
 
-    Write-Host "Build completed successfully."
+    $ouijaExeSource = Join-Path $BuildDir "Release" "Ouija.exe"
+    if (Test-Path $ouijaExeSource) {
+        $ouijaExeTarget = Join-Path $ScriptDir "Ouija.exe"
+        Copy-Item -Path $ouijaExeSource -Destination $ouijaExeTarget -Force
+        Write-Host "Build completed successfully."
+    } else {
+        Write-Error "Ouija.exe not found at $ouijaExeSource. Build might have failed."
+        exit 1
+    }
+
 
     # 4. Precompile Kernels (if -PrecompileKernels is specified and build was successful)
     if ($PrecompileKernels) {
@@ -87,9 +96,7 @@ try {
         
         if (-not (Test-Path $sourceExePath)) {
             Write-Error "Ouija.exe not found at $sourceExePath. Build might have failed. Cannot pre-compile kernels."
-            # Consider exiting or returning if this is critical
         } else {
-            # Temporarily copy Ouija.exe to the project root ($PSScriptRoot)
             $ouijaExeInRootDir = Join-Path $PSScriptRoot "Ouija.exe" # Target path in root: X:\\Immolate\\Ouija.exe
             
             try {
