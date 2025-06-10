@@ -1,6 +1,14 @@
 #ifndef FUNCTIONS_CL
 #define FUNCTIONS_CL
 
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file functions.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
 typedef struct Card {
     item base;
     item enhancement;

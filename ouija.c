@@ -910,7 +910,8 @@ int main(int argc, char **argv)
                         continue;
                     }
                     seeds_scored_total++;
-                    printf_s("|%s,%d,", result->seed, result->TotalScore);                    if (config.scoreNaturalNegatives)
+                    printf_s("|%s,%d,", result->seed, result->TotalScore);                    
+                    if (config.scoreNaturalNegatives)
                     {
                         printf_s("%d", result->NaturalNegativeJokers);
                     }

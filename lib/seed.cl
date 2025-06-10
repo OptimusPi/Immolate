@@ -1,6 +1,14 @@
 #ifndef __SEED_CL_H_
 #define __SEED_CL_H_
 
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file seed.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
 // Some important definitions
 __constant char SEEDCHARS[] = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 __constant int NUM_CHARS = 35;

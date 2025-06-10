@@ -1,6 +1,14 @@
 #ifndef ITEMS_H
 #define ITEMS_H
 
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file items.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
 // Contains every kind of thing you could search for!
 
 typedef enum Item {

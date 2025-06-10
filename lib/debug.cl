@@ -1,6 +1,14 @@
 #ifndef DEBUG_CL
 #define DEBUG_CL
 
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file debug.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
 void print_item(item i) {
     switch(i) {
         case RETRY: printf("RETRY"); break;

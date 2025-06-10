@@ -1,5 +1,15 @@
 #ifndef __CACHE_H_
 #define __CACHE_H_
+
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file cache.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
+
 // RNG Cache
 typedef enum RandomType {
     R_Joker_Common,

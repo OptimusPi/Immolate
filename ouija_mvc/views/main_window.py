@@ -880,17 +880,19 @@ class MainWindow:
         """Update results table with new data and handle auto cutoff if enabled"""
         self.latest_df = dataframe
         if dataframe is not None and not dataframe.empty:
-            # Ensure all columns are of a robust type for display
-            display_df = dataframe.copy()
-            for col in display_df.columns:
-                if pd.api.types.is_integer_dtype(display_df[col]):
-                    display_df[col] = display_df[col].fillna(0)  # Fill NaN for integers
-                elif pd.api.types.is_float_dtype(display_df[col]):
-                    display_df[col] = display_df[col].fillna(0).map(lambda x: f'{x:.2f}')  # Format floats only
+            # Log the size of the dataframe
+            print(f"[DEBUG] Results DataFrame size: {len(dataframe)}")
 
-            self.pt.model.df = display_df
+            # Ensure the table can handle the number of rows
+            max_rows = 1000  # Example limit for the table
+            if len(dataframe) > max_rows:
+                print(f"[DEBUG] Truncating results to {max_rows} rows.")
+                dataframe = dataframe.head(max_rows)
+
+            # Update the table with the truncated or full dataframe
+            self.pt.model.df = dataframe
         else:
-            self.pt.model.df = pd.DataFrame()
+            print("[DEBUG] No results to display or DataFrame is empty.")
 
         self.pt.redraw()
         self._adjust_table_column_widths()
@@ -1421,7 +1423,7 @@ class MainWindow:
 
     def on_score_desired_negatives_changed(self, *args):
         """Handle changes to the score tag skip negatives checkbox"""
-        self.controller.set_setting('score_tag_skip_negatives',
+        self.controller.set_setting('score_desired_negatives',
                                     self.score_desired_negatives_var.get())
 
     def on_gpu_batch_changed(self, event=None):
@@ -1654,20 +1656,19 @@ class MainWindow:
         """Update results table with new data and handle auto cutoff if enabled"""
         self.latest_df = dataframe
         if dataframe is not None and not dataframe.empty:
-            # Ensure all columns are of a robust type for display
-            display_df = dataframe.copy()
-            for col in display_df.columns:
-                if col == "Seed":
-                    # Ensure Seed column is treated as 8-character string
-                    display_df[col] = display_df[col].astype(str).str.zfill(8)
-                elif pd.api.types.is_integer_dtype(display_df[col]):
-                    display_df[col] = display_df[col].fillna(0)  # Fill NaN for integers
-                elif pd.api.types.is_float_dtype(display_df[col]):
-                    display_df[col] = display_df[col].fillna(0).map(lambda x: f'{x:.2f}')  # Format floats only
+            # Log the size of the dataframe
+            print(f"[DEBUG] Results DataFrame size: {len(dataframe)}")
 
-            self.pt.model.df = display_df
+            # Ensure the table can handle the number of rows
+            max_rows = 1000  # Example limit for the table
+            if len(dataframe) > max_rows:
+                print(f"[DEBUG] Truncating results to {max_rows} rows.")
+                dataframe = dataframe.head(max_rows)
+
+            # Update the table with the truncated or full dataframe
+            self.pt.model.df = dataframe
         else:
-            self.pt.model.df = pd.DataFrame()
+            print("[DEBUG] No results to display or DataFrame is empty.")
 
         self.pt.redraw()
         self._adjust_table_column_widths()

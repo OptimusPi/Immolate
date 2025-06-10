@@ -15,3 +15,4 @@ xlsxwriter>=3.0.0
 
 # UI theme and styling
 pillow>=8.0.0
+pandastable>=0.13.0

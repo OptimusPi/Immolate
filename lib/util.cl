@@ -1,6 +1,14 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file util.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
 // Pseudohash
 typedef struct Text {
     char str[256];

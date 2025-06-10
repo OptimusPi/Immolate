@@ -1,6 +1,14 @@
 #ifndef INSTANCE_H
 #define INSTANCE_H
 
+/**
+ * @brief This file is part of a library that was originally forked from SpectralPack/Immolate on GitHub.
+ *
+ * @file instance.cl
+ *
+ * @author SpectralPack/Immolate
+ */
+
 // Contains settings used for different packs
 // Level means level of the voucher, level 0 -> no voucher, level 1 -> base voucher, level 2 -> upgraded voucher
 typedef struct InstanceParameters {
